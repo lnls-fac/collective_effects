@@ -14,9 +14,16 @@ nu2 = (ones(size(epr,1),1)*abs(w/c)).^2.*(1 - bet^2*epr.*mur);
 
 Zl = -squeeze(1i*L*w/(2*pi*ep0*(bet*c)^2*gam^2) .*alphaTM(0, epr, mur, bet, nu, nu2, b)); % minus signal to compatibilize with Chao's convention
 Zv = -squeeze(1i*L*w.^2/(4*pi*ep0*c^2*(bet*c)*gam^4) .*alphaTM(1, epr, mur, bet, nu, nu2, b));% minus signal to compatibilize with Chao's convention
-% if filt
-%     Zv = suaviza(w, Zv,n,lim_w);
-% end
+
+% The code cant handle w = 0;
+ind0 = find(w == 0);
+if ~isempty(ind0)
+    indht0 = find(w > 0);
+    [~,indht0s] = sort(w(indht0));
+    Zl(ind0) = real(Zl(indht0(indht0s(1))));
+    Zv(ind0) = 0 + 1i*imag(Zv(indht0(indht0s(1))));
+end
+
 Zh = Zv;
 
 
@@ -36,11 +43,14 @@ function M = Mtil(m, epr, mur, bet, nu, nu2, b)
 
 
 for i = 1:length(b) % lembrando que length(b) = número de camadas - 1
-    
+   
     x = nu(i+1,:)*b(i);
     y = nu(i,:)*b(i);
     
     if i<length(b)
+        
+        D = zeros(4,4,size(nu,2));
+        
         z = nu(i+1,:)*b(i+1);
         
         if ~any(real(z)<0)
@@ -51,16 +61,11 @@ for i = 1:length(b) % lembrando que length(b) = número de camadas - 1
             B = besselk(m,z(ind));
             C = besseli(m,x(ind));
             E = besselk(m,x(ind));
-                        
-            D(2,2,ind) = -B.*C./(A.*E); D(2,1,ind) =0; D(2,3,ind) =0; D(2,4,ind) = 0;
-            D(4,4,ind) = -B.*C./(A.*E); D(4,2,ind) =0; D(4,3,ind) =0; D(4,1,ind) = 0;
             
-            D(2,2,~ind) =  - exp(-2*(z(~ind)-x(~ind))); D(2,1,~ind) =0; D(2,3,~ind) =0; D(2,4,~ind) = 0;
-            D(4,4,~ind) =  - exp(-2*(z(~ind)-x(~ind))); D(4,2,~ind) =0; D(4,3,~ind) =0; D(4,1,~ind) = 0;
-
-            D(1,1,:) =  1; D(1,2,:) =0; D(1,3,:) =0; D(1,4,:) = 0;
-            D(3,3,:) =  1; D(3,2,:) =0; D(3,1,:) =0; D(3,4,:) = 0;
-            
+            D(1,1,:) =  1;
+            D(2,2,ind) = -B.*C./(A.*E); D(2,2,~ind) =  - exp(-2*(z(~ind)-x(~ind)));
+            D(3,3,:) =  1;
+            D(4,4,ind) = -B.*C./(A.*E); D(4,4,~ind) =  - exp(-2*(z(~ind)-x(~ind)));
         end
     end
     
@@ -120,14 +125,4 @@ for i =1:size(A,1)
             C(i,j,:) = C(i,j,:) + A(i,k,:).*B(k,j,:);
         end
     end
-end
-
-function Z = suaviza(w, Zv, n, lim_w)
-
-Z = Zv;
-indx = abs(w) < lim_w;
-ini = sum(abs(indx-1))/2;
-for j=1:length(Zv(indx))
-    idx = ini+j-1;
-    Z(idx) = sum(Zv((idx-n/2):(idx+n/2)))/(n+1);
 end
