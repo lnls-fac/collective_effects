@@ -62,8 +62,8 @@ wrl = wr .* Ql ./ Q;
 % % % figure; plot(tau2,real(wake2(1:end/2))');
 % % figure; plot(1:length(wake3),[imag(wake3);real(wake3)]);
 
-n3 = 20001;
-w_max = 1e12;
+n3 = 200001;
+w_max = 1e14;
 w3 = linspace(0,w_max,n3); 
 w3 = [-w3(2:end), fliplr(w3(2:end))]; %;
 
@@ -74,7 +74,7 @@ for j = 1: length(epb)
     mur(j,:) = mub(j)*(1-1i.*sign(w3).*tan(angm(j)));
 end
 [Zl3, Zv3, Zh3] = lnls_calc_impedance_multilayer_round_pipe(w3, epr, mur, b, L, E);
-Zv3 = conv(Zv3,ones(1,100)/100,'same');
+% Zv3 = conv(Zv3,ones(1,100)/100,'same');
 
 
 % Zl3 = Rs./(1+1i*Q*(wr./w3 - w3/wr));
@@ -83,7 +83,22 @@ Zv3 = conv(Zv3,ones(1,100)/100,'same');
 tau3 = -(0:n3-1)*pi/w_max;
 wake3 = ifft(-1i/pi*Zv3,'symmetric')*w_max;
 wake3 = wake3(1:n3);
-wakeST = wr*Rs/radius/Ql*sin(wrl*tau3).*exp(wr*tau3/(2*Q));
+
+
+% wakeST = wr*Rs/radius/Ql*sin(wrl*tau3).*exp(wr*tau3/(2*Q));
+radius = 12e-3;
+sigma = 5.9e7;
+Z0 = c*4*pi*1e-7;
+a = 3/sqrt(2*pi)/4;
+p = 2.7;
+L = 480;
+% tau = -(0:1000)*1e-12;
+s0 = (2*radius^2/Z0/sigma)^(1/3);
+W0 = c*Z0/4/pi * 2*s0*L/radius^4;
+wakeST = beta_imp*W0*(8/3*exp(tau3*c/s0).*sin(-tau3*c*sqrt(3)/s0-pi/6) ...
+    + 1/sqrt(2*pi)*1./(a^p + (-tau3*c/(4*s0)).^(p/2)).^(1/p));
+
+
 figure; plot(tau3,[imag(wake3);real(wake3);wakeST]);
 figure; plot(w3,[real(Zv3);imag(Zv3)]);
 
