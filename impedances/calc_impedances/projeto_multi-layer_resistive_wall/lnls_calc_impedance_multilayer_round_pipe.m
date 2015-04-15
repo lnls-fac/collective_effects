@@ -24,6 +24,10 @@ if ~isempty(ind0)
     Zv(ind0) = 0 + 1i*imag(Zv(indht0(indht0s(1))));
 end
 
+% n=10;
+% fil   = exp(-((-n:n)/(n/5)).^2)/sqrt(pi)/n*5;
+% Zv = conv(Zv,fil,'same');
+
 Zh = Zv;
 
 

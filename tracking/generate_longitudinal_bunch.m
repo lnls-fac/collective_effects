@@ -28,25 +28,6 @@ if wake.long.sim && isfield(wake.long,'resonator')
     wakeF(ind) = wakeF(ind)/2;
     wakeF = wakeF * ring.rev_time*bunch.I_b;
 end
-if wake.long.sim && isfield(wake.long,'wall')
-    wr = wake.long.resonator.wr;
-    Rs = wake.long.resonator.Rs;
-    Q  = wake.long.resonator.Q;
-    
-    Ql = sqrt(Q.^2 - 1/4);
-    wrl = wr .* Ql ./ Q;
-    
-    for ii=1:length(wr)
-        phasor = exp(tau*(1i*wrl(ii)+wr(ii)/(2*Q(ii))));
-        wakeF = wakeF - wr(ii)*Rs(ii)/Q(ii)*(real(phasor) + 1/(2*Ql)*imag(phasor));
-    end
-    ind = tau > 0;
-    wakeF(ind) = 0;
-    ind = tau == 0;
-    wakeF(ind) = wakeF(ind)/2;
-    wakeF = wakeF * ring.rev_time*bunch.I_b;
-end
-
 
 
 % Now we iterate to get the equilibrium distribution

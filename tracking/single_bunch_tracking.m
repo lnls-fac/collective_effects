@@ -172,27 +172,6 @@ if wake.dipo.track && isfield(wake.dipo,'resonator')
 %         kickt(I) = kickt(I) - betax(ii)*x(I).* wr(ii)*Rs(ii)/Q(ii).*(real(kik) + 1/(2*Ql(ii))*imag(kik));
     end
 end
-if wake.dipo.track && isfield(wake.dipo,'wall')
-    wr = wake.dipo.resonator.wr;
-    Rs = wake.dipo.resonator.Rs;
-    Q  = wake.dipo.resonator.Q;
-    betax = wake.dipo.resonator.beta;
-    Ql = sqrt(Q.^2 - 1/4);
-    wrl = wr .* Ql ./ Q;
-    
-    [sortedTau, I] = sort(tau,'descend');
-    W_pot = zeros(1,length(x)+1);
-    for ii=1:length(wr)
-        W_pot(1) = 0;
-        W_pot(2:end) = cumsum(exp(-sortedTau*(1i*wrl(ii)+wr(ii)/(2*Q(ii))))*betax(ii).*x(I));
-        kik = W_pot(1:end-1) .* exp( sortedTau*(1i*wrl(ii)+wr(ii)/(2*Q(ii))));
-
-        kickx(I) = kickx(I) - wr(ii)*Rs(ii)/Ql(ii) * imag(kik);
-%         % This is the longitudinal kick given by the transverse wake:
-%         % Chao's book, p. 212
-%         kickt(I) = kickt(I) - betax(ii)*x(I).* wr(ii)*Rs(ii)/Q(ii).*(real(kik) + 1/(2*Ql(ii))*imag(kik));
-    end
-end
 
 
 if  wake.quad.track && isfield(wake.quad,'general')
@@ -223,29 +202,6 @@ if wake.quad.track && isfield(wake.quad,'resonator')
 %         kickt(I) = kickt(I) - (betax(ii)*x(I)).^2.* wr(ii)*Rs(ii)/Q(ii).*(real(kik) + 1/(2*Ql)*imag(kik));
     end
 end
-if wake.quad.track && isfield(wake.quad,'wall')
-    wr = wake.quad.resonator.wr;
-    Rs = wake.quad.resonator.Rs;
-    Q  = wake.quad.resonator.Q;
-    betax = wake.quad.resonator.beta;
-    
-    Ql = sqrt(Q.^2 - 1/4);
-    wrl = wr .* Ql ./ Q;
-    
-    if ~exist('sortedTau','var'), [sortedTau, I] = sort(tau,'descend');end
-    W_pot = zeros(1,length(x)+1);
-    for ii=1:length(wr)
-        W_pot(1) = 0;
-        W_pot(2:end) = cumsum( exp(-sortedTau*(1i*wrl(ii)+wr(ii)/(2*Q(ii)))));
-        kik = W_pot(1:end-1) .* exp( sortedTau*(1i*wrl(ii)+wr(ii)/(2*Q(ii))));
-
-        kickx(I) = kickx(I) - x(I) .* betax(ii)* wr(ii)*Rs(ii)/Ql(ii) .* imag(kik);
-        
-%         % This is the longitudinal kick given by the transverse wake:
-%         % Not in Chao's book, but easily derived
-%         kickt(I) = kickt(I) - (betax(ii)*x(I)).^2.* wr(ii)*Rs(ii)/Q(ii).*(real(kik) + 1/(2*Ql)*imag(kik));
-    end
-end
 
 
 if wake.long.track && isfield(wake.long,'general')
@@ -254,24 +210,6 @@ if wake.long.track && isfield(wake.long,'general')
     kickt = kickt - sum(kik);
 end
 if wake.long.track && isfield(wake.long,'resonator')
-    wr = wake.long.resonator.wr;
-    Rs = wake.long.resonator.Rs;
-    Q  = wake.long.resonator.Q;
-    
-    Ql = sqrt(Q.^2 - 1/4);
-    wrl = wr .* Ql ./ Q;
-    
-    if ~exist('sortedTau','var'), [sortedTau, I] = sort(tau,'descend'); end
-   W_pot = zeros(1,length(tau)+1);
-    for ii=1:length(wr)
-        W_pot(1) = 0;
-        W_pot(2:end) = cumsum( exp(-sortedTau*(1i*wrl(ii)+wr(ii)/(2*Q(ii)))));
-        kik = W_pot(1:end-1) .* exp( sortedTau*(1i*wrl(ii)+wr(ii)/(2*Q(ii))));
-        
-        kickt(I) = kickt(I) - wr(ii)*Rs(ii)/Q(ii) * (1/2 + real(kik) + 1/(2*Ql)*imag(kik));
-    end
-end
-if wake.long.track && isfield(wake.long,'wall')
     wr = wake.long.resonator.wr;
     Rs = wake.long.resonator.Rs;
     Q  = wake.long.resonator.Q;
