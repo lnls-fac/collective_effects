@@ -11,10 +11,10 @@ ring.etap     = 0;
 ring.har_num  = 864;
 ring.tune     = 13.117;
 ring.dtunedp  = 0.0;
-ring.dtunedj  = 200000;
+ring.dtunedj  = 000000;
 
-bunch.num_part = 10000;
-bunch.I_b      = 3.0e-3;
+bunch.num_part = 600;
+bunch.I_b      = 1.4e-3;
 
 tau = (-1000:1000)*1e-12;
 V = 3.0e6;
@@ -30,6 +30,7 @@ bunch.emit     = 271e-12;
 
 
 Zovern = 0.2;
+radius = 12e-3;
 fr  = 2.4* c/(radius*2*pi); 
 Rs = Zovern*fr*ring.rev_time;
 Q = 1;
@@ -38,75 +39,48 @@ Ql = sqrt(Q.^2 - 1/4);
 wrl = wr .* Ql ./ Q;
 
 % load impedance;
-w = [0, logspace(0,18,20000)];
+% w = [0, logspace(4,18,20000)];
 % budget = sirius_impedance_budget(w,'ring','phase_1');
 % budgetbckup = budget;
 % plot_impedances(w,budget,true,'log','log',false);
-
-
 % budget = budgetbckup(end);
-Zl = zeros(size(w));
-Zv = zeros(size(w));
-Zh = zeros(size(w));
-for i=1:length(budget)
-    Zl = Zl + budget{i}.quantity * budget{i}.Zl;
-    Zv = Zv + budget{i}.quantity * budget{i}.Zv * budget{i}.betay;
-    Zh = Zh + budget{i}.quantity * budget{i}.Zh * budget{i}.betax;
-end
-clear total_budget;
-total_budget{1}.name = 'All Impedances';
-total_budget{1}.Zl = Zl;
-total_budget{1}.Zv = Zv;
-total_budget{1}.Zh = Zh;
-total_budget{1}.quantity = 1;
 
-% plot_impedances(w,total_budget,false,'log','log',false);
+
 
 tau  = -[0, logspace(-14,-9,300)];
+% [wakel,wakeh,wakev] = getwake_from_budget(w,budget,tau);
 
-wakel_fun = (@(x)interp1(w,Zv,x,'linear',0));
-% wakel_fun = (@(x)Rs./(1+1i*Q*(wr./x - x/wr)));
-
-wakel = fourier_transform_by_quadgk(wakel_fun,tau,'trans',1e-5,16);
-
-wakelST = wr*Rs/Q*(cos(wrl*tau) + 1/(2*Ql)*sin(wrl*tau)).*exp(wr*tau/(2*Q));
-figure; plot(tau,[wakel;wakelST]);
-return;
 
 clear wake;
 wake.long.sim            = true;
 wake.long.track          = false;
 wake.long.general.tau    = tau;
-% wake.long.general.wake = wr*Rs/Q*(cos(wrl*tau) + 1/(2*Ql)*sin(wrl*tau)).*exp(wr*tau/(2*Q));
-% wake.long.general.wake(1) = wake.long.wake(1)/2;
-wake.long.resonator.wr   = wr;
-wake.long.resonator.Rs   = Rs;
-wake.long.resonator.Q    = Q;
+wake.long.general.wake = wakel;
+% wake.long.resonator.wr   = wr;
+% wake.long.resonator.Rs   = Rs;
+% wake.long.resonator.Q    = Q;
 
 
 beta_imp = 11;
 Rs = Zovern*fr*ring.rev_time/radius;
 
-tau = -(0:1000)*1e-12;
-
-
 wake.dipo.track          = true;
-% wake.dipo.general.tau  = tau;
-% wake.dipo.general.wake = beta_imp*wr*Rs/Ql*sin(wrl*tau).*exp(wr*tau/(2*Q));
-wake.dipo.resonator.wr   = wr;
-wake.dipo.resonator.Rs   = Rs;
-wake.dipo.resonator.Q    = Q;
-wake.dipo.resonator.beta = beta_imp;
+wake.dipo.general.tau  = tau;
+wake.dipo.general.wake = wakev;
+% wake.dipo.resonator.wr   = wr;
+% wake.dipo.resonator.Rs   = Rs;
+% wake.dipo.resonator.Q    = Q;
+% wake.dipo.resonator.beta = beta_imp;
 
 
 Rs = -Rs;
 wake.quad.track          = false;
 % wake.quad.general.tau  = tau;
 % wake.quad.general.wake = beta_imp*wr*Rs/Ql*sin(wrl*tau).*exp(wr*tau/(2*Q));
-wake.quad.resonator.wr   = wr;
-wake.quad.resonator.Rs   = Rs;
-wake.quad.resonator.Q    = Q;
-wake.quad.resonator.beta = beta_imp;
+% wake.quad.resonator.wr   = wr;
+% wake.quad.resonator.Rs   = Rs;
+% wake.quad.resonator.Q    = Q;
+% wake.quad.resonator.beta = beta_imp;
 
 
 wake.feedback.track = false;

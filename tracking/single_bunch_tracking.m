@@ -31,10 +31,10 @@ x  =  sqrt(emitx*betx).*cos(phasx) + etax*en;
 xp = -sqrt(emitx/betx).*sin(phasx) + etxp*en;
 
 pl_en   = false;
-pl_x    = false;
+pl_x    = true;
 pl_sc3  = false;
 pl_sc   = false;
-pl_sc2  = false;
+pl_sc2  = true;
 
 % Decide whether longitudinal impedance tracking is desired;
 if wake.long.track

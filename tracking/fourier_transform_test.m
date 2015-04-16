@@ -30,7 +30,7 @@ ange    = [0 0 0];
 angm    = [0 0 0];
 sigmadc = [0 sigma 1];
 relax_time = [0 1 0]*27e-15;
-b       = [radius 13.000]*1e-3;
+b       = [radius 13.000*1e-3];
 
 
 % I tried several methods to take the fourier transform of the impedance:

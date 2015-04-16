@@ -23,6 +23,12 @@ if (any(strcmp(select,'rw_with_neg')) || any(strcmp(select,'all')) || any(strcmp
     tau     = [0 0 1 0]*27e-15;
     b       = [12.000 12.001 13.000]*1e-3;
     L       = 480;
+    
+    budget{i}.L = L;
+    budget{i}.sigmadc = sigmadc;
+    budget{i}.b = b;
+    epr = zeros(length(epb),length(w));
+    mur = zeros(length(epb),length(w));
     for j = 1: length(epb)
         epr(j,:) = epb(j)*(1-1i.*sign(w).*tan(ange(j))) + sigmadc(j)./(1+1i*w*tau(j))./(1i*w*ep0);
         mur(j,:) = mub(j)*(1-1i.*sign(w).*tan(angm(j)));
@@ -54,6 +60,11 @@ if (any(strcmp(select,'iuv')) || any(strcmp(select,'all')) || any(strcmp(select,
     tau     = [0 1 0 0]*27e-15;
     b       = [4.5 4.65 4.7]/2*1e-3;
     L       = 2.0;
+    budget{i}.L = L;
+    budget{i}.sigmadc = sigmadc;
+    budget{i}.b = b;
+    epr = zeros(length(epb),length(w));
+    mur = zeros(length(epb),length(w));
     for j = 1: length(epb)
         epr(j,:) = epb(j)*(1-1i.*sign(w).*tan(ange(j))) + sigmadc(j)./(1+1i*w*tau(j))./(1i*w*ep0);
         mur(j,:) = mub(j)*(1-1i.*sign(w).*tan(angm(j)));
@@ -86,6 +97,11 @@ if (any(strcmp(select,'iuv')) || any(strcmp(select,'all')) || any(strcmp(select,
     tau     = [0 1 0 0]*27e-15;
     b       = [7.8 7.95 8]/2*1e-3;
     L       = 2.0;
+    budget{i}.L = L;
+    budget{i}.sigmadc = sigmadc;
+    budget{i}.b = b;
+    epr = zeros(length(epb),length(w));
+    mur = zeros(length(epb),length(w));
     for j = 1: length(epb)
         epr(j,:) = epb(j)*(1-1i.*sign(w).*tan(ange(j))) + sigmadc(j)./(1+1i*w*tau(j))./(1i*w*ep0);
         mur(j,:) = mub(j)*(1-1i.*sign(w).*tan(angm(j)));
@@ -120,6 +136,11 @@ if (any(strcmp(select,'epus')) || any(strcmp(select,'all')) || any(strcmp(select
     tau     = [0 1 0 ]*27e-15;
     b       = [12 14]/2*1e-3;
     L       = 2.7;
+    budget{i}.L = L;
+    budget{i}.sigmadc = sigmadc;
+    budget{i}.b = b;
+    epr = zeros(length(epb),length(w));
+    mur = zeros(length(epb),length(w));
     for j = 1: length(epb)
         epr(j,:) = epb(j)*(1-1i.*sign(w).*tan(ange(j))) + sigmadc(j)./(1+1i*w*tau(j))./(1i*w*ep0);
         mur(j,:) = mub(j)*(1-1i.*sign(w).*tan(angm(j)));
@@ -150,6 +171,11 @@ if (any(strcmp(select,'fast_corr')) || any(strcmp(select,'all')) || any(strcmp(s
     tau     = [0 0 0 0]*27e-15;
     b       = [12.000 12.001 12.3]*1e-3;
     L       = 0.1;
+    budget{i}.L = L;
+    budget{i}.sigmadc = sigmadc;
+    budget{i}.b = b;
+    epr = zeros(length(epb),length(w));
+    mur = zeros(length(epb),length(w));
     for j = 1: length(epb)
         epr(j,:) = epb(j)*(1-1i.*sign(w).*tan(ange(j))) + sigmadc(j)./(1+1i*w*tau(j))./(1i*w*ep0);
         mur(j,:) = mub(j)*(1-1i.*sign(w).*tan(angm(j)));
@@ -175,7 +201,7 @@ if (any(strcmp(select,'kicker')) || any(strcmp(select,'all')) || any(strcmp(sele
     % Ferrite CMD5005
     epl = 12;
     rho = 1e6;
-    epr = epl - 1i./w/ep0/rho*0;
+    epr = epl + 0*w; % - 1i./w/ep0/rho*0;
     mui = 1600;
     ws = 20e6;
     mur = 1 + mui./(1+1i*w/ws);
@@ -187,8 +213,11 @@ if (any(strcmp(select,'kicker')) || any(strcmp(select,'all')) || any(strcmp(sele
 %     Zl = (theta*Zlb + (pi/2-theta)*Zlw)/(pi/2);
 %     Zv = (theta*Zvb + (pi/2-theta)*Zvw)/(pi/2);
 %     Zh = (theta*Zhb + (pi/2-theta)*Zhw)/(pi/2);
-        
+    
     budget{i}.L = L;
+    budget{i}.sigmadc = [1, 5.9e7];
+    budget{i}.b = 4.5e-3;
+
     budget{i}.Zv = Zvw;
     budget{i}.Zh = Zhw;
     budget{i}.Zl = Zlw;
@@ -214,7 +243,11 @@ if (any(strcmp(select,'pmm')) || any(strcmp(select,'all')) || any(strcmp(select,
     neg     = 1e-3;
     b       = [(4.5-coat-neg) (4.5-coat) 4.5 5.5]*1e-3;
     L       = 0.5;
-    
+    budget{i}.L = L;
+    budget{i}.sigmadc = sigmadc;
+    budget{i}.b = b;
+    epr = zeros(length(epb),length(w));
+    mur = zeros(length(epb),length(w));
     for j = 1: length(epb)
         epr(j,:) = epb(j)*(1-1i.*sign(w).*tan(ange(j))) + sigmadc(j)./(1+1i*w*tau(j))./(1i*w*ep0);
         mur(j,:) = mub(j)*(1-1i.*sign(w).*tan(angm(j)));
@@ -411,6 +444,16 @@ if (any(strcmp(select,'broad_band')) || any(strcmp(select,'all')) || any(strcmp(
     Zv = lnls_calc_impedance_transverse_resonator(Rsy, Qy, wry, w);
     Zh = lnls_calc_impedance_transverse_resonator(Rsx, Qx, wrx, w);
     Zl = lnls_calc_impedance_longitudinal_resonator(Rsl, Ql, wrl, w);
+    
+    budget{i}.Rsl = Rsl;
+    budget{i}.wrl = wrl;
+    budget{i}.Ql  = Ql;
+    budget{i}.Rsx = Rsx;
+    budget{i}.wrx = wrx;
+    budget{i}.Qx  = Qx;                        
+    budget{i}.Rsy = Rsx;
+    budget{i}.wry = wry;
+    budget{i}.Qy =  Qy;  
     
     budget{i}.Zv = Zv;
     budget{i}.Zh = Zh;

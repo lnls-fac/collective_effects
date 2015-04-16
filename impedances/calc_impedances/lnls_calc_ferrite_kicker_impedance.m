@@ -127,7 +127,7 @@ if coupled
     L2 = L*h*mu0/W*(mur*t./(mur*t+h*(h/W+1)));
     
     Zk = conj((M./L2).^2 .* Zg.*L2*1i.*w./(1i*w.*L2 + Zg));
-    Zx = c./w/D^2 .* Zk;
+    Zx = c/D^2 .* conj((M./L2).^2 .* Zg.*L2*1i./(1i*w.*L2 + Zg));
     
     Zl = Zl + Zk;
     Zh = Zh + Zx;
