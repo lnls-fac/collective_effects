@@ -22,7 +22,7 @@ function plot_impedances(w, budget, mult_beta, escalax, escalay, save, name)
 if ~exist('escalax','var'),   escalax = 'log';  end
 if ~exist('escalay','var'),   escalay = 'log';  end
 if ~exist('mult_beta','var'), mult_beta = true; end
-if ~exist('save','var'),      save = false; name=''; end
+if ~exist('save','var') || ~save,  save = false; name=''; end
 
 Zh = zeros(length(budget),length(w));
 Zv = Zh;
@@ -132,9 +132,8 @@ if strcmp(scaley,'log')
     end
 end
 ylabel(['-Im(',labely,') [',units,']'],'FontSize',16);
-xlim(axes2,[min([w(indp);w(indn)]), max([w(indp);w(indn)])]);
-ylim(axes2,[min([IZpos(indp); IZneg(indn)]), ...
-            max([IZpos(indp); IZneg(indn)])]);
+xlim(axes2,[min(w(:)), max(w(:))]);
+ylim(axes2,[min(abs(IZpos(:))), max(abs(IZpos(:)))]);
 
 if save
     if ~exist('name','var')

@@ -38,10 +38,41 @@ Ql = sqrt(Q.^2 - 1/4);
 wrl = wr .* Ql ./ Q;
 
 % load impedance;
-w = [0, logspace(4,18,2000)];
-budget = sirius_impedance_budget(w,'ring','phase_1');
+w = [0, logspace(0,18,20000)];
+% budget = sirius_impedance_budget(w,'ring','phase_1');
+% budgetbckup = budget;
+% plot_impedances(w,budget,true,'log','log',false);
 
-tau = -(0:1000)*1e-12;
+
+% budget = budgetbckup(end);
+Zl = zeros(size(w));
+Zv = zeros(size(w));
+Zh = zeros(size(w));
+for i=1:length(budget)
+    Zl = Zl + budget{i}.quantity * budget{i}.Zl;
+    Zv = Zv + budget{i}.quantity * budget{i}.Zv * budget{i}.betay;
+    Zh = Zh + budget{i}.quantity * budget{i}.Zh * budget{i}.betax;
+end
+clear total_budget;
+total_budget{1}.name = 'All Impedances';
+total_budget{1}.Zl = Zl;
+total_budget{1}.Zv = Zv;
+total_budget{1}.Zh = Zh;
+total_budget{1}.quantity = 1;
+
+% plot_impedances(w,total_budget,false,'log','log',false);
+
+tau  = -[0, logspace(-14,-9,300)];
+
+wakel_fun = (@(x)interp1(w,Zv,x,'linear',0));
+% wakel_fun = (@(x)Rs./(1+1i*Q*(wr./x - x/wr)));
+
+wakel = fourier_transform_by_quadgk(wakel_fun,tau,'trans',1e-5,16);
+
+wakelST = wr*Rs/Q*(cos(wrl*tau) + 1/(2*Ql)*sin(wrl*tau)).*exp(wr*tau/(2*Q));
+figure; plot(tau,[wakel;wakelST]);
+return;
+
 clear wake;
 wake.long.sim            = true;
 wake.long.track          = false;

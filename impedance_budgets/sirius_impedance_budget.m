@@ -27,7 +27,7 @@ if (any(strcmp(select,'rw_with_neg')) || any(strcmp(select,'all')) || any(strcmp
         epr(j,:) = epb(j)*(1-1i.*sign(w).*tan(ange(j))) + sigmadc(j)./(1+1i*w*tau(j))./(1i*w*ep0);
         mur(j,:) = mub(j)*(1-1i.*sign(w).*tan(angm(j)));
     end
-    [Zl Zv Zh] = lnls_calc_impedance_multilayer_round_pipe(w, epr, mur, b, L, E);
+    [Zl, Zv, Zh] = lnls_calc_impedance_multilayer_round_pipe(w, epr, mur, b, L, E);
     budget{i}.Zv = Zv;
     budget{i}.Zh = Zh;
     budget{i}.Zl = Zl;
@@ -36,7 +36,7 @@ end
 
 
 %% Resistive wall from in-vaccum ondulators;
-if (any(strcmp(select,'iuv')) || any(strcmp(select,'all')) );%|| any(strcmp(select,'ring')))
+if (any(strcmp(select,'iuv')) || any(strcmp(select,'all')) || any(strcmp(select,'ring')))
     budget{i}.name = 'IVUs (low betax)';
     budget{i}.type = 'rw';
     budget{i}.quantity = 4;
@@ -59,7 +59,7 @@ if (any(strcmp(select,'iuv')) || any(strcmp(select,'all')) );%|| any(strcmp(sele
         mur(j,:) = mub(j)*(1-1i.*sign(w).*tan(angm(j)));
     end
     
-    [Zl Zv Zh] = lnls_calc_impedance_multilayer_round_pipe(w, epr, mur, b, L, E);
+    [Zl, Zv, Zh] = lnls_calc_impedance_multilayer_round_pipe(w, epr, mur, b, L, E);
     Zv = pi^2/12*Zv;
     Zh = pi^2/24*Zh;
     budget{i}.Zv = Zv;
@@ -69,7 +69,7 @@ if (any(strcmp(select,'iuv')) || any(strcmp(select,'all')) );%|| any(strcmp(sele
 end
 
 
-if (any(strcmp(select,'iuv')) || any(strcmp(select,'all')) );%|| any(strcmp(select,'ring')))
+if (any(strcmp(select,'iuv')) || any(strcmp(select,'all')) || any(strcmp(select,'ring')))
     budget{i}.name = 'IVUs (high betax)';
     budget{i}.type = 'rw';
     budget{i}.quantity = 2;
@@ -91,7 +91,7 @@ if (any(strcmp(select,'iuv')) || any(strcmp(select,'all')) );%|| any(strcmp(sele
         mur(j,:) = mub(j)*(1-1i.*sign(w).*tan(angm(j)));
     end
     
-    [Zl Zv Zh] = lnls_calc_impedance_multilayer_round_pipe(w, epr, mur, b, L, E);
+    [Zl, Zv, Zh] = lnls_calc_impedance_multilayer_round_pipe(w, epr, mur, b, L, E);
     Zv = pi^2/12*Zv;
     Zh = pi^2/24*Zh;
     budget{i}.Zv = Zv;
@@ -102,7 +102,7 @@ end
 
 
 %% Resistive wall from smallgap vacuum chambers;
-if (any(strcmp(select,'epus')) || any(strcmp(select,'all')) );%|| any(strcmp(select,'ring')))
+if (any(strcmp(select,'epus')) || any(strcmp(select,'all')) || any(strcmp(select,'ring')))
     budget{i}.name = 'EPUs';
     budget{i}.type = 'rw';
     budget{i}.quantity = 4;
@@ -125,7 +125,7 @@ if (any(strcmp(select,'epus')) || any(strcmp(select,'all')) );%|| any(strcmp(sel
         mur(j,:) = mub(j)*(1-1i.*sign(w).*tan(angm(j)));
     end
     
-    [Zl Zv Zh] = lnls_calc_impedance_multilayer_round_pipe(w, epr, mur, b, L, E);
+    [Zl, Zv, Zh] = lnls_calc_impedance_multilayer_round_pipe(w, epr, mur, b, L, E);
     Zv = pi^2/12*Zv;
     Zh = pi^2/24*Zh;
     budget{i}.Zv = Zv;
@@ -154,7 +154,7 @@ if (any(strcmp(select,'fast_corr')) || any(strcmp(select,'all')) || any(strcmp(s
         epr(j,:) = epb(j)*(1-1i.*sign(w).*tan(ange(j))) + sigmadc(j)./(1+1i*w*tau(j))./(1i*w*ep0);
         mur(j,:) = mub(j)*(1-1i.*sign(w).*tan(angm(j)));
     end
-    [Zl Zv Zh] = lnls_calc_impedance_multilayer_round_pipe(w, epr, mur, b, L, E);
+    [Zl, Zv, Zh] = lnls_calc_impedance_multilayer_round_pipe(w, epr, mur, b, L, E);
     budget{i}.Zv = Zv;
     budget{i}.Zh = Zh;
     budget{i}.Zl = Zl;
