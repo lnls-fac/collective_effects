@@ -14,13 +14,13 @@ ring.dtunedp  = 0.0;
 ring.dtunedj  = 000000;
 
 bunch.num_part = 600;
-bunch.I_b      = 1.4e-3;
+bunch.I_b      = 3.0e-3;
 
 tau = (-1000:1000)*1e-12;
 V = 3.0e6;
 wrf = 2*pi*ring.har_num/ring.rev_time;
 phi0 = 171.24/180*pi;
-Vl = 1.0e6*1;
+Vl = 1.0e6*0;
 wl = wrf*3;
 phil = 0.30/180*pi;
 bunch.potential= V*(sin(phi0-wrf*tau)-sin(phi0)) + Vl*(sin(phil-wl*tau)-sin(phil));

@@ -461,6 +461,45 @@ if (any(strcmp(select,'broad_band')) || any(strcmp(select,'all')) || any(strcmp(
     i=i+1;
 end
 
+if (any(strcmp(select,'cavity')) || any(strcmp(select,'all')) || any(strcmp(select,'ring')))
+    budget{i}.name = 'Cavity';
+    budget{i}.type = 'geo';
+    budget{i}.quantity = 6;
+    budget{i}.betax = 17.0;
+    budget{i}.betay = 5;  
+    wrl = [0.65, 0.70, 1.10, 1.35, 1.55, 1.60, 2.30, 2.40, 2.65, 2.90, 3.05]*1e9*2*pi;
+    Rsl = [3.20, 2.70, 1.00, 0.70, 4.00, 4.90, 3.20, 1.00, 3.00, 1.20, 3.10]*1e3;
+    Ql = ones(size(wrl))*1000;
+    
+    wrx = [0.65, 1.05, 1.10, 1.35, 1.55, 1.60, 1.80, 1.82, 2.00, 2.20, 2.35]*1e9*2*pi;
+    Rsx = [0025, 0170, 0130, 0030, 0150, 0055, 0075, 0050, 0025, 0055, 0050]*1e3;
+    Qx  = ones(size(wrl))*1000;
+    
+    wry = [0.65, 1.05, 1.10, 1.35, 1.55, 1.60, 1.80, 1.82, 2.00, 2.20, 2.35]*1e9*2*pi;
+    Rsy = [0025, 0170, 0130, 0030, 0150, 0055, 0075, 0050, 0025, 0055, 0050]*1e3;
+    Qy  = ones(size(wrl))*1000;
+    
+    Zv = lnls_calc_impedance_transverse_resonator(Rsy, Qy, wry, w);
+    Zh = lnls_calc_impedance_transverse_resonator(Rsx, Qx, wrx, w);
+    Zl = lnls_calc_impedance_longitudinal_resonator(Rsl, Ql, wrl, w);
+    
+    budget{i}.Rsl = Rsl;
+    budget{i}.wrl = wrl;
+    budget{i}.Ql  = Ql;
+    budget{i}.Rsx = Rsx;
+    budget{i}.wrx = wrx;
+    budget{i}.Qx  = Qx;                        
+    budget{i}.Rsy = Rsx;
+    budget{i}.wry = wry;
+    budget{i}.Qy =  Qy;  
+    
+    budget{i}.Zv = Zv;
+    budget{i}.Zh = Zh;
+    budget{i}.Zl = Zl;
+    i=i+1;
+end
+
+
 % %% feedback
 % 
 % if (any(strcmp(select,'broad_band')) || any(strcmp(select,'all')) || any(strcmp(select,'ring')))

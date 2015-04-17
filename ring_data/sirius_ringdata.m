@@ -2,9 +2,10 @@ function ringdata = sirius_ringdata(phase)
 
 ringdata.lattice_version = 'SI.V07.C05';
 
-w = logspace(5,10,3000);
-w2= logspace(10,12.4,8000); % limites determinados atraves de estudo do
-w = [w w2(2:end)];
+% w = logspace(5,10,3000);
+% w2= logspace(10,12.4,8000); % limites determinados atraves de estudo do
+% w = [w w2(2:end)];
+w = linspace(1e4,10e9,30000)*2*pi;
 ringdata.w = [-fliplr(w) w];
 
 
@@ -21,7 +22,7 @@ ringdata.E = 3;              % energy [GeV];
 if(strcmp(phase,'commissioning'))
     ringdata.stage   = 'Commissioning';
     I = linspace(0,4,40)';
-    fit = [3.22e-3, 1.75e-3, -1.86e-3]; % fitting dos dados da natalia;
+    fit = [13.22e-3, 1.75e-3, -1.86e-3]; % fitting dos dados da natalia;
     ringdata.sigma   = [I, fit(1) + I*fit(2) + I.^2*fit(3)];  % longitudinal length [m]
     ringdata.I_tot   = 0.100;       % total current [A];
     ringdata.nus     = 0.00435;    % synchrotron tune
@@ -34,7 +35,7 @@ elseif(strcmp(phase,'phase_1'))
     I = linspace(0,4,40)';
     fit = [3.83e-3, 8.96e-4, -5.24e-4]; % fitting dos dados da natalia;
     ringdata.sigma   = [I, fit(1) + I*fit(2) + I.^2*fit(3)];  % longitudinal length [m]
-    ringdata.I_tot = 0.10;         % total current [A];
+    ringdata.I_tot = 0.5;%0.10;         % total current [A];
     ringdata.nus = 0.00435;        % synchrotron tune
     % damping times [s]
     ringdata.taux = 12.9e-3;
