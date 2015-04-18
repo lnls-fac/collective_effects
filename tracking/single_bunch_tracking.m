@@ -6,8 +6,8 @@ ave_kickx = zeros(1,ring.nturns);
 fdbkx     = zeros(1,ring.nturns);
 
 RandStream.setGlobalStream(RandStream('mt19937ar','seed', 190488));
-%definicao dos pacotes
-%generate the longitudinal phase space;
+% Bunches definition
+% generate the longitudinal phase space;
 cutoff = 9;
 [tau, espread, potential] = generate_longitudinal_bunch(bunch, ring, wake);
 
