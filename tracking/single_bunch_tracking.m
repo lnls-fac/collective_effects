@@ -51,7 +51,7 @@ drawnow;
 for ii=1:ring.nturns;
     % First do single particle tracking:
     % define one phase advance per particle
-    phi  =  2*pi*(tune + chrom*en + tu_sh*((x-etax*en).^2/betx + (xp-etxp*en).^2 * betx));
+    phi = 2*pi*(tune + chrom*en + tu_sh*((x-etax*en).^2/betx + (xp-etxp*en).^2 * betx));
     
     [x, xp] = transverse_tracking(x,xp,en,phi,betx,etax,etxp);
     % The longitudinal time evolution equations are not in the differential
