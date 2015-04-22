@@ -9,15 +9,12 @@ c = 299792458;
 pmin = ceil((w(1)-m*nus*w0)/(w0*nb)); % arredonda em direcao a +infinito
 pmax = ceil((w(end)-(nb-1+m*nus)*w0)/(w0*nb))-1; % arredonda em direcao a -infinito
 
-Zl_eff = zeros(size(Zl,1),nb);
-for j = 1:size(Zl,1)
-    for i = 0:(nb-1)
-        p = pmin:pmax;
-        wp = w0*(p*nb + i + m*nus);
-        h = (wp*sigma/c).^(2*m).*exp(-(wp*sigma/c).^2);
-        interpol_Z = interp1(w, Zl(j,:),wp);
-        Zl_eff(j,i+1) = sum(interpol_Z.*h./wp);
-    end
-end
+p = pmin:pmax;
+wp = w0*(bsxfun(@plus, p*nb, (0:nb-1)') + m*nus);
+
+h = (wp*sigma/c).^(2*abs(m)).*exp(-(wp*sigma/c).^2);
+interpol_Z = interp1(w,Zl(:),wp);
+Zl_eff = diag((interpol_Z./wp)*h').';
+
 
 deltaw = 1i/(2*pi*2^m*factorial(m - 1)) * I_tot*eta/(E*1e9*nus*(sigma/c)^2) * Zl_eff;

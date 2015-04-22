@@ -12,15 +12,13 @@ nucro = nut/eta*chrom;
 pmin = ceil((w(1)-(m*nus + nut)*w0)/(w0*nb)); % arredonda em direcao a +infinito
 pmax = ceil((w(end)-(nb-1 + nut + m*nus)*w0)/(w0*nb))-1; % arredonda em direcao a -infinito
 
-Zt_eff = zeros(1,nb);
-    for i = 0:(nb-1)
-        p = pmin:pmax;
-        wp = w0*(p*nb + i + nut + m*nus);
-        wpcro = wp - nucro*w0;
-        h = (wpcro*sigma/c).^(2*abs(m)).*exp(-(wpcro*sigma/c).^2);
-        interpol_Z = interp1(w,Z(:),wp);
-        Zt_eff(i+1) = sum(interpol_Z.*h);
-    end    
+p = pmin:pmax;
+wp = w0*(bsxfun(@plus, p*nb, (0:nb-1)') + nut + m*nus);
+
+wpcro = wp - nucro*w0;
+h = (wpcro*sigma/c).^(2*abs(m)).*exp(-(wpcro*sigma/c).^2);
+interpol_Z = interp1(w,Z(:),wp);
+Zt_eff = diag(interpol_Z*h').';
 
 %% Calculate Coupled_bunch Instabilities
 

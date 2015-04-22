@@ -46,7 +46,7 @@ if (any(strcmp(select,'iuv')) || any(strcmp(select,'all')) || any(strcmp(select,
     budget{i}.name = 'IVUs (low betax)';
     budget{i}.type = 'rw';
     budget{i}.quantity = 4;
-    if strcmp(phase,'phase_2')
+    if strncmpi(phase,'phase_2',7)
         budget{i}.quantity = 8; 
     end
     budget{i}.betax = 1.5;
@@ -84,7 +84,7 @@ if (any(strcmp(select,'iuv')) || any(strcmp(select,'all')) || any(strcmp(select,
     budget{i}.name = 'IVUs (high betax)';
     budget{i}.type = 'rw';
     budget{i}.quantity = 2;
-    if strcmp(phase,'phase_2')
+    if strncmpi(phase,'phase_2',7)
         budget{i}.quantity = 4; 
     end
     budget{i}.betax = 17.7;
@@ -122,7 +122,7 @@ if (any(strcmp(select,'epus')) || any(strcmp(select,'all')) || any(strcmp(select
     budget{i}.name = 'EPUs';
     budget{i}.type = 'rw';
     budget{i}.quantity = 4;
-    if strcmp(phase,'phase_2')
+    if strncmpi(phase,'phase_2',7)
         budget{i}.quantity = 8; 
     end
     budget{i}.betax = 17.8;
@@ -464,20 +464,45 @@ end
 if (any(strcmp(select,'cavity')) || any(strcmp(select,'all')) || any(strcmp(select,'ring')))
     budget{i}.name = 'Cavity';
     budget{i}.type = 'geo';
-    budget{i}.quantity = 6;
+    budget{i}.quantity = 3;
+    if strncmpi(phase, 'phase_2',7)
+        budget{i}.quantity = 6;
+    end
     budget{i}.betax = 17.0;
-    budget{i}.betay = 5;  
-    wrl = [0.65, 0.70, 1.10, 1.35, 1.55, 1.60, 2.30, 2.40, 2.65, 2.90, 3.05]*1e9*2*pi;
-    Rsl = [3.20, 2.70, 1.00, 0.70, 4.00, 4.90, 3.20, 1.00, 3.00, 1.20, 3.10]*1e3;
-    Ql = ones(size(wrl))*1000;
+    budget{i}.betay = 5;
+    data = [670.6,  2778;
+            701.5,  1960;
+            1535.8, 4832;
+            1577,   1113;
+            1585,   1965;
+            2257.6, 1636;
+            2670.7, 3159]';
+    wrl = data(1,:)*1e6*2*pi;
+    Rsl = data(2,:);
+    Ql = ones(size(wrl))*100;
     
-    wrx = [0.65, 1.05, 1.10, 1.35, 1.55, 1.60, 1.80, 1.82, 2.00, 2.20, 2.35]*1e9*2*pi;
-    Rsx = [0025, 0170, 0130, 0030, 0150, 0055, 0075, 0050, 0025, 0055, 0050]*1e3;
-    Qx  = ones(size(wrl))*1000;
     
-    wry = [0.65, 1.05, 1.10, 1.35, 1.55, 1.60, 1.80, 1.82, 2.00, 2.20, 2.35]*1e9*2*pi;
-    Rsy = [0025, 0170, 0130, 0030, 0150, 0055, 0075, 0050, 0025, 0055, 0050]*1e3;
-    Qy  = ones(size(wrl))*1000;
+    data = [638.5,  42452;
+            645.4,  19083;
+           1029,   143999;
+           1038.1, 153919;
+           1067.6,  77086;
+           1077.6,  28472;
+           1512.9, 180119;
+           1513.3, 112697;
+           1577,   147365;
+           1564.6,  30711;
+           1571.1,  36278;
+           1773.3,  19508;
+           1795,    64025;
+           1796,    38591]';
+    wrx = data(1,:)*1e6*2*pi;
+    Rsx = data(2,:);
+    Qx  = ones(size(wrx))*100;
+    
+    wry = wrx;
+    Rsy = Rsx;
+    Qy  = Qx;
     
     Zv = lnls_calc_impedance_transverse_resonator(Rsy, Qy, wry, w);
     Zh = lnls_calc_impedance_transverse_resonator(Rsx, Qx, wrx, w);
