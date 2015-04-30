@@ -8,23 +8,25 @@ wmax(ind0) = wmax(ind0+1);
 wmin(ind0) = wmin(ind0+1);
 
 wake = zeros(1,length(tau));
-RelTol = 1e-4;
+RelTol = 1e-6;
 for i = 1:length(tau)
     if strcmpi(plane,'long')
         fun_wake = (@(x)1/2/pi*(real(impedance_func(x)) .* cos(x*tau(i)) - ...
                                 imag(impedance_func(x)) .* sin(x*tau(i))));
+        max_it = 10000;
     else
         fun_wake = (@(x)1/2/pi*(real(impedance_func(x)) .* sin(x*tau(i)) + ...
                                 imag(impedance_func(x)) .* cos(x*tau(i))));
+        max_it = 10000;
     end
-    [wake(i), err] = quadgk(fun_wake,wmin(i),wmax(i),'AbsTol',0,'RelTol',RelTol);%,'MaxIntervalCount',2000);
+    [wake(i), err] = quadgk(fun_wake,wmin(i),wmax(i),'AbsTol',0,'RelTol',RelTol,'MaxIntervalCount',max_it);
     if err/wake(i) >RelTol, disp(tau(i)*1e12); error('integral did not converge.');end
     fprintf('.');
     if ~mod(i,80), fprintf('\n');end
 end
 fprintf('\n');
 
-wake = 2*wake;
+wake = -2*wake;
 if ~strcmpi(plane,'long')
     wake(ind0) = 0;
 end

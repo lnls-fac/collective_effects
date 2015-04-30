@@ -1,7 +1,8 @@
-function [ave_bun, rms_bun, ave_kickx, fdbkx] = single_bunch_tracking(ring, bunch, wake)
+function [ave_bun, rms_bun, one_part, ave_kickx, fdbkx] = single_bunch_tracking(ring, bunch, wake)
 
 ave_bun   = zeros(4,ring.nturns);
 rms_bun   = zeros(4,ring.nturns);
+one_part  = zeros(4,ring.nturns);
 ave_kickx = zeros(1,ring.nturns);
 fdbkx     = zeros(1,ring.nturns);
 
@@ -9,12 +10,14 @@ RandStream.setGlobalStream(RandStream('mt19937ar','seed', 190488));
 % Bunches definition
 % generate the longitudinal phase space;
 cutoff = 9;
-[tau, espread, potential] = generate_longitudinal_bunch(bunch, ring, wake);
+[tau, espread, potential, ~] = generate_longitudinal_bunch(bunch, ring, wake);
 
-if abs(bunch.espread-espread)/bunch.espread > eps
-    fprintf('Microwave Intability regime: energy spread = %7.4g\n',espread);
+if numel(bunch.espread)> 1
+    bun_espread = interp1(bunch.I,bunch.espread,bunch.I_b);
+    if abs(bun_espread-espread)/bun_espread > eps
+        fprintf('Microwave Intability regime: energy spread = %7.4g\n',espread);
+    end
 end
-
 en  = lnls_generate_random_numbers(espread, bunch.num_part, 'norm', cutoff, 0);
 
 betx = ring.beta;
@@ -25,16 +28,22 @@ chrom= ring.dtunedp;
 tu_sh= ring.dtunedj;
 
 % generate transverse phase space;
-emitx = lnls_generate_random_numbers(bunch.emit, bunch.num_part,'exponential',cutoff^2,0);
+if numel(bunch.emit)>1
+    emit = interp1(bunch.I, bunch.emit, bunch.I_b, 'linear', bunch.emit(end));
+else
+    emit = bunch.emit;
+end
+emitx = lnls_generate_random_numbers(emit, bunch.num_part,'exponential',cutoff^2,0);
 phasx = 2*pi*rand(1, bunch.num_part);
 x  =  sqrt(emitx*betx).*cos(phasx) + etax*en;
 xp = -sqrt(emitx/betx).*sin(phasx) + etxp*en;
 
 pl_en   = false;
-pl_x    = true;
+pl_x    = false;
 pl_sc3  = false;
 pl_sc   = false;
-pl_sc2  = true;
+pl_sc2  = false;
+printa  = true;
 
 % Decide whether longitudinal impedance tracking is desired;
 if wake.long.track
@@ -66,15 +75,15 @@ for ii=1:ring.nturns;
     % Now comes the impedance kicks:
     % For the transverse kick x/beta is passed because the value of the
     % beta at the impedance location will be used inside this function.
-    [kickt, kickx] = kick_from_wake(x/betx, tau, wake);
-    kickt  = kickt * (ring.rev_time  / ring.E) * (bunch.I_b / bunch.num_part);
-    kickx  = kickx * (ring.rev_time  / ring.E) * (bunch.I_b / bunch.num_part);
+    [kickt, kickx] = kick_from_wake(x, tau, wake);
+    kickt  = kickt      * (ring.rev_time  / ring.E) * (bunch.I_b / bunch.num_part);
+    kickx  = kickx/betx * (ring.rev_time  / ring.E) * (bunch.I_b / bunch.num_part);
     
     ave_kickx(ii) = mean(kickx);
    
     % Now we try to simulate a bunch by bunch feedback system acting on the
     % bunch centroid:
-    fdbkx(ii) = bbb_feedback(ave_bun(1,:),wake,ii);
+    fdbkx(ii) = bbb_feedback(ave_bun(1,:)/sqrt(betx),wake,ii)/sqrt(betx);
     
     % Apply the impedance kicks:
     xp = xp + kickx + fdbkx(ii);
@@ -83,9 +92,10 @@ for ii=1:ring.nturns;
     % At last the first and second moments of the beam are recorded:
     ave_bun(:,ii) = mean([x;xp;en;tau],2);
     rms_bun(:,ii) =  std([x;xp;en;tau],0,2);
+    one_part(:,ii) = [x(1);xp(1);en(1);tau(1)];
     
     
-    if mod(ii,1000)==0
+    if printa && mod(ii,1000)==0
         fprintf('%d\n',ii);
     end
     if mod(ii,20)==0
@@ -149,7 +159,7 @@ kickt = zeros(size(tau));
 if wake.dipo.track && isfield(wake.dipo,'general')
     difft = bsxfun(@minus,tau,tau');
     kik = interp1(wake.dipo.general.tau,wake.dipo.general.wake,difft,'linear',0);
-    kickx = kickx - (x*kik);
+    kickx = kickx + (x*kik);% signal checked
 end
 if wake.dipo.track && isfield(wake.dipo,'resonator')
     wr = wake.dipo.resonator.wr;
@@ -177,7 +187,7 @@ end
 if  wake.quad.track && isfield(wake.quad,'general')
     if ~exist('difft','var'), difft = bsxfun(@minus,tau,tau'); end
     kik = interp1(wake.quad.general.tau,wake.quad.general.wake,difft,'linear',0);
-    kickx = kickx - (sum(kik).*x);
+    kickx = kickx + (sum(kik).*x);% signal checked
 end
 if wake.quad.track && isfield(wake.quad,'resonator')
     wr = wake.quad.resonator.wr;
@@ -207,7 +217,7 @@ end
 if wake.long.track && isfield(wake.long,'general')
     if ~exist('difft','var'), difft = bsxfun(@minus,tau,tau'); end
     kik = interp1(wake.long.general.tau,wake.long.general.wake,difft,'linear',0);
-    kickt = kickt - sum(kik);
+    kickt = kickt - sum(kik);% signal checked
 end
 if wake.long.track && isfield(wake.long,'resonator')
     wr = wake.long.resonator.wr;
@@ -232,15 +242,22 @@ end
 function kick = bbb_feedback(x_m,wake,ii)
 
 kick = 0;
-if ii<wake.feedback.npoints || ~wake.feedback.track, return; end
+
+if ~wake.feedback.track || ii<(wake.feedback.delay + wake.feedback.npoints), return; end
 
 npoints = wake.feedback.npoints;
+delay   = wake.feedback.delay;
 phase   = wake.feedback.phase;
 freq    = wake.feedback.freq;
 gain    = wake.feedback.gain;
+satur   = wake.feedback.max_kick;
+bpmbeta = wake.feedback.pickup_beta;
+kikbeta = wake.feedback.kick_beta;
 
 samp  = 1:npoints;
 fil = cos(2*pi*freq*samp + phase).*sin(2*pi*samp/(2*npoints))./(samp*pi);
-kick = gain*(x_m((ii-npoints+1):ii)*fil');
+kick = gain*(x_m((ii-npoints-delay+1):(ii-delay))*fil') * sqrt(bpmbeta);
 
+kick = sign(kick)*min(abs(kick),satur);
 
+kick = sqrt(kikbeta) * kick;

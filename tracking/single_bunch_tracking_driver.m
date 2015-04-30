@@ -83,11 +83,15 @@ wake.quad.track          = false;
 % wake.quad.resonator.beta = beta_imp;
 
 
-wake.feedback.track = false;
-wake.feedback.npoints = 8;
-wake.feedback.freq   = 0.11;
-wake.feedback.phase  = 3/4*pi;
-wake.feedback.gain   = 0.1;
+wake.feedback.track       = false;
+wake.feedback.npoints     = 8;
+wake.feedback.freq        = 0.11;
+wake.feedback.phase       = 3/4*pi;
+wake.feedback.gain        = 0.1;
+wake.feedback.delay       = 4;
+wake.feedback.max_kick    = 3e-7;
+wake.feedback.pickup_beta = 10;
+wake.feedback.kick_beta   = 17;
 
 [ave_bun,rms_bun, ave_kickx, fdbkx] = single_bunch_tracking(ring, bunch, wake);
 

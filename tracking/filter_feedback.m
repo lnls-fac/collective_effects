@@ -1,7 +1,7 @@
 
 
-freq = 0.11;
-phase = 3/4*pi;
+freq = 0.13;
+phase = 130/180*pi;
 
 len = 8;
 samp = 1:len;
@@ -13,7 +13,7 @@ x = cos(2*pi*n'*samp);
 
 figure; plot(n,20*log(abs(fil*x')))
 
-% phi = (0:199)/200 * 2 * pi;
-% y = cos(bsxfun(@plus,2*pi*0.12*samp',phi));
-% 
-% figure; plot(y(end,:), fil*y);
+phi = (0:199)/200 * 2 * pi;
+y = cos(bsxfun(@plus,2*pi*0.110*samp',phi));
+
+figure; plot(y(end,:), fil*y);

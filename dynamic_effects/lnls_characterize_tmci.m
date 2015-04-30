@@ -1,4 +1,4 @@
-function varargout = lnls_characterize_tmci(ringdata, budget, params, save)
+function varargout = lnls_characterize_tmci(ringdata, budget, params, salva, plota)
 
 plane = params.plane;
 n_azi = params.n_azi;
@@ -49,8 +49,9 @@ params.eta   = eta;
 delta =lnls_calc_transverse_mode_couplingopt(w, Zt, params);
 
 first = true;
+nus = nus + 0*I;
 for i = 1:length(I)
-    if any(imag(delta(:,i))*nus*w0*tau > 1)
+    if any(imag(delta(:,i))*nus(i)*w0*tau > 1)
         fprintf('%-6s','N');
         if first
             varargout{1} = I(i);
@@ -72,7 +73,7 @@ varargout{2} = delta;
 [real_delta, ~] = sort(real(delta));
 [imag_delta, ~] = sort(imag(delta));
 
-
+if plota
 f1 = figure('Position',[1 1 850 528]);
 
 axes1 = axes('Parent',f1,'Position',[0.12 0.103 0.850 0.415], 'FontSize',16);
@@ -86,11 +87,11 @@ xlim([min(I), max(I)]*1e3);
 axes2 = axes('Parent',f1,'Position',[0.12 0.518 0.850 0.415],...
              'FontSize',16, 'XTickLabel',{''});
 box(axes2,'on');hold(axes2,'all');grid(axes2,'on');
-plot(axes2, I*1e3, imag_delta*nus*w0*tau,'LineWidth',2,'Color','b');
+plot(axes2, I*1e3, imag_delta.*repmat(nus,size(imag_delta,1),1)*w0,'LineWidth',2,'Color','b');
 ylabel({'\tau_{damp}/\tau_g'},'FontSize',16);
 xlim([min(I), max(I)]*1e3);
 
-
-if save
+end
+if salva
     saveas(f1,['tmci_' plane '_' ringdata.stage '.fig']);
 end

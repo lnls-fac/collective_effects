@@ -33,10 +33,12 @@ if (any(strcmp(select,'rw_with_neg')) || any(strcmp(select,'all')) || any(strcmp
         epr(j,:) = epb(j)*(1-1i.*sign(w).*tan(ange(j))) + sigmadc(j)./(1+1i*w*tau(j))./(1i*w*ep0);
         mur(j,:) = mub(j)*(1-1i.*sign(w).*tan(angm(j)));
     end
-    [Zl, Zv, Zh] = lnls_calc_impedance_multilayer_round_pipe(w, epr, mur, b, L, E);
-    budget{i}.Zv = Zv;
-    budget{i}.Zh = Zh;
-    budget{i}.Zl = Zl;
+    [Zl, Zv, Zh]  = lnls_calc_impedance_multilayer_round_pipe(w, epr, mur, b, L, E);
+    budget{i}.Zv  = Zv;
+    budget{i}.Zqv = Zv*0;
+    budget{i}.Zqh = Zh*0;
+    budget{i}.Zh  = Zh;
+    budget{i}.Zl  = Zl;
     i=i+1;
 end
 
@@ -76,6 +78,8 @@ if (any(strcmp(select,'iuv')) || any(strcmp(select,'all')) || any(strcmp(select,
     budget{i}.Zv = Zv;
     budget{i}.Zh = Zh;
     budget{i}.Zl = Zl;
+    budget{i}.Zqv = Zh;
+    budget{i}.Zqh = -Zh;
     i=i+1;
 end
 
@@ -113,6 +117,8 @@ if (any(strcmp(select,'iuv')) || any(strcmp(select,'all')) || any(strcmp(select,
     budget{i}.Zv = Zv;
     budget{i}.Zh = Zh;
     budget{i}.Zl = Zl;
+    budget{i}.Zqv = Zh;
+    budget{i}.Zqh = -Zh;
     i=i+1;
 end
 
@@ -152,6 +158,8 @@ if (any(strcmp(select,'epus')) || any(strcmp(select,'all')) || any(strcmp(select
     budget{i}.Zv = Zv;
     budget{i}.Zh = Zh;
     budget{i}.Zl = Zl;
+    budget{i}.Zqv = Zh;
+    budget{i}.Zqh = -Zh;
     i=i+1;
 end
 
@@ -184,12 +192,14 @@ if (any(strcmp(select,'fast_corr')) || any(strcmp(select,'all')) || any(strcmp(s
     budget{i}.Zv = Zv;
     budget{i}.Zh = Zh;
     budget{i}.Zl = Zl;
+    budget{i}.Zqv = Zh*0;
+    budget{i}.Zqh = -Zh*0;
     i=i+1;
 end
 %% Ferrite Kickers for injection
 if (any(strcmp(select,'kicker')) || any(strcmp(select,'all')) || any(strcmp(select,'ring')))
     budget{i}.name = 'Ferrite Kicker';
-    budget{i}.type = 'misto';
+    budget{i}.type = 'rw';
     budget{i}.quantity = 1;
     budget{i}.betax = 18;
     budget{i}.betay = 6;
@@ -207,7 +217,7 @@ if (any(strcmp(select,'kicker')) || any(strcmp(select,'all')) || any(strcmp(sele
     mur = 1 + mui./(1+1i*w/ws);
     Zg = (1/50 + 1i*w*30e-12).^-1;
     % mean case
-    [Zlw, Zhw, Zvw] = lnls_calc_ferrite_kicker_impedance(w,a,b,d,L,epr,mur,Zg,'pior');
+    [Zlw, Zhw, Zvw, Zqvw, Zqhw] = lnls_calc_ferrite_kicker_impedance(w,a,b,d,L,epr,mur,Zg,'pior');
 %     [Zlb Zhb Zvb] = lnls_calc_ferrite_kicker_impedance(w,a,b,d,L,epr,mur,Zg,'melhor');
 %     theta = atan(b/a);
 %     Zl = (theta*Zlb + (pi/2-theta)*Zlw)/(pi/2);
@@ -221,6 +231,8 @@ if (any(strcmp(select,'kicker')) || any(strcmp(select,'all')) || any(strcmp(sele
     budget{i}.Zv = Zvw;
     budget{i}.Zh = Zhw;
     budget{i}.Zl = Zlw;
+    budget{i}.Zqv = Zqvw;
+    budget{i}.Zqh = Zqhw;
     i=i+1;
 end
 
@@ -232,16 +244,15 @@ if (any(strcmp(select,'pmm')) || any(strcmp(select,'all')) || any(strcmp(select,
     budget{i}.betax = 18;
     budget{i}.betay = 7;
     
-    epb     = [1   1    1    9.3   1];
-    mub     = [1   1    1     1    1];
-    ange    = [0   0    0     0    0];
-    angm    = [0   0    0     0    0];
-    sigmadc = [0  4e6  5.9e7  1    1]; % Copper Sheet
-    tau     = [0   0    1     0    0]*27e-15;
+    epb     = [1   1    9.3   1];
+    mub     = [1   1     1    1];
+    ange    = [0   0     0    0];
+    angm    = [0   0     0    0];
+    sigmadc = [0  2.4e6  1    1]; % Titanium Sheet
+    tau     = [0   1     0    0]*27e-15;
     
-    coat    = 2e-3;
-    neg     = 1e-3;
-    b       = [(4.5-coat-neg) (4.5-coat) 4.5 5.5]*1e-3;
+    coat    = 10e-3;
+    b       = [(4.5-coat) 4.5 5.5]*1e-3;
     L       = 0.5;
     budget{i}.L = L;
     budget{i}.sigmadc = sigmadc;
@@ -259,6 +270,8 @@ if (any(strcmp(select,'pmm')) || any(strcmp(select,'all')) || any(strcmp(select,
     budget{i}.Zv = Zv;
     budget{i}.Zh = Zh;
     budget{i}.Zl = Zl;
+    budget{i}.Zqv = Zh;
+    budget{i}.Zqh = -Zh;
     i=i+1;
 end
 
@@ -276,6 +289,8 @@ if (any(strcmp(select,'coherent_synchrotron_radiation')))
     budget{i}.Zv = Zl*0;
     budget{i}.Zh = Zl*0;
     budget{i}.Zl = Zl;
+    budget{i}.Zqv = Zl*0;
+    budget{i}.Zqh = Zl*0;
     i=i+1;
 end
 
@@ -315,6 +330,8 @@ if (any(strcmp(select,'bpm')) || any(strcmp(select,'all')))%|| strcmp(select,'ri
     budget{i}.Zv = Zl*0;
     budget{i}.Zh = Zl*0;
     budget{i}.Zl = Zl;
+    budget{i}.Zqv = Zl*0;
+    budget{i}.Zqh = Zl*0;
     i=i+1;
 end
 
@@ -351,6 +368,8 @@ if (any(strcmp(select,'masks')) || any(strcmp(select,'all')))%|| strcmp(select,'
     budget{i}.Zv = Zlint*0;
     budget{i}.Zh = Zxint;
     budget{i}.Zl = Zlint;
+    budget{i}.Zqv = Zxint*0;
+    budget{i}.Zqh = Zxint*0;
     i=i+1;
 end
 
@@ -390,6 +409,8 @@ if (any(strcmp(select,'taper_cv')) || any(strcmp(select,'all')))%|| strcmp(selec
     budget{i}.Zv = Zy; % simetria cilindrica
     budget{i}.Zh = Zy;
     budget{i}.Zl = Zl;
+    budget{i}.Zqv = -Zy*0;
+    budget{i}.Zqh = -Zy*0;
     i=i+1;
 end
 
@@ -428,7 +449,7 @@ if (any(strcmp(select,'broad_band')) || any(strcmp(select,'all')) || any(strcmp(
     budget{i}.betax = 7.0;
     budget{i}.betay = 11;  
     if strcmp(phase,'phase_1')
-        Zovern = 0.2;
+        Zovern = 0.3;
     elseif strcmp(phase,'phase_2')
         Zovern = 0.4; 
     else
@@ -450,18 +471,26 @@ if (any(strcmp(select,'broad_band')) || any(strcmp(select,'all')) || any(strcmp(
     budget{i}.Ql  = Ql;
     budget{i}.Rsx = Rsx;
     budget{i}.wrx = wrx;
-    budget{i}.Qx  = Qx;                        
-    budget{i}.Rsy = Rsx;
+    budget{i}.Qx  = Qx;
+    budget{i}.Rsy = Rsy;
     budget{i}.wry = wry;
     budget{i}.Qy =  Qy;  
+    budget{i}.Rsqx = -Rsx/3;
+    budget{i}.wrqx = wrx;
+    budget{i}.Qqx  = Qx; 
+    budget{i}.Rsqy = Rsx/3;
+    budget{i}.wrqy = wrx;
+    budget{i}.Qqy =  Qx; 
     
     budget{i}.Zv = Zv;
     budget{i}.Zh = Zh;
     budget{i}.Zl = Zl;
+    budget{i}.Zqv = Zh/3;
+    budget{i}.Zqh = -Zh/3;
     i=i+1;
 end
 
-if (any(strcmp(select,'cavity')) || any(strcmp(select,'all')) || any(strcmp(select,'ring')))
+if (any(strcmp(select,'cavity')) || any(strcmp(select,'all')));% || any(strcmp(select,'ring')))
     budget{i}.name = 'Cavity';
     budget{i}.type = 'geo';
     budget{i}.quantity = 3;
@@ -521,6 +550,9 @@ if (any(strcmp(select,'cavity')) || any(strcmp(select,'all')) || any(strcmp(sele
     budget{i}.Zv = Zv;
     budget{i}.Zh = Zh;
     budget{i}.Zl = Zl;
+    
+    budget{i}.Zqv = Zv*0;
+    budget{i}.Zqh = -Zh*0;
     i=i+1;
 end
 

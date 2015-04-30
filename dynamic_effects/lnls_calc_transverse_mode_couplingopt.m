@@ -16,11 +16,11 @@ mu    = params.mu;
 c = 299792458;
 
 nucro = nut/eta*chrom;
-pmin = ceil((w(1)-(n_azi*nus + mu + nut)*w0)/(w0*nb)); % arredonda em direcao a +infinito
-pmax = ceil((w(end)-(nb-1 + mu + nut + n_azi*nus)*w0)/(w0*nb))-1; % arredonda em direcao a -infinito
+pmin = ceil((w(1)-(n_azi*nus(1) + mu + nut)*w0)/(w0*nb)); % arredonda em direcao a +infinito
+pmax = ceil((w(end)-(nb-1 + mu + nut + n_azi*nus(1))*w0)/(w0*nb))-1; % arredonda em direcao a -infinito
 
 p = pmin:pmax;
-wp = w0*(p*nb + mu + nut + 0*nus);
+wp = w0*(p*nb + mu + nut + 0*nus(1));
 wpcro = wp - nucro*w0;
 interpol_Z = interp1(w,Z,wp);
 
@@ -30,9 +30,10 @@ A = zeros(1 + 2*n_azi, 1+n_rad, 1 + 2*n_azi, 1+n_rad);
 M = zeros(1 + 2*n_azi, 1+n_rad, 1 + 2*n_azi, 1+n_rad);
 delta = zeros((1 + 2*n_azi)*(1+n_rad),length(I_b));
 
+nus = nus + 0*I_b;
 if length(sigma)~=1
     for ii=1:length(I_b)
-        K = I_b(ii)*nb*w0/(4*pi)/(nus*w0)/(E*1e9);
+        K = I_b(ii)*nb*w0/(4*pi)/(nus(ii)*w0)/(E*1e9);
         for k = 0:n_rad
             for m = 0:n_azi
                 Imk = 1/sqrt(factorial(abs(m)+k)*factorial(k))* ...
@@ -117,7 +118,7 @@ else
         end
     end
     for ii=1:length(I_b)
-        K = I_b(ii)*nb*w0/(4*pi)/(nus*w0)/(E*1e9);
+        K = I_b(ii)*nb*w0/(4*pi)/(nus(ii)*w0)/(E*1e9);
         B = A + K*M;
         B = reshape(B,(1 + 2*n_azi)*(1+n_rad), (1 + 2*n_azi)*(1+n_rad));
         delta(:,ii) = eig(B);

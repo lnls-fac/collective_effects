@@ -1,4 +1,4 @@
-function [tau, espread, Totalpot] = generate_longitudinal_bunch(bunch, ring, wake)
+function [tau, espread, Totalpot, distr, tune] = generate_longitudinal_bunch(bunch, ring, wake)%, espread)
 
 % To generate the longitudinal bunch, we use the longitudinal potential
 % defined in the input
@@ -31,7 +31,13 @@ end
 
 
 % Now we iterate to get the equilibrium distribution
-espread = bunch.espread;
+if ~exist('espread','var')
+    if numel(bunch.espread) > 1
+        espread = interp1(bunch.I, bunch.espread, bunch.I_b, 'linear', bunch.espread(end));
+    else
+        espread = bunch.espread;
+    end
+end
 converged = false;
 % figure; axes;
 while ~converged
@@ -73,11 +79,19 @@ end
 idist = cumtrapz(tau,distr);
 idist = idist/idist(end);
 
+distr =  distr/trapz(tau,distr);
+
+% calculate the average tune:
+potd = diff(Totalpot)./diff(tau)/ring.E*ring.mom_comp/(2*pi)^2*ring.rev_time;
+potd(end + 1) = potd(end);
+tune = trapz(tau, sqrt(abs(potd)).*distr);
+
 % At last, use the integrated longitudinal distribution to generate
 % particles with longitudinal position which follows the equilibrium
 % distribution
-ind = idist==max(idist) | idist==min(idist);
-tau = interp1(idist(~ind),tau(~ind),rand(1,bunch.num_part));
+ind = idist==0 | idist==1;
+rnd_num = rand(1,bunch.num_part);
+tau = interp1(idist(~ind),tau(~ind),rnd_num);
 
 
 function [distr, ipot] = get_distribution_from_potential(tau, pot, ring, espread)
