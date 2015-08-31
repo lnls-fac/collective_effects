@@ -1,6 +1,6 @@
 function budget = sirius_impedance_budget(w, select, phase)
 
-% beta values are estimated based on mode AC10.
+% beta values are estimated based on si.v07.c04
 
 mu0 = 4*pi*1e-7;
 c   = 299792458;
