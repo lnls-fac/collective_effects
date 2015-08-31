@@ -35,7 +35,7 @@ end
 % Calculates kickW:
 ss = saxis.^2;
 rhos = (1/(sigs*sqrt(2*pi)))*exp(-ss./(2*sigmasq));
-kickW = trapz(wake.*rhos, saxis);
+kickW = trapz(saxis,wake.*rhos);
 
 % Assign results to structure:
 globdata.results.kickZ = kickZi;

@@ -33,8 +33,9 @@ globdata.simpar = struct( ...
     'offset', [], ...                     % offset for transverse analysis
     'sym', [],  ...                       % mirror symmetry for transverse?
     'whichaxis', [], ...                  % y or x
-    'units', [], ...                       % # of components in the ring
-    'bunlen', [] ...                     % Bunch Length Used in simulation[m]
+    'units', [], ...                      % # of components in the ring
+    'bunlen', [], ...                     % Bunch Length Used in simulation[m]
+    'cutoff', 2 ...                       % multiple of the bunch frequency to calculate impedance
     );
 
 globdata.results = struct( ...

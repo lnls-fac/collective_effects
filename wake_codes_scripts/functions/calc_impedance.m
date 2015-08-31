@@ -41,8 +41,8 @@ Z      = VHat./Jwlist;
 %% Exports calculated FFT - there is a 10 MHz difference between the peaks, which corresponds to 1/2 df
 
 %defines the frequency range due to the bunch length
-fmax = 1/(pi*sigt);
-indcs = find(freq <= fmax);
+wmax = globdata.simpar.cutoff/sigt;
+indcs = find(w <= wmax);
 
 if m==0
     globdata.results.freq = freq(indcs);

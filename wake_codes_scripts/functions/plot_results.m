@@ -14,8 +14,8 @@ end
 taxis = globdata.simpar.whichaxis;
 
 % Wakepotential
-w     = globdata.results.W;
-s     = globdata.results.s;
+wake  = globdata.results.W;
+spos  = globdata.results.s;
 sigs  = globdata.simpar.sigma;
 
 % Impedance
@@ -46,14 +46,14 @@ figure('Units','characters','Position',[15 37 80 30]);
 %========= Plot bunch shape =========
 sbunch = linspace(-5*sigs,5*sigs,1000); % 5 sigma
 ss = sbunch.^2;
-norm = max(w);                          % Normalization factor
+norm = max(wake);                          % Normalization factor
 bunchshape = norm*exp(-ss./(2*sigs^2));
 
 plot(sbunch*1000,bunchshape,'b','LineWidth',2);
 
 hold on
 %========= Plot wakepotential =========
-plot(s*1000,w,'r','LineWidth',2);
+plot(spos*1000,wake,'r','LineWidth',2);
 grid on;
 
 %========= Longitudinal Options =========
@@ -73,7 +73,7 @@ elseif m==2
 end
 
 set(gca,'FontSize',12)
-xlim( [s(1)*1000 7000*sigs])
+xlim( [spos(1)*1000 7000*sigs])
 ylim ([-inf norm*1.5])
 legend ('Bunch Shape','Wakepotential')
 
@@ -81,7 +81,7 @@ legend ('Bunch Shape','Wakepotential')
 
 figure('Units','characters','Position',[15 10 150 20]);
 
-plot(s,w,'r','LineWidth',2);
+plot(spos,wake,'r','LineWidth',2);
 grid on;
 
 %========= Longitudinal Options =========
