@@ -1,4 +1,4 @@
-function [Zl, Zh, Zv] = lnls_calc_ferrite_kicker_impedance(w,a,b,d,L,epr,mur,Zg,model, coupled)
+function [Zl, Zh, Zv, Zqv, Zqh] = lnls_calc_ferrite_kicker_impedance(w,a,b,d,L,epr,mur,Zg,model, coupled)
 % Calculates Impedances for a ferrite kicker: 
 %   - For the Coupled Flux, it uses Davino-Hahn model.
 %
@@ -87,9 +87,9 @@ epb     = [1 1                9.3            1      12   1];
 mub     = [1 1                 1             1       1   1];
 ange    = [0 0                 0             0       0   0];
 angm    = [0 0                 0             0       0   0];
-sigmadc = [0 5.9e7             1             1       1  5.9e7];
+sigmadc = [0 2.4e6             1             1       1  5.9e7];
 tau     = [0 0                 0             0       0   0]*27e-15;
-b1       = [(b - 2.0e-3 - 2e-6), (b - 2.0e-3), (b-1.0e-3), b , d];
+b1       = [(b - 2.0e-3 - 10e-6), (b - 2.0e-3), (b-1.0e-3), b , d];
 
 for j = 1: length(epb)
     epr1(j,:) = epb(j)*(1-1i.*sign(w).*tan(ange(j))) + sigmadc(j)./(1+1i*w*tau(j))./(1i*w*ep0);
@@ -104,6 +104,8 @@ elseif strcmp(model,'pior')
     [Zl, Zv, Zh] = lnls_calc_impedance_multilayer_round_pipe(w, epr1, mur1, b1, L, 3);
     Zv = pi^2/12*Zv;
     Zh = pi^2/24*Zh;
+    Zqh = -Zh;
+    Zqv = Zh;
 else
     indx = [1 2 3 4 6];
     mur1 = mur1(indx,:);
@@ -112,6 +114,8 @@ else
     [Zl, Zv, Zh] = lnls_calc_impedance_multilayer_round_pipe(w, epr1, mur1, b1, L, 3);
     Zv = pi^2/12*Zv;
     Zh = pi^2/24*Zh;
+    Zqh = -Zh;
+    Zqv = Zh;
 end
 
 if ~exist('coupled','var'), coupled = true; end;

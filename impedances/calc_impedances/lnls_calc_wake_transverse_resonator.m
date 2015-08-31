@@ -21,5 +21,5 @@ waket = zeros(size(tau));
 for i=1:length(Rs)
     Ql = sqrt(Q(i).^2 - 1/4);
     wrl = wr(i) .* Ql ./ Q(i);
-    waket = waket + wr(i)*Rs(i)/Ql*sin(wrl*tau).*exp(wr(i)*tau/(2*Q(i)));
+    waket = waket - wr(i)*Rs(i)/Ql*sin(wrl*tau).*exp(wr(i)*tau/(2*Q(i)));
 end

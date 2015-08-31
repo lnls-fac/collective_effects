@@ -3,7 +3,11 @@ function impedance_budget_summary(ringdata, budget, salva)
 w = ringdata.w;
 h = ringdata.nb;
 I = ringdata.I_tot;
-sigma = interp1(1e-3*ringdata.sigma(:,1)',ringdata.sigma(:,2)',I/h);
+if numel(ringdata.sigma)>1
+    sigma = interp1(1e-3*ringdata.sigma(:,1)',ringdata.sigma(:,2)',I/h);
+else
+    sigma = ringdata.sigma;
+end
 T0 = 2*pi/ringdata.w0;
 lf = zeros(1,length(budget));
 Pl = lf; TPl = lf; Tlf = lf; Tkfx = lf; Tkfy = lf; Zl_eff = lf; Zh_eff = lf;

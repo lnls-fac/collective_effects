@@ -22,6 +22,6 @@ I = (tau ~= 0);
 for i=1:length(Rs)
     Ql = sqrt(Q(i).^2 - 1/4);
     wrl = wr(i) .* Ql ./ Q(i);
-    wakel(I) = wakel(I) + wr(i)*Rs(i)/Q(i)*(cos(wrl*tau(I)) +1/(2*Ql)*sin(wrl*tau(I))).*exp(wr(i)*tau(I)/(2*Q(i)));
-    wakel(~I) = wakel(~I) + (1/2) * wr(i)*Rs(i)/Q(i);
+    wakel(I) = wakel(I) - wr(i)*Rs(i)/Q(i)*(cos(wrl*tau(I)) +1/(2*Ql)*sin(wrl*tau(I))).*exp(wr(i)*tau(I)/(2*Q(i)));
+    wakel(~I) = wakel(~I) - (1/2) * wr(i)*Rs(i)/Q(i);
 end
