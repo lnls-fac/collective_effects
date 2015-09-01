@@ -1,3 +1,7 @@
+#python files
+__pycache_/_
+*.py[cod]
+
 # Object files
 *.o
 *.ko

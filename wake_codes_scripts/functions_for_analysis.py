@@ -91,7 +91,7 @@ def load_wake(globdata):
         spos = loadres[:,0]
         # I know this is correct for ECHO (2015/08/27):
         if m==0: wake = -loadres[:,1]
-        else: wake = loadres[:,1]
+        else: wake = - loadres[:,1]
     else: # I am not sure for GdfidL:
         if m==0:
             wake = -loadres[:,1]
@@ -192,15 +192,19 @@ def calc_impedance(globdata):
     # frequency scale (Hz):
     dt = (saxis[-1]-saxis[0])/(saxis.shape[0]-1)/c
 
-    # Modified Hanning windhow proposed by Caiafa. Not sure of mathematical
+    # Modified Hanning window proposed by Caiafa. Not sure of mathematical
     # validity:
     # window = np.hanning(2*wake.shape[0])[wake.shape[0]-1:-1]
     # fftt = np.fft.rfft(wake*window)
 
     # calculates FFT and frequency:
     #fftt == \int exp(-i*2pi*f*t/n) G(t) dt
-    fftt = np.fft.rfft(wake)
-    freq = np.fft.rfftfreq(wake.shape[0],d=dt)
+    fftt = np.fft.fft(wake)
+    freq = np.fft.fftfreq(wake.shape[0],d=dt)
+
+    # shift the negative frequencies to the correct position
+    fftt = np.roll(fftt,int(np.floor(fftt.shape[0]/2)))
+    freq = np.roll(freq,int(np.floor(freq.shape[0]/2)))
     w    = 2*np.pi*freq
 
     # Longitudinal position shift to match center of the bunch with zero z:
@@ -215,7 +219,7 @@ def calc_impedance(globdata):
 
     #Limits the frequency range according to the bunch length
     wmax  = globdata.simpar.cutoff/sigt
-    indcs = w <= wmax
+    indcs = abs(w) <= wmax
     if m==0:
         globdata.results.freq = freq[indcs]
         # I have to take the conjugate of the fft because:
@@ -224,8 +228,12 @@ def calc_impedance(globdata):
         #Z == \int exp(i*2pi*f*t/n) G(t) dt
         globdata.results.ReZlong =  Z[indcs].real
         globdata.results.ImZlong = -Z[indcs].imag
-        globdata.results.naxis = globdata.results.freq[1:4]/f0
-        globdata.results.ImZoN = globdata.results.ImZlong[1:4]/globdata.results.naxis
+
+        #Calc of Z/n
+        indcs2 = np.logical_and(2*np.pi*abs(globdata.results.freq) < 20e9,
+                                globdata.results.freq != 0)
+        globdata.results.naxis = globdata.results.freq[indcs2]/f0
+        globdata.results.ImZoN = globdata.results.ImZlong[indcs2]/globdata.results.naxis
     elif m>0:
         globdata.results.freq =   freq[indcs]
         #the Transverse impedance, according to Chao and Ng, is given by:
@@ -249,9 +257,7 @@ def calc_loss_factor(globdata):
     ReZ   = globdata.results.ReZlong
 
     c = 299792458
-
-    omega   = (freq*2*np.pi)
-    k       = omega/c
+    k       = (freq*2*np.pi)/c
     ksq     = k**2
 
     # Calculates klossZ vs. sigma:
@@ -262,7 +268,7 @@ def calc_loss_factor(globdata):
     kZi = np.zeros(sigi.shape[0])
     for i in range(sigi.shape[0]):
         rhok   = np.exp(-ksq*sigi[i]**2)
-        kZi[i] = np.trapz(ReZ*rhok, x=k)*c/np.pi*1e-12
+        kZi[i] = np.trapz(ReZ*rhok, x=k) * c / (2*np.pi) * 1e-12
     kZ = kZi[0]
 
     sigvec = np.array([2.65, 5.3, 2.65, 4, 10, 10],dtype=float)*1e-3  # bunch length scenarios
@@ -271,7 +277,7 @@ def calc_loss_factor(globdata):
     kZvec = np.zeros(sigvec.shape[0])
     for i in range(sigvec.shape[0]):
         rhok     = np.exp(-ksq*sigvec[i]**2)
-        kZvec[i] = np.trapz(ReZ*rhok, x=k) * c / np.pi * 1e-12
+        kZvec[i] = np.trapz(ReZ*rhok, x=k) * c / (2*np.pi) * 1e-12
     Plossvec = kZvec * Ivec**2 * T0 * 1e12 / h
 
     globdata.results.klossZ   = kZi
@@ -320,12 +326,12 @@ def calc_kick_factor(globdata):
     sigi = np.linspace(sigmin,sigmax,num=100)
 
     rhok  = np.exp(-ksq*sigs**2)
-    kickZ = np.trapz(ImZ*rhok,x=k) * c / np.pi * 1e-12
+    kickZ = np.trapz(ImZ*rhok,x=k) * c / (2*np.pi) * 1e-12
 
     kickZi = np.zeros(sigi.shape[0])
     for i in range(sigi.shape[0]):
         rhok = np.exp(-ksq*sigi[i]**2)
-        kickZi[i] = np.trapz(ImZ*rhok,x=k) * c / np.pi * 1e-12
+        kickZi[i] = np.trapz(ImZ*rhok,x=k) * c / (2*np.pi) * 1e-12
 
     # Calculates kickW:
     ss = saxis**2
@@ -452,7 +458,7 @@ def plot_results(globdata, mostra=False, salva = True):
         plt.ylabel(r'Z_Q_{0:s} [k\Omega/m]'.format(waxis),fontsize=13)
     plt.grid(True)
     plt.legend (loc='best')
-    plt.xlim(np.array([0, f[-1]],dtype=float)/1e9)
+    plt.xlim(np.array(f[[0,-1]],dtype=float)/1e9)
     if salva: plt.savefig(os.path.sep.join((tardir,fname+'.svg')))
     if mostra: plt.show()
 
