@@ -91,7 +91,7 @@ def load_wake(globdata):
         spos = loadres[:,0]
         # I know this is correct for ECHO (2015/08/27):
         if m==0: wake = -loadres[:,1]
-        else: wake = - loadres[:,1]
+        else: wake = loadres[:,1]
     else: # I am not sure for GdfidL:
         if m==0:
             wake = -loadres[:,1]
