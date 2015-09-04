@@ -31,7 +31,7 @@ def longitudinal_resonator(Rs, Q, wr, w):
     wr = wr[:,None]
 
     Zl = w*Rs / (w+1j*Q*(wr - w**2/wr))
-    return Zl.sum(0)
+    return Zl.sum(0).flatten()
 
 def transverse_resonator(Rs, Q, wr, w):
     # Modelagem de impedância por soma de ressonadores.
@@ -54,14 +54,14 @@ def transverse_resonator(Rs, Q, wr, w):
     Q  = Q[:,None]
     wr = wr[:,None]
 
-    Zt = wr*Rs./(w + 1j*Q*(wr - w**2/wr)
-    return Zt.sum(0)
+    Zt = wr*Rs/(w + 1j*Q*(wr - w**2/wr))
+    return Zt.sum(0).flatten()
 
 def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
 
     def Mtil(m, epr, mur, bet, nu, b):
         def produto(A,B):
-            C = np.zeros((A.shape[0],B.shape[1]))
+            C = np.zeros((A.shape[0],B.shape[1],A.shape[2]),dtype=complex)
             for i in range(A.shape[0]):
                 for j in range(B.shape[1]):
                     for k in range(A.shape[1]):
@@ -71,24 +71,25 @@ def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
         for i in range(len(b)): # lembrando que length(b) = número de camadas - 1
             x = nu[i+1,:] * b[i]
             y = nu[i  ,:] * b[i]
+            Mt = np.zeros((4,4,w.shape[0]),dtype=complex)
 
-            if i<len(b):
-                D = np.zeros((4,4,nu.shape[1]))
+            if i<len(b)-1:
+                D = np.zeros((4,4,nu.shape[1]),dtype=complex)
                 z = nu[i+1,:]*b[i+1]
                 if not any(z.real<0):
-                    ind = (z.real<50)
+                    ind = (z.real<60)
 
                     A = scy.iv(m,z[ind])
-                    B = scy.kn(m,z[ind])
+                    B = scy.kv(m,z[ind])
                     C = scy.iv(m,x[ind])
-                    E = scy.kn(m,x[ind])
+                    E = scy.kv(m,x[ind])
 
-                    D[0,0,:] =  1
-                    D[1,1,ind]  = -B*C/(A*E)
-                    D[2,2,~ind] =  - np.exp(-2*(z[~ind]-x[~ind]))
-                    D[2,2,:] =  1;
-                    D[3,3,ind] = -B*C/(A*E)
-                    D[3,3,~ind] =  - np.exp(-2*(z[~ind]-x[~ind]))
+                    D[0,0,:]    =  1
+                    D[1,1,ind]  = - B*C/(A*E)
+                    D[1,1,~ind] = - np.exp(-2*(z[~ind]-x[~ind]))
+                    D[2,2,:]    =  1
+                    D[3,3,ind]  = - B*C/(A*E)
+                    D[3,3,~ind] = - np.exp(-2*(z[~ind]-x[~ind]))
 
             Mt[0,0,:] = -nu[i+1,:]**2*b[i]/epr[i+1,:]*(
                     epr[i+1,:]/nu[i+1,:]*(-scy.kve(m-1,x)/scy.kve(m,x) - m/x)
@@ -127,32 +128,33 @@ def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
             if len(b) == 1:
                 M = Mt
             else:
-                if (i ==1):
+                if (i ==0):
                     M = produto(D,Mt)
-                elif i < len(b):
+                elif i < len(b)-1:
                     M = produto(D,produto(Mt,M))
                 else:
                     M = produto(Mt,M)
+        return M
 
     def alphaTM(m, epr, mur, bet, nu, b):
         M = Mtil(m, epr, mur, bet, nu, b)
 
         B = (M[0,1,:]*M[2,2,:] - M[2,1,:]*M[0,2,:]) / (M[0,0,:]*M[2,2,:] - M[0,2,:]*M[2,0,:])
-        alphaTM = spy.kn(m,nu[0,:]*b[0])/spy.iv(m,nu[0,:]*b[0]) * B
+        alphaTM = scy.kv(m,nu[0,:]*b[0])/scy.iv(m,nu[0,:]*b[0]) * B
         return alphaTM
 
 ####################
     gam = E/511e3
-    bet = sqrt(1-1/gam**2)
-    nu  = np.ones((epr.shape[0],1))*abs(w/c)*sqrt(1 - bet**2*epr.*mur)
+    bet = np.sqrt(1-1/gam**2)
+    nu  = np.ones((epr.shape[0],1))*abs(w/c)*np.sqrt(1 - bet**2*epr*mur)
 
     Zl = 1j*L*w   /(2*np.pi*ep0 * (bet*c)**2*gam**2)*alphaTM(0, epr, mur, bet, nu, b)
     Zv = 1j*L*w**2/(4*np.pi*ep0*c**2*(bet*c)*gam**4)*alphaTM(1, epr, mur, bet, nu, b)
 
     # The code cant handle w = 0;
-    ind0 = np.where(w == 0)
-    if not ind0:
-        Zl[ind0] = Zl[ind0+1].real
+    ind0, = np.where(w == 0)
+    if ind0:
+        Zl[ind0] = (Zl[ind0+1] + Zl[ind0-1]).real/2
         Zv[ind0] = 0 + 1j*Zv[ind0+1].imag
 
 
@@ -164,7 +166,7 @@ def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
     return Zl.conj(), Zv.conj(), Zh.conj()
 
 
-def lnls_calc_ferrite_kicker_impedance(w,a,b,d,L,epr,mur,Zg, model, coupled):
+def ferrite_kicker_impedance(w,a,b,d,L,epr,mur,Zg, model, coupled):
     # Calculates Impedances for a ferrite kicker:
     #       PIOR CASO:
     #       multi-layer cilindrica com vacuo-coating(2microns)-ceramica-ferrite-PEC
@@ -190,40 +192,40 @@ def lnls_calc_ferrite_kicker_impedance(w,a,b,d,L,epr,mur,Zg, model, coupled):
     #
     #
 
-    epb     = [1 1                9.3            1      12   1]
-    mub     = [1 1                 1             1       1   1]
-    ange    = [0 0                 0             0       0   0]
-    angm    = [0 0                 0             0       0   0]
-    sigmadc = [0 2.4e6             1             1       1  5.9e7]
-    tau     = [0 0                 0             0       0   0]*27e-15
-    b1       = [(b - 2.0e-3 - 10e-6), (b - 2.0e-3), (b-1.0e-3), b , d]
+    epb     = np.array([1, 1, 9.3, 1, 12, 1],dtype=float)
+    mub     = np.array([1, 1, 1, 1, 1, 1],dtype=float)
+    ange    = np.array([0, 0, 0, 0, 0, 0],dtype=float)
+    angm    = np.array([0, 0, 0, 0, 0, 0],dtype=float)
+    sigmadc = np.array([0, 2.4e6,1,1,1, 5.9e7],dtype=float)
+    tau     = np.array([0, 0, 0, 0, 0, 0],dtype=float)*27e-15
+    b1      = np.array([(b - 2.0e-3 - 10e-6), (b - 2.0e-3), (b-1.0e-3), b , d],dtype=float)
 
-    for j = 1: length(epb)
-        epr1(j,:) = epb(j)*(1-1i.*sign(w).*tan(ange(j))) + sigmadc(j)./(1+1i*w*tau(j))./(1i*w*ep0)
-        mur1(j,:) = mub(j)*(1-1i.*sign(w).*tan(angm(j)))
-    end
-    epr1(5,:) = epr
-    mur1(5,:) = mur
+    epr1 = np.zeros((epb.shape[0],w.shape[0]),dtype=complex)
+    mur1 = np.zeros((epb.shape[0],w.shape[0]),dtype=complex)
+    for j in range(len(epb)):
+        epr1[j,:] = epb[j]*(1-1j*np.sign(w)*np.tan(ange[j])) + sigmadc[j]/(1+1j*w*tau[j])/(1j*w*ep0)
+        mur1[j,:] = mub[j]*(1-1j*np.sign(w)*np.tan(angm[j]))
+    epr1[5,:] = epr
+    mur1[5,:] = mur
 
-    if strcmp(model, 'tsutsui')
-        [Zl, Zh, Zv] = lnls_calc_impedance_tsutsui_model(w, epr, mur, a, b, d, L, 10)
-    elseif strcmp(model,'pior')
-        [Zl, Zv, Zh] = lnls_calc_impedance_multilayer_round_pipe(w, epr1, mur1, b1, L, 3)
-        Zv = pi^2/12*Zv
-        Zh = pi^2/24*Zh
+    if model.startswith('tsutsui'):
+        Zl, Zh, Zv = kicker_tsutsui_model(w, epr, mur, a, b, d, L, 10)
+    elif model.startswith('pior'):
+        Zl, Zv, Zh = resistive_multilayer_round_pipe(w, epr1, mur1, b1, L, 3)
+        Zv = np.pi**2/12*Zv
+        Zh = np.pi**2/24*Zh
         Zqh = -Zh
         Zqv = Zh
-    else
-        indx = [1 2 3 4 6]
-        mur1 = mur1(indx,:)
-        epr1 = epr1(indx,:)
-        b1    = b1([1 2 3 4])
-        [Zl, Zv, Zh] = lnls_calc_impedance_multilayer_round_pipe(w, epr1, mur1, b1, L, 3)
-        Zv = pi^2/12*Zv
-        Zh = pi^2/24*Zh
+    else:
+        indx = [0, 1, 2, 3, 5]
+        mur1 = mur1[indx,:]
+        epr1 = epr1[indx,:]
+        b1    = b1([0, 1, 2, 3])
+        Zl, Zv, Zh = resistive_multilayer_round_pipe(w, epr1, mur1, b1, L, 3)
+        Zv = np.pi**2/12*Zv
+        Zh = np.pi**2/24*Zh
         Zqh = -Zh
         Zqv = Zh
-    end
 
 def kicker_coupled_flux(w,h,W,t,L,mur,Zg):
     # Calculates Impedances for a ferrite kicker:
@@ -341,7 +343,8 @@ def kicker_tsutsui_model(w, epr, mur, a, b, d, L, n):
     tn  = np.tan(kyn*(b-d))
     ct  = 1/np.tan(kyn*(b-d))
 
-    Zl = 1j*Z0*L/2/a / ((kxn/k*sh*ch*(1+epr*mur) + kyn/k*(mur*sh**2*tn - epr*ch**2*ct)
+    Zl = 1j*Z0*L/2/a / (
+        (kxn/k*sh*ch*(1+epr*mur) + kyn/k*(mur*sh**2*tn - epr*ch**2*ct)
         )/(epr*mur-1) - k/kxn*sh*ch)
     Zl = Zl.sum(0)
 
@@ -351,7 +354,7 @@ def kicker_tsutsui_model(w, epr, mur, a, b, d, L, n):
     Zv = Zv.sum(0)
 
     Zh = 1j*Z0*L/2/a * kxn**2/k/(
-        (kxn/k*sh*ch*(1+epr.*mur) + kyn/k*(mur*sh**2*tn - epr*ch**2*ct)
+        (kxn/k*sh*ch*(1+epr*mur) + kyn/k*(mur*sh**2*tn - epr*ch**2*ct)
         )/(epr*mur-1) - k/kxn*sh*ch)
     Zh = Zh.sum(0)
 

@@ -100,7 +100,7 @@ class Ring:
             self.en_lost_rad = 829761.9 #eV
 
 
-    def loss_factor(self,w,Z,sigma,w0,nb):
+    def loss_factor(self,w,Z,sigma):
         # Calcula o loss factor and effective impedance para nb pacotes com
         # comprimento longitudinal sigma igualmente espacados.
         #
@@ -114,20 +114,26 @@ class Ring:
         #   w0 = frequencia angular de revolucao no anel [rad/s]
         #   nb = numero de pacotes preenchidos
 
+        w0 = self.w0
+        nb = self.nbun
+
         pmin = np.ceil( w[0] /(w0*nb))  # arredonda em direcao a +infinito
         pmax = np.floor(w[-1]/(w0*nb)) # arredonda em direcao a -infinito
         p = np.arange(pmin, pmax+1)
         wp = w0*p*nb
 
-        h = exp(-(wp*sigma/c).^2)
+        h = np.exp(-(wp*sigma/c)**2)
         interpol_Z = np.interp(wp,w,Z.real)
 
         lossf = nb*(w0/2/np.pi)*sum(interpol_Z*h)
-        return lossf
+        return wp, h, lossf
 
-    def kick_factor(w,Z,sigma,w0,nb):
+    def kick_factor(self, w,Z,sigma):
         # Calcula o kick factor para nb pacotes com comprimento longitudinal sigma
         # igualmente espacados.
+
+        w0 = self.w0
+        nb = self.nbun
 
         pmin = np.ceil( w[0] /(w0*nb))  # arredonda em direcao a +infinito
         pmax = np.floor(w[-1]/(w0*nb)) # arredonda em direcao a -infinito
@@ -138,21 +144,21 @@ class Ring:
         h = np.exp(-(wp*sigma/c)**2)
         interpol_Z = np.interp(wp,w,Z.imag)
 
-        Zt_eff = sum(interpol_Z.*h)
-        return nb*(w0/2/pi)*Zt_eff
+        Zt_eff = sum(interpol_Z*h)
+        return nb*(w0/2/np.pi)*Zt_eff
 
     def longitudinal_cbi(self, w, Zl, sigma, m):
         # Calcula a impedancia longitudinal efetiva dos nb modos de oscilacao,
         # considerando um feixe gaussiano, para o modo azimutal m e radial k=0;
         # E calcula as instabilidades de Coupled_bunch a partir dela.
 
+        assert m > 0, 'azimuthal mode m must be greater than zero.'
         nus  = self.nus
-        eta  = self.mom_cmpt
         w0   = self.w0
         eta  = self.mom_cmpct
         E    = self.E
         nb   = self.nbun
-        I_tot= self.nom_curr
+        I_tot= self.nom_cur
 
         # Calculate Effective Impedance
         pmin = np.ceil( (w[ 0] -    m*nus*w0    )/(w0*nb)) #arredonda em direcao a +infinito
@@ -162,13 +168,15 @@ class Ring:
         wp = w0*(nb*p[None,:] + np.arange(0,nb)[:,None] + m*nus)
 
         h = (wp*sigma/c)**(2*abs(m))*np.exp(-(wp*sigma/c)**2)
-        interpol_Z = np.interp(wp, w, Zl)
-        Zl_eff = np.diag((interpol_Z/wp) * h)
+        # Complex interpolation is ill-defined
+        interpol_Z  = 1j*np.interp(wp, w, Zl.imag) # imaginary must come first
+        interpol_Z +=    np.interp(wp, w, Zl.real)
+        Zl_eff = (interpol_Z/wp * h).sum(1)
 
         deltaw = 1j/(2*np.pi*2**m*np.math.factorial(m - 1)) * I_tot*eta/(E*nus*(sigma/c)**2) * Zl_eff
         return deltaw
 
-    def transverse_cbi(w,Z, sigma, plane='y', chrom, m):
+    def transverse_cbi(self, w,Z, sigma, m,  plane='y'):
         # Calcula a impedância transversal efetiva dos nb modos de oscilacao,
         # considerando um feixe gaussiano, para o modo azimutal m e radial k=0;
         # E calcula as instabilidades de Coupled_bunch a partir dela.
@@ -176,12 +184,11 @@ class Ring:
         # deltaw = transverse_cbi(w,Z, sigma, nb, w0, nus, nut, chrom, eta, m, E, I_tot)
 
         nus  = self.nus
-        eta  = self.mom_cmpt
         w0   = self.w0
         eta  = self.mom_cmpct
         E    = self.E
         nb   = self.nbun
-        I_tot= self.nom_curr
+        I_tot= self.nom_cur
         if plane.lower().startswith(('x','h')):
             nut, chrom   = self.nux, self.chromx
         else:
@@ -197,8 +204,10 @@ class Ring:
         wpcro = wp - nucro*w0
 
         h = (wpcro*sigma/c)**(2*abs(m))*np.exp(-(wpcro*sigma/c)**2)
-        interpol_Z = np.interp(wp,w,Z)
-        Zt_eff = np.diag(interpol_Z * h)
+        # Complex interpolation is ill-defined
+        interpol_Z  = 1j*np.interp(wp, w, Z.imag) # imaginary must come first
+        interpol_Z +=    np.interp(wp, w, Z.real)
+        Zt_eff = (interpol_Z * h).sum(1)
 
         ## Calculate Coupled_bunch Instability
 
@@ -214,8 +223,8 @@ class Ring:
 
         def calc_M(interpol_Z, wp, sigma, n_azi=7, n_rad=6):
             sigW = wp*sigma/c/np.sqrt(2)
-            A = np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1])
-            M = np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1])
+            A = np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
+            M = np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
             for k in range(n_rad+1):
                 for m in range(n_azi+1):
                     Imk = bunch_spectrum(sigW,m,k)
@@ -262,12 +271,13 @@ class Ring:
         pmax = np.floor((w[-1]-(mu + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a -infinito
 
         p = np.arange(pmin,pmax+1)
-        wp = w0*(p*nb + mu + 1*nus);
-        interpol_Z = np.interp(wp,w,Z);
-
+        wp = w0*(p*nb + mu + 1*nus)
+        # Complex interpolation is ill-defined
+        interpol_Z  = 1j*np.interp(wp, w, Z.imag) # imaginary must come first
+        interpol_Z +=    np.interp(wp, w, Z.real)
 
         delta = np.zeros([1 + 2*n_azi + n_rad*(2*n_azi+1), len(I_b)]);
-        if len(sigma)~=1:
+        if not len(sigma)==1:
             for ii in range(len(I_b)):
                 A, M = calc_M(interpol_Z, wp, sigma[ii], n_azi, n_rad)
                 K    = I_b[ii]*nb*w0*eta/(2*np.pi)/(nus*w0)**2/E/(sigma[ii]/c)**2
@@ -290,13 +300,13 @@ class Ring:
 
         def calc_M(interpol_Z, wpcro, sigma, n_azi, n_rad):
             sigW = wpcro*sigma/c/np.sqrt(2)
-            A = np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1])
-            M = np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1])
+            A = np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
+            M = np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
             for k in range(n_rad+1):
                 for m in range(n_azi+1):
                     Imk = bunch_spectrum(sigW,m,k)
-                    A(n_azi+m, k, n_azi+m, k) =  m
-                    A(n_azi-m, k, n_azi-m, k) = -m
+                    A[n_azi+m, k, n_azi+m, k] =  m
+                    A[n_azi-m, k, n_azi-m, k] = -m
                     for n in range(m,n_azi+1):
                         Inl =  bunch_spectrum(sigW,n,k)
                         Mmknl = -1j*(1j)**(m-n)*sum(interpol_Z*Imk*Inl)
@@ -314,14 +324,14 @@ class Ring:
                         for n in range(n_azi+1):
                             Inl =  bunch_spectrum(sigW,n,l)
                             Mmknl = -1j*(1j)**(m-n)*sum(interpol_Z*Imk*Inl)
-                            M(n_azi+m, k, n_azi+n, l) =             Mmknl
-                            M(n_azi-m, k, n_azi+n, l) =             Mmknl
-                            M(n_azi+m, k, n_azi-n, l) =             Mmknl
-                            M(n_azi-m, k, n_azi-n, l) =             Mmknl
-                            M(n_azi+n, l, n_azi+m, k) = (-1)**(m-n)*Mmknl
-                            M(n_azi+n, l, n_azi-m, k) = (-1)**(m-n)*Mmknl
-                            M(n_azi-n, l, n_azi+m, k) = (-1)**(m-n)*Mmknl
-                            M(n_azi-n, l, n_azi-m, k) = (-1)**(m-n)*Mmknl
+                            M[n_azi+m, k, n_azi+n, l] =             Mmknl
+                            M[n_azi-m, k, n_azi+n, l] =             Mmknl
+                            M[n_azi+m, k, n_azi-n, l] =             Mmknl
+                            M[n_azi-m, k, n_azi-n, l] =             Mmknl
+                            M[n_azi+n, l, n_azi+m, k] = (-1)**(m-n)*Mmknl
+                            M[n_azi+n, l, n_azi-m, k] = (-1)**(m-n)*Mmknl
+                            M[n_azi-n, l, n_azi+m, k] = (-1)**(m-n)*Mmknl
+                            M[n_azi-n, l, n_azi-m, k] = (-1)**(m-n)*Mmknl
             return (A.reshape([(1 + 2*n_azi)*(1+n_rad),(1 + 2*n_azi)*(1+n_rad)]).transpose(),
                     M.reshape([(1 + 2*n_azi)*(1+n_rad),(1 + 2*n_azi)*(1+n_rad)]).transpose())
 
@@ -343,11 +353,13 @@ class Ring:
 
         p = np.arange(pmin,pmax+1)
         wp = w0*(p*nb + mu +nut + 1*nus)
-        interpol_Z = np.interp(wp,w,Z)
+        # Complex interpolation is ill-defined
+        interpol_Z  = 1j*np.interp(wp, w, Z.imag) # imaginary must come first
+        interpol_Z +=    np.interp(wp, w, Z.real)
         wpcro = wp - nucro*w0
 
         delta = np.zeros([(1 + 2*n_azi)*(1+n_rad), len(I_b)]);
-        if len(sigma)~=1:
+        if not len(sigma)==1:
             for ii in range(len(I_b)):
                 A, M = calc_M(interpol_Z, wpcro, sigma[ii], n_azi, n_rad)
                 K    = I_b[ii]*nb*w0/(4*np.pi)/(nus*w0)/E
