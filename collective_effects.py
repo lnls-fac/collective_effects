@@ -59,6 +59,7 @@ class Ring:
             self.nom_cur     = 0.100       # total current [A]
             self.nus         = 0.00435    # synchrotron tune
             self.espread     = lambda x:7.64e-4 +0*x
+            self.sigma       = lambda x:3e-3    +0*x
             self.emitx       = lambda x:271e-12 +0*x
             self.emity       = lambda x:2.71e-12+0*x
             self.damptx      = 17.1e-3
@@ -70,6 +71,7 @@ class Ring:
             self.nom_cur     = 0.10         # total current [A]
             self.nus         = 0.00435        # synchrotron tune
             self.espread     = lambda x:1e-2*(9.4e-2+3.80e-2*x-1.83e-2*x**2+4.78e-3*x**3-4.73e-4*x**4)
+            self.sigma       = lambda x:3e-3    +0*x
             self.emitx       = lambda x:1e-9*(2.3e-1+1.57e-1*x-6.36e-2*x**2+1.60e-2*x**3-1.55e-3*x**4)
             self.emity       = lambda x:1e-12*(2.15 +1.87   *x-8.49e-1*x**2+2.25e-1*x**3-2.25e-3*x**4)
             self.damptx      = 12.4e-3
@@ -81,6 +83,7 @@ class Ring:
             self.nom_cur     = 0.35        # total current [A]
             self.nus         = 0.00435    # synchrotron tune
             self.espread     = lambda x:1e-2*(8.87e-2+1.58e-2*x-5.48e-3*x**2+1.25e-3*x**3-1.14e-4*x**4)
+            self.sigma       = lambda x:3e-3    +0*x
             self.emitx       = lambda x:1e-9*(1.89e-1+5.61e-2*x-1.59e-2*x**2+3.44e-3*x**3-3.10e-4*x**4)
             self.emity       = lambda x:1e-12*(1.6497+1.04220*x-5.15e-1*x**2+1.45e-1*x**3-1.51e-2*x**4)
             self.damptx      = 10.6e-3
@@ -92,6 +95,7 @@ class Ring:
             self.nom_cur     = 0.5        # total current [A]
             self.nus         = 0.00435    # synchrotron tune
             self.espread     = lambda x:1e-2*(8.87e-2+1.58e-2*x-5.48e-3*x**2+1.25e-3*x**3-1.14e-4*x**4)
+            self.sigma       = lambda x:3e-3    +0*x
             self.emitx       = lambda x:1e-9*(1.89e-1+5.68e-2*x-1.59e-2*x**2+3.45e-3*x**3-3.10e-4*x**4)
             self.emity       = lambda x:1e-12*(1.6497+1.04220*x-5.15e-1*x**2+1.45e-1*x**3-1.51e-2*x**4)
             self.damptx      = 10.6e-3
@@ -214,25 +218,34 @@ class Ring:
         deltaw = -1j*I_tot/(4*np.pi*2**abs(m)*np.math.factorial(abs(m))) / E * w0 * Zt_eff
         return deltaw
 
-    def longitudinal_mode_coupling(self,w,Z, n_azi, n_rad):
-
-        def bunch_spectrum(sigW,azi,rad):
-            Inl = (1/np.sqrt(np.math.factorial(abs(azi)+rad) * np.math.factorial(rad)) *
-                sigW**(abs(azi)+2*rad) * np.exp(-sigW**2))
-            return Inl
+    def longitudinal_mode_coupling(self,w,Z, n_azi=10, n_rad=12,mu=0):
 
         def calc_M(interpol_Z, wp, sigma, n_azi=7, n_rad=6):
+            spectrum = dict()
+            def my_pow(vetor,n):
+                res = np.ones(vetor.shape)
+                for _ in range(n): res *= vetor
+                return res
+            def bunch_spectrum(wp,sigma,azi,rad):
+                sigW = wp*sigma/c/np.sqrt(2)
+                chave = (abs(azi),rad)
+                if chave not in spectrum.keys():
+                    spectrum[chave] = (1/np.sqrt(float(np.math.factorial(abs(azi)+rad) *
+                                                       np.math.factorial(rad))) *
+                                       my_pow(sigW,(abs(azi)+2*rad)) * np.exp(-my_pow(sigW,2)))
+                return spectrum[chave]
+
             sigW = wp*sigma/c/np.sqrt(2)
             A = np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
             M = np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
             for k in range(n_rad+1):
                 for m in range(n_azi+1):
-                    Imk = bunch_spectrum(sigW,m,k)
+                    Imk = bunch_spectrum(wp,sigma,m,k)
                     A[n_azi+m, k, n_azi+m, k] =  m
                     A[n_azi-m, k, n_azi-m, k] = -m
                     for n in range(m,n_azi+1):
-                        Inl =  bunch_spectrum(sigW,n,k)
-                        Mmknl = 1j*(1j)**(m-n)*sum((interpol_Z/wp)*Imk*Inl)
+                        Inl =  bunch_spectrum(wp,sigma,n,k)
+                        Mmknl = 1j*(1j)**(m-n)*((interpol_Z/wp)*Imk*Inl).sum()
                         M[n_azi+m, k, n_azi+n, k] =              m*Mmknl
                         M[n_azi-m, k, n_azi+n, k] =      -       m*Mmknl
                         M[n_azi+m, k, n_azi-n, k] =              m*Mmknl
@@ -243,10 +256,10 @@ class Ring:
                         M[n_azi-n, k, n_azi-m, k] = -(-1)**(m-n)*n*Mmknl
                 for l in range(k+1,n_rad+1):
                     for m in range(n_azi+1):
-                        Imk =  bunch_spectrum(sigW,m,k)
+                        Imk =  bunch_spectrum(wp,sigma,m,k)
                         for n in range(n_azi+1):
-                            Inl =  bunch_spectrum(sigW,n,l)
-                            Mmknl = 1j*(1j)**(m-n)*sum((interpol_Z/wp)*Imk*Inl)
+                            Inl =  bunch_spectrum(wp,sigma,n,l)
+                            Mmknl = 1j*(1j)**(m-n)*((interpol_Z/wp)*Imk*Inl).sum()
                             M[n_azi+m, k, n_azi+n, l] =              m*Mmknl
                             M[n_azi-m, k, n_azi+n, l] =      -       m*Mmknl
                             M[n_azi+m, k, n_azi-n, l] =              m*Mmknl
@@ -258,14 +271,13 @@ class Ring:
             return (A.reshape([(1 + 2*n_azi)*(1+n_rad),(1 + 2*n_azi)*(1+n_rad)]).transpose(),
                     M.reshape([(1 + 2*n_azi)*(1+n_rad),(1 + 2*n_azi)*(1+n_rad)]).transpose())
 
-        I_b   = self.I
+        I_b   = self.cur_bun
         sigma = self.sigma(I_b)
         E     = self.E
         w0    = self.w0
         nus   = self.nus
         eta   = self.mom_cmpct
         nb    = self.nbun
-        mu    = self.mu
 
         pmin = np.ceil( (w[0] -(mu + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a +infinito
         pmax = np.floor((w[-1]-(mu + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a -infinito
@@ -276,40 +288,48 @@ class Ring:
         interpol_Z  = 1j*np.interp(wp, w, Z.imag) # imaginary must come first
         interpol_Z +=    np.interp(wp, w, Z.real)
 
-        delta = np.zeros([1 + 2*n_azi + n_rad*(2*n_azi+1), len(I_b)]);
+        delta = np.zeros([len(I_b),(n_rad+1)*(2*n_azi+1)],dtype=complex)
         if not len(sigma)==1:
             for ii in range(len(I_b)):
                 A, M = calc_M(interpol_Z, wp, sigma[ii], n_azi, n_rad)
                 K    = I_b[ii]*nb*w0*eta/(2*np.pi)/(nus*w0)**2/E/(sigma[ii]/c)**2
                 B    = A + K*M
-                delta[:,ii] = eig(B)
+                delta[ii,:] = eig(B)
         else:
             A, M = calc_M(interpol_Z, wp, sigma, n_azi, n_rad)
             for ii in range(len(I_b)):
                 K = I_b[ii]*nb*w0*eta/(2*np.pi)/(nus*w0)**2/E/(sigma/c)**2
                 B = A + K*M
-                delta[:,ii] = np.linalg.eigvals(B)
-
+                delta[ii,:] = np.linalg.eigvals(B)
+        return delta
 
     def transverse_mode_coupling(self,w,Z, plane='y', n_azi=3, n_rad=4, mu=0):
 
-        def bunch_spectrum(sigW,azi,rad):
-            Inl = (1/np.sqrt(np.math.factorial(abs(azi)+rad) * np.math.factorial(rad)) *
-                sigW**(abs(azi)+2*rad) * np.exp(-sigW**2))
-            return Inl
-
         def calc_M(interpol_Z, wpcro, sigma, n_azi, n_rad):
-            sigW = wpcro*sigma/c/np.sqrt(2)
+            spectrum = dict()
+            def my_pow(vetor,n):
+                res = np.ones(vetor.shape)
+                for _ in range(n): res *= vetor
+                return res
+            def bunch_spectrum(wp,sigma,azi,rad):
+                sigW = wp*sigma/c/np.sqrt(2)
+                chave = (abs(azi),rad)
+                if chave not in spectrum.keys():
+                    spectrum[chave] = (1/np.sqrt(float(np.math.factorial(abs(azi)+rad) *
+                                                       np.math.factorial(rad))) *
+                                       my_pow(sigW,(abs(azi)+2*rad)) * np.exp(-my_pow(sigW,2)))
+                return spectrum[chave]
+
             A = np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
             M = np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
             for k in range(n_rad+1):
                 for m in range(n_azi+1):
-                    Imk = bunch_spectrum(sigW,m,k)
+                    Imk = bunch_spectrum(wpcro,sigma,m,k)
                     A[n_azi+m, k, n_azi+m, k] =  m
                     A[n_azi-m, k, n_azi-m, k] = -m
                     for n in range(m,n_azi+1):
-                        Inl =  bunch_spectrum(sigW,n,k)
-                        Mmknl = -1j*(1j)**(m-n)*sum(interpol_Z*Imk*Inl)
+                        Inl =  bunch_spectrum(wpcro,sigma,n,k)
+                        Mmknl = -1j*(1j)**(m-n)*(interpol_Z*Imk*Inl).sum()
                         M[n_azi+m, k, n_azi+n, k] =             Mmknl
                         M[n_azi-m, k, n_azi+n, k] =             Mmknl
                         M[n_azi+m, k, n_azi-n, k] =             Mmknl
@@ -320,10 +340,10 @@ class Ring:
                         M[n_azi-n, k, n_azi-m, k] = (-1)**(m-n)*Mmknl
                 for l in range(k+1,n_rad+1):
                     for m in range(n_azi+1):
-                        Imk =  bunch_spectrum(sigW,m,k)
+                        Imk =  bunch_spectrum(wpcro,sigma,m,k)
                         for n in range(n_azi+1):
-                            Inl =  bunch_spectrum(sigW,n,l)
-                            Mmknl = -1j*(1j)**(m-n)*sum(interpol_Z*Imk*Inl)
+                            Inl =  bunch_spectrum(wpcro,sigma,n,l)
+                            Mmknl = -1j*(1j)**(m-n)*(interpol_Z*Imk*Inl).sum()
                             M[n_azi+m, k, n_azi+n, l] =             Mmknl
                             M[n_azi-m, k, n_azi+n, l] =             Mmknl
                             M[n_azi+m, k, n_azi-n, l] =             Mmknl
@@ -335,13 +355,17 @@ class Ring:
             return (A.reshape([(1 + 2*n_azi)*(1+n_rad),(1 + 2*n_azi)*(1+n_rad)]).transpose(),
                     M.reshape([(1 + 2*n_azi)*(1+n_rad),(1 + 2*n_azi)*(1+n_rad)]).transpose())
 
-        I_b   = self.I
-        sigma = self.sigma(I)
+        I_b   = self.cur_bun
+        sigma = self.sigma(I_b)
         E     = self.E
         w0    = self.w0
         nus   = self.nus
         eta   = self.mom_cmpct
         nb    = self.nbun
+        if mu >= nb:
+            mu = 0
+            print('Coupled Bunch Mode greater than Number of Bunchs.\n',
+                  'Reseting mu to 0.')
         if plane.lower().startswith(('x','h')):
             nut, chrom   = self.nux, self.chromx
         else:
@@ -358,16 +382,17 @@ class Ring:
         interpol_Z +=    np.interp(wp, w, Z.real)
         wpcro = wp - nucro*w0
 
-        delta = np.zeros([(1 + 2*n_azi)*(1+n_rad), len(I_b)]);
+        delta = np.zeros([len(I_b),(n_rad+1)*(2*n_azi+1)],dtype=complex)
         if not len(sigma)==1:
             for ii in range(len(I_b)):
                 A, M = calc_M(interpol_Z, wpcro, sigma[ii], n_azi, n_rad)
                 K    = I_b[ii]*nb*w0/(4*np.pi)/(nus*w0)/E
                 B    = A + K*M
-                delta[:,ii] = np.linalg.eigvals(B)
+                delta[ii,:] = np.linalg.eigvals(B)
         else:
             A, M = calc_M(interpol_Z, wpcro, sigma, n_azi, n_rad)
             for ii in range(len(I_b)):
                 K = I_b[ii]*nb*w0/(4*np.pi)/(nus*w0)/E
                 B = A + K*M
-                delta[:,ii] = np.linalg.eigvals(B)
+                delta[ii,:] = np.linalg.eigvals(B)
+        return delta
