@@ -8,7 +8,7 @@ function deltaw = lnls_calc_transverse_cbi(w,Z, sigma, nb, w0, nus, nut, chrom, 
 c = 299792458;
 
 %% Calculate Effective Impedance
-nucro = nut/eta*chrom;
+nucro = chrom/eta;
 pmin = ceil((w(1)-(m*nus + nut)*w0)/(w0*nb)); % arredonda em direcao a +infinito
 pmax = ceil((w(end)-(nb-1 + nut + m*nus)*w0)/(w0*nb))-1; % arredonda em direcao a -infinito
 

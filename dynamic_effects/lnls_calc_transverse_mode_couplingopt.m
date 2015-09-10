@@ -1,21 +1,24 @@
-function delta = lnls_calc_transverse_mode_couplingopt(w, Z, params)
+function delta = lnls_calc_transverse_mode_couplingopt(w, Z, ring,plane, n_rad,n_azi,mu)
 
-n_rad = params.n_rad;
-n_azi = params.n_azi;
-sigma = params.sigma;
-I_b   = params.I;
-E     = params.E;
-w0    = params.w0;
-nus   = params.nus;
-nut   = params.nut;
-chrom = params.chrom;
-eta   = params.eta;
-nb    = params.nb;
-mu    = params.mu;
+sigma = ring.sigma;
+I_b   = ring.I;
+E     = ring.E;
+w0    = ring.w0;
+nus   = ring.nus;
+eta   = ring.eta;
+nb    = ring.nb;
+
+if any(strncmpi(plane,{'h','x'},1))
+    nut   = ring.nutx;
+    chrom = ring.chromx;
+else
+    nut   = ring.nuty;
+    chrom = ring.chromy;
+end
 
 c = 299792458;
 
-nucro = nut/eta*chrom;
+nucro = chrom/eta;
 pmin = ceil((w(1)-(n_azi*nus(1) + mu + nut)*w0)/(w0*nb)); % arredonda em direcao a +infinito
 pmax = ceil((w(end)-(nb-1 + mu + nut + n_azi*nus(1))*w0)/(w0*nb))-1; % arredonda em direcao a -infinito
 

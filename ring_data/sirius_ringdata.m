@@ -1,6 +1,8 @@
 function ringdata = sirius_ringdata(phase)
 
-ringdata.lattice_version = 'SI.V07.C05';
+if ~exist('phase','var'), phase = 'phase_1'; end
+
+ringdata.lattice_version = 'SI.v10.c01';
 
 w = logspace(5,12.4,11000); % limites determinados atraves de estudo do
 % w = linspace(5e8,3e9,600000)*2*pi;
@@ -10,6 +12,8 @@ ringdata.w = [-fliplr(w) w];
 %Tunes 
 ringdata.nuty = 13.116;
 ringdata.nutx = 48.131;
+ringdata.chromx = 0.0;
+ringdata.chromy = 0.0;
 ringdata.nb = 864;           % harmonic Number
 ringdata.w0 = 2*pi*299792458/518.396; % revolution angular frequency [Hz]
 ringdata.eta = 1.7e-4;       % momentum compaction factor
@@ -22,6 +26,7 @@ if(strcmp(phase,'commissioning'))
     ringdata.I_tot   = 0.100;       % total current [A];
     ringdata.nus     = 0.00435;    % synchrotron tune
     ringdata.espread = 7.64e-4 + 0*I;
+    ringdata.sigma   = 3e-3 + 0*I;
     ringdata.emitx   = 271e-12 + 0*I;
     ringdata.emity   = 2.71e-12 + 0*I;
     % damping times [s]
@@ -34,6 +39,7 @@ elseif(strcmp(phase,'phase_1'))
     ringdata.I_tot = 0.10;         % total current [A];
     ringdata.nus = 0.00435;        % synchrotron tune
     ringdata.espread = 1e-02*(0.093995 + 0.038011*I -0.018279*I.^2 + 0.0047843*I.^3 -0.00047294*I.^4);
+    ringdata.sigma   = 3e-3 + 0*I;
     ringdata.emitx   = 1e-09*(0.23011  + 0.15699 *I -0.063581*I.^2 + 0.015965* I.^3 -0.0015505* I.^4);
     ringdata.emity   = 1e-12*(2.1496   + 1.8725*  I -0.84932 *I.^2 + 0.22507*  I.^3 -0.022538 * I.^4);
     % damping times [s]
@@ -46,6 +52,7 @@ elseif(strcmp(phase,'phase_2'))
     ringdata.I_tot   = 0.35;        % total current [A];
     ringdata.nus     = 0.00435;    % synchrotron tune
     ringdata.espread = 1e-02*(0.088704 + 0.015765*I -0.005477*I.^2 + 0.0012452*I.^3 -0.00011434*I.^4);
+    ringdata.sigma   = 3e-3 + 0*I;
     ringdata.emitx   = 1e-09*(0.18859  + 0.056781*I -0.015909*I.^2 + 0.003445* I.^3 -0.00031039*I.^4);
     ringdata.emity   = 1e-12*(1.6497   + 1.0422*  I -0.51454 *I.^2 + 0.14498*  I.^3 -0.015059 * I.^4);
     % damping times [s]
@@ -58,6 +65,7 @@ elseif(strcmp(phase,'phase_2_HC'))
     ringdata.I_tot   = 0.5;        % total current [A];
     ringdata.nus     = 0.00435;    % synchrotron tune
     ringdata.espread = 1e-02*(0.088704 + 0.015765*I -0.005477*I.^2 + 0.0012452*I.^3 -0.00011434*I.^4);
+    ringdata.sigma   = 3e-3 + 0*I;
     ringdata.emitx   = 1e-09*(0.18859  + 0.056781*I -0.015909*I.^2 + 0.003445* I.^3 -0.00031039*I.^4);
     ringdata.emity   = 1e-12*(1.6497   + 1.0422*  I -0.51454 *I.^2 + 0.14498*  I.^3 -0.015059 * I.^4);
     % damping times [s]

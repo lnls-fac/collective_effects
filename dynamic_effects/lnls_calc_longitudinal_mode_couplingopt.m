@@ -1,16 +1,12 @@
-function delta = lnls_calc_longitudinal_mode_couplingopt(w,Z, params)
+function delta = lnls_calc_longitudinal_mode_couplingopt(w,Z, ring, n_rad,n_azi,mu)
 
-
-n_rad = params.n_rad;
-n_azi = params.n_azi;
-sigma = params.sigma;
-I_b   = params.I;
-E     = params.E;
-w0    = params.w0;
-nus   = params.nus;
-eta   = params.eta;
-nb    = params.nb;
-mu    = params.mu;
+sigma = ring.sigma;
+I_b   = ring.I;
+E     = ring.E;
+w0    = ring.w0;
+nus   = ring.nus;
+eta   = ring.eta;
+nb    = ring.nb;
 
 c = 299792458;
 

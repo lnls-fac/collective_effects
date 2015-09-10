@@ -199,7 +199,7 @@ class Ring:
             nut, chrom   = self.nuy, self.chromy
 
         ## Calculate Effective Impedance
-        nucro = nut/eta*chrom
+        nucro = chrom/eta
         pmin = np.ceil( (w[0]  -        (m*nus + nut)*w0)/(w0*nb)) # arredonda em direcao a +infinito
         pmax = np.floor((w[-1] - (nb-1 + nut + m*nus)*w0)/(w0*nb)) # arredonda em direcao a -infinito
 
@@ -294,7 +294,7 @@ class Ring:
                 A, M = calc_M(interpol_Z, wp, sigma[ii], n_azi, n_rad)
                 K    = I_b[ii]*nb*w0*eta/(2*np.pi)/(nus*w0)**2/E/(sigma[ii]/c)**2
                 B    = A + K*M
-                delta[ii,:] = eig(B)
+                delta[ii,:] = np.linalg.eigvals(B)
         else:
             A, M = calc_M(interpol_Z, wp, sigma, n_azi, n_rad)
             for ii in range(len(I_b)):
@@ -371,7 +371,7 @@ class Ring:
         else:
             nut, chrom   = self.nuy, self.chromy
 
-        nucro = nut/eta*chrom
+        nucro = chrom/eta
         pmin = np.ceil( (w[0] -(mu + nut + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a +infinito
         pmax = np.floor((w[-1]-(mu + nut + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a -infinito
 

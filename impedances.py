@@ -25,13 +25,15 @@ def longitudinal_resonator(Rs, Q, wr, w):
     #
     # Chao, A., Physics of Collective Beam Instabilities in High Energy
     # Accelerators, Wiley 1993.
-
-    Rs = Rs[:,None] # I am using broadcasting
-    Q  = Q[:,None]
-    wr = wr[:,None]
+    if len(Rs)>1:
+        Rs = Rs[:,None] # I am using broadcasting
+        Q  = Q[:,None]
+        wr = wr[:,None]
+        Zl = w*Rs / (w+1j*Q*(wr - w**2/wr))
+        return Zl.sum(0).flatten()
 
     Zl = w*Rs / (w+1j*Q*(wr - w**2/wr))
-    return Zl.sum(0).flatten()
+    return Zl
 
 def transverse_resonator(Rs, Q, wr, w):
     # Modelagem de impedância por soma de ressonadores.
@@ -50,12 +52,15 @@ def transverse_resonator(Rs, Q, wr, w):
     #
     # Chao, A., Physics of Collective Beam Instabilities in High Energy
     # Accelerators, Wiley 1993.
-    Rs = Rs[:,None] # I am using broadcasting
-    Q  = Q[:,None]
-    wr = wr[:,None]
+    if len(Rs)>1:
+        Rs = Rs[:,None] # I am using broadcasting
+        Q  = Q[:,None]
+        wr = wr[:,None]
+        Zt = wr*Rs/(w + 1j*Q*(wr - w**2/wr))
+        return Zt.sum(0).flatten()
 
     Zt = wr*Rs/(w + 1j*Q*(wr - w**2/wr))
-    return Zt.sum(0).flatten()
+    return Zt
 
 def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
 
