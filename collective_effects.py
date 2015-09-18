@@ -2,6 +2,7 @@
 
 import numpy as np
 
+factorial = np.math.factorial
 c = 299792458  # Velocity of light [m/s]
 
 class Element:
@@ -11,12 +12,12 @@ class Element:
         self.quantity = quantity
         self.betax    = betax or 7.2
         self.betay    = betay or 11.0
-        self.w        = np.array([],dtype=float)
-        self.Zl       = np.array([],dtype=float)
-        self.Zdv      = np.array([],dtype=float)
-        self.Zdh      = np.array([],dtype=float)
-        self.Zqv      = np.array([],dtype=float)
-        self.Zqh      = np.array([],dtype=float)
+        self.w        = np.array([],dtype=complex)
+        self.Zl       = np.array([],dtype=complex)
+        self.Zdv      = np.array([],dtype=complex)
+        self.Zdh      = np.array([],dtype=complex)
+        self.Zqv      = np.array([],dtype=complex)
+        self.Zqh      = np.array([],dtype=complex)
         self.z        = np.array([],dtype=float)
         self.Wl       = np.array([],dtype=float)
         self.Wdv      = np.array([],dtype=float)
@@ -177,7 +178,7 @@ class Ring:
         interpol_Z +=    np.interp(wp, w, Zl.real)
         Zl_eff = (interpol_Z/wp * h).sum(1)
 
-        deltaw = 1j/(2*np.pi*2**m*np.math.factorial(m - 1)) * I_tot*eta/(E*nus*(sigma/c)**2) * Zl_eff
+        deltaw = 1j/(2*np.pi*2**m*factorial(m - 1)) * I_tot*eta/(E*nus*(sigma/c)**2) * Zl_eff
         return deltaw
 
     def transverse_cbi(self, w,Z, sigma, m,  plane='y'):
@@ -215,61 +216,64 @@ class Ring:
 
         ## Calculate Coupled_bunch Instability
 
-        deltaw = -1j*I_tot/(4*np.pi*2**abs(m)*np.math.factorial(abs(m))) / E * w0 * Zt_eff
+        deltaw = -1j*I_tot/(4*np.pi*2**abs(m)*factorial(abs(m))) / E * w0 * Zt_eff
         return deltaw
+
+    def calc_spectrum(self,wp,sigma,n_rad=4,n_azi=3):
+        def my_pow(vetor,n):
+            res = np.ones(vetor.shape)
+            for _ in range(n): res *= vetor
+            return res
+
+        sigW = wp*sigma/c/np.sqrt(2)
+        spectrum = dict()
+        spect    = dict()
+        expo     = np.exp(-my_pow(sigW,2))
+        for azi in range(n_azi+1):
+            for rad in range(n_rad+1):
+                chave = (abs(azi),rad)
+                chave2 = abs(azi)+2*rad
+                if chave2 not in spect.keys():
+                    spect[chave2] = my_pow(sigW,chave2)
+                spectrum[chave] = (1/np.math.sqrt(float(factorial(abs(azi)+rad) *
+                                           factorial(rad))) * spect[chave2] * expo)
+        return spectrum
+
 
     def longitudinal_mode_coupling(self,w,Z, n_azi=10, n_rad=12,mu=0):
 
         def calc_M(interpol_Z, wp, sigma, n_azi=7, n_rad=6):
-            spectrum = dict()
-            def my_pow(vetor,n):
-                res = np.ones(vetor.shape)
-                for _ in range(n): res *= vetor
-                return res
-            def bunch_spectrum(wp,sigma,azi,rad):
-                sigW = wp*sigma/c/np.sqrt(2)
-                chave = (abs(azi),rad)
-                if chave not in spectrum.keys():
-                    spectrum[chave] = (1/np.sqrt(float(np.math.factorial(abs(azi)+rad) *
-                                                       np.math.factorial(rad))) *
-                                       my_pow(sigW,(abs(azi)+2*rad)) * np.exp(-my_pow(sigW,2)))
-                return spectrum[chave]
+            def fill_M(m,k,n,l,Mmknl):
+                M[n_azi+m, k, n_azi+n, l] =              m*Mmknl
+                M[n_azi-m, k, n_azi+n, l] =      -       m*Mmknl
+                M[n_azi+m, k, n_azi-n, l] =              m*Mmknl
+                M[n_azi-m, k, n_azi-n, l] =      -       m*Mmknl
+                M[n_azi+n, l, n_azi+m, k] =  (-1)**(m-n)*n*Mmknl
+                M[n_azi+n, l, n_azi-m, k] =  (-1)**(m-n)*n*Mmknl
+                M[n_azi-n, l, n_azi+m, k] = -(-1)**(m-n)*n*Mmknl
+                M[n_azi-n, l, n_azi-m, k] = -(-1)**(m-n)*n*Mmknl
 
-            sigW = wp*sigma/c/np.sqrt(2)
             A = np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
             M = np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
+            spectrum = self.calc_spectrum(wp,sigma,n_rad,n_azi)
             for k in range(n_rad+1):
                 for m in range(n_azi+1):
-                    Imk = bunch_spectrum(wp,sigma,m,k)
+                    Imk = spectrum[(abs(m),k)]
                     A[n_azi+m, k, n_azi+m, k] =  m
                     A[n_azi-m, k, n_azi-m, k] = -m
                     for n in range(m,n_azi+1):
-                        Inl =  bunch_spectrum(wp,sigma,n,k)
-                        Mmknl = 1j*(1j)**(m-n)*((interpol_Z/wp)*Imk*Inl).sum()
-                        M[n_azi+m, k, n_azi+n, k] =              m*Mmknl
-                        M[n_azi-m, k, n_azi+n, k] =      -       m*Mmknl
-                        M[n_azi+m, k, n_azi-n, k] =              m*Mmknl
-                        M[n_azi-m, k, n_azi-n, k] =      -       m*Mmknl
-                        M[n_azi+n, k, n_azi+m, k] =  (-1)**(m-n)*n*Mmknl
-                        M[n_azi+n, k, n_azi-m, k] =  (-1)**(m-n)*n*Mmknl
-                        M[n_azi-n, k, n_azi+m, k] = -(-1)**(m-n)*n*Mmknl
-                        M[n_azi-n, k, n_azi-m, k] = -(-1)**(m-n)*n*Mmknl
+                        Inl =  spectrum[(abs(n),k)]
+                        Mmknl = 1j*(1j)**(m-n)*np.dot(interpol_Z/wp,Imk*Inl)
+                        fill_M(m,k,n,k,Mmknl)
                 for l in range(k+1,n_rad+1):
                     for m in range(n_azi+1):
-                        Imk =  bunch_spectrum(wp,sigma,m,k)
+                        Imk =  spectrum[(abs(m),k)]
                         for n in range(n_azi+1):
-                            Inl =  bunch_spectrum(wp,sigma,n,l)
-                            Mmknl = 1j*(1j)**(m-n)*((interpol_Z/wp)*Imk*Inl).sum()
-                            M[n_azi+m, k, n_azi+n, l] =              m*Mmknl
-                            M[n_azi-m, k, n_azi+n, l] =      -       m*Mmknl
-                            M[n_azi+m, k, n_azi-n, l] =              m*Mmknl
-                            M[n_azi-m, k, n_azi-n, l] =      -       m*Mmknl
-                            M[n_azi+n, l, n_azi+m, k] =  (-1)**(m-n)*n*Mmknl
-                            M[n_azi+n, l, n_azi-m, k] =  (-1)**(m-n)*n*Mmknl
-                            M[n_azi-n, l, n_azi+m, k] = -(-1)**(m-n)*n*Mmknl
-                            M[n_azi-n, l, n_azi-m, k] = -(-1)**(m-n)*n*Mmknl
-            return (A.reshape([(1 + 2*n_azi)*(1+n_rad),(1 + 2*n_azi)*(1+n_rad)]).transpose(),
-                    M.reshape([(1 + 2*n_azi)*(1+n_rad),(1 + 2*n_azi)*(1+n_rad)]).transpose())
+                            Inl =  spectrum[(abs(n),l)]
+                            Mmknl = 1j*(1j)**(m-n)*np.dot(interpol_Z/wp,Imk*Inl)
+                            fill_M(m,k,n,l,Mmknl)
+            return (A.swapaxes(0,3).swapaxes(1,2).reshape([(1+2*n_azi)*(1+n_rad),(1+2*n_azi)*(1+n_rad)]).transpose(),
+                    M.swapaxes(0,3).swapaxes(1,2).reshape([(1+2*n_azi)*(1+n_rad),(1+2*n_azi)*(1+n_rad)]).transpose())
 
         I_b   = self.cur_bun
         sigma = self.sigma(I_b)
@@ -304,56 +308,37 @@ class Ring:
         return delta
 
     def transverse_mode_coupling(self,w,Z, plane='y', n_azi=3, n_rad=4, mu=0):
-
         def calc_M(interpol_Z, wpcro, sigma, n_azi, n_rad):
-            spectrum = dict()
-            def my_pow(vetor,n):
-                res = np.ones(vetor.shape)
-                for _ in range(n): res *= vetor
-                return res
-            def bunch_spectrum(wp,sigma,azi,rad):
-                sigW = wp*sigma/c/np.sqrt(2)
-                chave = (abs(azi),rad)
-                if chave not in spectrum.keys():
-                    spectrum[chave] = (1/np.sqrt(float(np.math.factorial(abs(azi)+rad) *
-                                                       np.math.factorial(rad))) *
-                                       my_pow(sigW,(abs(azi)+2*rad)) * np.exp(-my_pow(sigW,2)))
-                return spectrum[chave]
-
+            def fill_M(m,k,n,l,Mmknl):
+                M[n_azi+m, k, n_azi+n, l] =             Mmknl
+                M[n_azi-m, k, n_azi+n, l] =             Mmknl
+                M[n_azi+m, k, n_azi-n, l] =             Mmknl
+                M[n_azi-m, k, n_azi-n, l] =             Mmknl
+                M[n_azi+n, l, n_azi+m, k] = (-1)**(m-n)*Mmknl
+                M[n_azi+n, l, n_azi-m, k] = (-1)**(m-n)*Mmknl
+                M[n_azi-n, l, n_azi+m, k] = (-1)**(m-n)*Mmknl
+                M[n_azi-n, l, n_azi-m, k] = (-1)**(m-n)*Mmknl
             A = np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
             M = np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
+            spectrum = self.calc_spectrum(wpcro,sigma,n_rad,n_azi)
             for k in range(n_rad+1):
                 for m in range(n_azi+1):
-                    Imk = bunch_spectrum(wpcro,sigma,m,k)
+                    Imk = spectrum[(abs(m),k)]
                     A[n_azi+m, k, n_azi+m, k] =  m
                     A[n_azi-m, k, n_azi-m, k] = -m
                     for n in range(m,n_azi+1):
-                        Inl =  bunch_spectrum(wpcro,sigma,n,k)
-                        Mmknl = -1j*(1j)**(m-n)*(interpol_Z*Imk*Inl).sum()
-                        M[n_azi+m, k, n_azi+n, k] =             Mmknl
-                        M[n_azi-m, k, n_azi+n, k] =             Mmknl
-                        M[n_azi+m, k, n_azi-n, k] =             Mmknl
-                        M[n_azi-m, k, n_azi-n, k] =             Mmknl
-                        M[n_azi+n, k, n_azi+m, k] = (-1)**(m-n)*Mmknl
-                        M[n_azi+n, k, n_azi-m, k] = (-1)**(m-n)*Mmknl
-                        M[n_azi-n, k, n_azi+m, k] = (-1)**(m-n)*Mmknl
-                        M[n_azi-n, k, n_azi-m, k] = (-1)**(m-n)*Mmknl
+                        Inl =  spectrum[(abs(n),k)]
+                        Mmknl = -1j*(1j)**(m-n)*np.dot(interpol_Z,Imk*Inl)
+                        fill_M(m,k,n,k,Mmknl)
                 for l in range(k+1,n_rad+1):
                     for m in range(n_azi+1):
-                        Imk =  bunch_spectrum(wpcro,sigma,m,k)
+                        Imk =  spectrum[(abs(m),k)]
                         for n in range(n_azi+1):
-                            Inl =  bunch_spectrum(wpcro,sigma,n,l)
-                            Mmknl = -1j*(1j)**(m-n)*(interpol_Z*Imk*Inl).sum()
-                            M[n_azi+m, k, n_azi+n, l] =             Mmknl
-                            M[n_azi-m, k, n_azi+n, l] =             Mmknl
-                            M[n_azi+m, k, n_azi-n, l] =             Mmknl
-                            M[n_azi-m, k, n_azi-n, l] =             Mmknl
-                            M[n_azi+n, l, n_azi+m, k] = (-1)**(m-n)*Mmknl
-                            M[n_azi+n, l, n_azi-m, k] = (-1)**(m-n)*Mmknl
-                            M[n_azi-n, l, n_azi+m, k] = (-1)**(m-n)*Mmknl
-                            M[n_azi-n, l, n_azi-m, k] = (-1)**(m-n)*Mmknl
-            return (A.reshape([(1 + 2*n_azi)*(1+n_rad),(1 + 2*n_azi)*(1+n_rad)]).transpose(),
-                    M.reshape([(1 + 2*n_azi)*(1+n_rad),(1 + 2*n_azi)*(1+n_rad)]).transpose())
+                            Inl =  spectrum[(abs(n),l)]
+                            Mmknl = -1j*(1j)**(m-n)*np.dot(interpol_Z,Imk*Inl)
+                            fill_M(m,k,n,l,Mmknl)
+            return (A.swapaxes(0,3).swapaxes(1,2).reshape([(1+2*n_azi)*(1+n_rad),(1+2*n_azi)*(1+n_rad)]).transpose(),
+                    M.swapaxes(0,3).swapaxes(1,2).reshape([(1+2*n_azi)*(1+n_rad),(1+2*n_azi)*(1+n_rad)]).transpose())
 
         I_b   = self.cur_bun
         sigma = self.sigma(I_b)
