@@ -32,7 +32,6 @@ def prepare_struct_for_load(newdir=None, m=0, sigma=5e-4, rootdir=os.path.abspat
     globdata.simpar.units = 1
     return globdata
 
-
 def load_wake(globdata):
     nsigmas = 5 # Only used for ACE3P displacement, standard value!
 
@@ -177,7 +176,6 @@ def load_wake(globdata):
     globdata.results.s = spos
     return globdata
 
-
 def calc_impedance(globdata):
     # Extracts Needed Variables
     m     = globdata.simpar.m
@@ -242,7 +240,6 @@ def calc_impedance(globdata):
         globdata.results.ImZt = Z[indcs].real
 
     return globdata
-
 
 def calc_loss_factor(globdata):
     # Extracts and Initialize Needed Variables:
@@ -489,7 +486,6 @@ def plot_results(globdata, mostra=False, salva = True):
         plt.annotate(r'$\displaystyle\kappa_{0:s}^W = {1:5.2f} V/pC/m$'.format(waxis,kickW), xy=(sigs * 1.1e3, kickW), fontsize=13)
     if salva: plt.savefig(os.path.sep.join((tardir,fname+'.svg')))
     if mostra: plt.show()
-
 
 def save_results(globdata):
     filesout = globdata.simpar.targetdir

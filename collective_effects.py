@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
-
+import os
 import numpy as np
+import mathphys as mp
 
 factorial = np.math.factorial
 c = 299792458  # Velocity of light [m/s]
+_PROPS = {'Zl' :('Longitudinal Impedance',r'Zl [\Omega]',lambda x: 1),
+          'Zdv':('Driving Vertical Impedance',r'\beta_yZ_y [M\Omega]',lambda x:1e6*x.betay),
+          'Zdh':('Driving Horizontal Impedance',r'\beta_xZ_x [M\Omega]',lambda x:1e6*x.betax),
+          'Zqv':('Detuning Vertical Impedance',r'\beta_yZ_y^d [M\Omega]',lambda x:1e6*x.betay),
+          'Zqh':('Detuning Horizontal Impedance',r'\beta_xZ_x^d [M\Omega]',lambda x:1e6*x.betax)}
 
 class Element:
+
     def __init__(self,name=None, folder=None, betax=None,betay=None, quantity=1):
-        self.name     = name or ''
+        self.name     = name or 'elements'
         self.folder   = folder or os.path.abspath(os.path.curdir)
         self.quantity = quantity
         self.betax    = betax or 7.2
         self.betay    = betay or 11.0
-        self.w        = np.array([],dtype=complex)
+        self.w        = np.array([],dtype=float)
         self.Zl       = np.array([],dtype=complex)
         self.Zdv      = np.array([],dtype=complex)
         self.Zdh      = np.array([],dtype=complex)
@@ -24,6 +31,51 @@ class Element:
         self.Wdh      = np.array([],dtype=float)
         self.Wqv      = np.array([],dtype=float)
         self.Wqh      = np.array([],dtype=float)
+
+    def save(self):
+        mp.utils.save_pickle(os.path.sep.join([self.folder,self.name]),element=self)
+
+    def load(self):
+        data = mp.utils.load_pickle(os.path.sep.join([self.folder,self.name]))
+        self = data['element']
+
+    def plot(self, props='all', logscale=True, show = True, save = False):
+
+        if isinstance(props,str):
+            if props.lower() == 'all':
+                props = sorted(list(_PROPS.keys()))
+            elif props.lower() in _PROPERTIES:
+                props = [props]
+        elif isinstance(props,(list,tuple)):
+            wrong = set(props) - set(_PROPS.keys())
+            if wrong:
+                print('Wrong Property:',wrong)
+                return
+        else:
+            print('Type not supported for "props"')
+            return
+
+
+        for i,prop in enumerate(props):
+            Imp = getattr(self,prop)
+            if not Imp: continue
+            plt.figure(i)
+            Imp *= _PROPS[prop][2](self)
+            w = self.w / 1e9
+            if logscale:
+                plt.loglog(w,Imp.real,'b',label='Real')
+                plt.loglog(w,-Imp.real,'b--')
+                plt.loglog(w,Imp.imag,'r',label='Imag')
+                plt.loglog(w,-Imp.imag,'r--')
+            else:
+                plt.plot(w,Imp.real,'b',label='Real')
+                plt.plot(w,Imp.imag,'r',label='Imag')
+            plt.legend()
+            plt.xlabel(r'\omega [GHz]')
+            plt.ylabel(_PROPS[prop][1])
+            plt.title(_PROPS[prop][0])
+            if save: plt.savefig(os.path.sep.join((self.path, prop + '.svg')))
+            if show: plt.show()
 
 class Budget(list):
     def __init__(self, lista=None):
@@ -103,7 +155,6 @@ class Ring:
             self.dampty      = 12.5e-3
             self.dampte      =  6.9e-3
             self.en_lost_rad = 829761.9 #eV
-
 
     def loss_factor(self,w,Z,sigma):
         # Calcula o loss factor and effective impedance para nb pacotes com
@@ -238,7 +289,6 @@ class Ring:
                 spectrum[chave] = (1/np.math.sqrt(float(factorial(abs(azi)+rad) *
                                            factorial(rad))) * spect[chave2] * expo)
         return spectrum
-
 
     def longitudinal_mode_coupling(self,w,Z, n_azi=10, n_rad=12,mu=0):
 

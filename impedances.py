@@ -148,7 +148,7 @@ def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
         alphaTM = scy.kv(m,nu[0,:]*b[0])/scy.iv(m,nu[0,:]*b[0]) * B
         return alphaTM
 
-####################
+    ####################
     gam = E/511e3
     bet = np.sqrt(1-1/gam**2)
     nu  = np.ones((epr.shape[0],1))*abs(w/c)*np.sqrt(1 - bet**2*epr*mur)
@@ -169,7 +169,6 @@ def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
     Zh = Zv
 
     return Zl.conj(), Zv.conj(), Zh.conj()
-
 
 def ferrite_kicker_impedance(w,a,b,d,L,epr,mur,Zg, model, coupled):
     # Calculates Impedances for a ferrite kicker:
@@ -271,7 +270,6 @@ def kicker_coupled_flux(w,h,W,t,L,mur,Zg):
     Zx = c/D**2 * (M/L2)**2 * Zg*L2*1j/(1j*w*L2 + Zg)
 
     return Zk.conj(), Zx.conj()  # take the conjugate to adapt impedance convention
-
 
 def kicker_tsutsui_model(w, epr, mur, a, b, d, L, n):
     #   - For the Uncoupled Flux, we can choose between three models:
