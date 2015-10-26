@@ -9,55 +9,83 @@ ep0 = 1/c**2/mu0
 Z0  = mu0*c
 
 def longitudinal_resonator(Rs, Q, wr, w):
-    # Modelagem de impedância por soma de ressonadores.
-    # Inputs:
-    # Rs    = Vetor com as resistências Shunts [Ohm]
-    # Q     = Vetor com os fatores de qualidade
-    # wr    = Vetor com as frequências angulares de ressonância de cada oscilador [rad/s]
-    # w     = Frequências angulares em que sera calculada a impedância [rad/s]
-    #
-    # Outputs:
-    # Zl    = impedância longitudinal (real e imaginária) calculada para w
-    #
-    # Todos os outputs tem as dimensoes do SI
-    #
-    # Referência orginal:
-    #
-    # Chao, A., Physics of Collective Beam Instabilities in High Energy
-    # Accelerators, Wiley 1993.
-    if len(Rs)>1:
-        Rs = Rs[:,None] # I am using broadcasting
-        Q  = Q[:,None]
-        wr = wr[:,None]
-        Zl = w*Rs / (w+1j*Q*(wr - w**2/wr))
-        return Zl.sum(0).flatten()
+    """Returns the longitudinal resonator impedance for w.
 
+    Inputs:
+    Rs    = Shunt impedance [Ohm]
+    Q     = Quality Factor
+    wr    = Angular resonance frequency [rad/s]
+    w     = numpy array of frequencies to calculate the impedance [rad/s]
+
+    Rs, Q and wr may be a float, list, tuple or a numpy array.
+
+    Outputs:
+    Zl    = Longitudinal Impedance (real and imaginary) [Ohm]
+
+    Sign convention followed:
+        Chao, A., Physics of Collective Beam Instabilities in High Energy
+        Accelerators, Wiley 1993.
+
+    Examples:
+    >>> w = np.linspace(-5e9,5e9,1000)
+    >>> Rs, Q, wr = 1000, 1, 2*np.pi*1e9
+    >>> Zl = longitudinal_resonator(Rs,Q,wr,w)
+    >>> Zl.shape
+    (1000,)
+    >>> Rs, Q, wr = [1000,2000], [1,10], [2*np.pi*1e9,2*np.pi*5e8]
+    >>> Zl = longitudinal_resonator(Rs,Q,wr,w)
+    >>> Zl.shape
+    (1000,)
+    >>> Rs, Q, wr = np.array(Rs), np.array(Q), np.array(wr)
+    >>> Zl = longitudinal_resonator(Rs,Q,wr,w)
+    >>> Zl.shape
+    (1000,)
+    """
+    Rs = np.array(Rs,ndmin=1,dtype=float)[:,None] # I am using broadcasting
+    Q  = np.array(Q, ndmin=1,dtype=float)[:,None]
+    wr = np.array(wr,ndmin=1,dtype=float)[:,None]
     Zl = w*Rs / (w+1j*Q*(wr - w**2/wr))
-    return Zl
+    return Zl.sum(0).flatten()
+
 
 def transverse_resonator(Rs, Q, wr, w):
-    # Modelagem de impedância por soma de ressonadores.
-    # Inputs:
-    # Rs    = Vetor com as resist??ncias Shunts [Ohm]
-    # Q     = Vetor com os fatores de qualidade
-    # wr    = Vetor com as frequ??ncias angulares de resson??ncia de cada oscilador [rad/s]
-    # w     = Frequ??ncias angulares em que sera calculada a imped??ncia [rad/s]
-    #
-    # Outputs:
-    # Zt    = imped??ncia transversal (real e imagin??ria) calculada para w
-    #
-    # Todos os outputs tem as dimens???es do SI
-    #
-    # Referência orginal:
-    #
-    # Chao, A., Physics of Collective Beam Instabilities in High Energy
-    # Accelerators, Wiley 1993.
-    if len(Rs)>1:
-        Rs = Rs[:,None] # I am using broadcasting
-        Q  = Q[:,None]
-        wr = wr[:,None]
-        Zt = wr*Rs/(w + 1j*Q*(wr - w**2/wr))
-        return Zt.sum(0).flatten()
+    """Returns the longitudinal resonator impedance for w.
+
+    Inputs:
+    Rs    = Shunt impedance [Ohm]
+    Q     = Quality Factor
+    wr    = Angular resonance frequency [rad/s]
+    w     = numpy array of frequencies to calculate the impedance [rad/s]
+
+    Rs, Q and wr may be a float, list, tuple or a numpy array.
+
+    Outputs:
+    Zl    = Longitudinal Impedance (real and imaginary) [Ohm]
+
+    Sign convention followed:
+        Chao, A., Physics of Collective Beam Instabilities in High Energy
+        Accelerators, Wiley 1993.
+
+    Examples:
+    >>> w = np.linspace(-5e9,5e9,1000)
+    >>> Rs, Q, wr = 1000, 1, 2*np.pi*1e9
+    >>> Zt = longitudinal_resonator(Rs,Q,wr,w)
+    >>> Zt.shape
+    (1000,)
+    >>> Rs, Q, wr = [1000,2000], [1,10], [2*np.pi*1e9,2*np.pi*5e8]
+    >>> Zt = longitudinal_resonator(Rs,Q,wr,w)
+    >>> Zt.shape
+    (1000,)
+    >>> Rs, Q, wr = np.array(Rs), np.array(Q), np.array(wr)
+    >>> Zt = longitudinal_resonator(Rs,Q,wr,w)
+    >>> Zt.shape
+    (1000,)
+    """
+    Rs = np.array(Rs,ndmin=1,dtype=float)[:,None] # I am using broadcasting
+    Q  = np.array(Q, ndmin=1,dtype=float)[:,None]
+    wr = np.array(wr,ndmin=1,dtype=float)[:,None]
+    Zt = wr*Rs/(w + 1j*Q*(wr - w**2/wr))
+    return Zt.sum(0).flatten()
 
     Zt = wr*Rs/(w + 1j*Q*(wr - w**2/wr))
     return Zt

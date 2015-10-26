@@ -35,6 +35,19 @@ class Budget(list):
         assert isinstance(v,Element)
         super().__setitem__(k,v)
 
+    def __getattr__(self,name):
+        if name in {self.__dict__ | {'w'}}:
+            super().__getattr__(self,name)
+        else:
+            if name in {'Zl','Zqv','Zqh','Zdv','Zdh'}:
+                temp = np.zeros(self._dict__['w'].shape,dtype=complex)
+                for i in range(len(self)):
+                    factor = self[i].
+                    temp += 1j*np.interp(self.__dict__['w'],self[i].__dict__['w'],
+                                         self[i].__dict__[name].imag,left=0.0,right=0.0)
+                    temp +=    np.interp(self.__dict__['w'],self[i].__dict__['w'],
+                                         self[i].__dict__[name].real,left=0.0,right=0.0)
+
 
 class Ring:
     def __init__(self,phase=None):
@@ -106,18 +119,19 @@ class Ring:
 
 
     def loss_factor(self,w,Z,sigma):
-        # Calcula o loss factor and effective impedance para nb pacotes com
-        # comprimento longitudinal sigma igualmente espacados.
-        #
-        # Chamada:
-        #   lossf = loss_factor(w,Z,sigma,w0,nb)
-        #
-        # Inputs:
-        #   w = frequencia angular [rad/s]
-        #   Z = Impedancia longitudinal [Ohm]
-        #   sigma = tamanho longitudinal do feixe [m]
-        #   w0 = frequencia angular de revolucao no anel [rad/s]
-        #   nb = numero de pacotes preenchidos
+        """ Calcula o loss factor and effective impedance para nb pacotes com
+        comprimento longitudinal sigma igualmente espacados.
+
+        Chamada:
+          lossf = loss_factor(w,Z,sigma,w0,nb)
+
+        Inputs:
+          w = frequencia angular [rad/s]
+          Z = Impedancia longitudinal [Ohm]
+          sigma = tamanho longitudinal do feixe [m]
+          w0 = frequencia angular de revolucao no anel [rad/s]
+          nb = numero de pacotes preenchidos
+        """
 
         w0 = self.w0
         nb = self.nbun
@@ -134,8 +148,9 @@ class Ring:
         return wp, h, lossf
 
     def kick_factor(self, w,Z,sigma):
-        # Calcula o kick factor para nb pacotes com comprimento longitudinal sigma
-        # igualmente espacados.
+        """Calcula o kick factor para nb pacotes com comprimento longitudinal sigma
+        igualmente espacados.
+        """
 
         w0 = self.w0
         nb = self.nbun
@@ -153,9 +168,10 @@ class Ring:
         return nb*(w0/2/np.pi)*Zt_eff
 
     def longitudinal_cbi(self, w, Zl, sigma, m):
-        # Calcula a impedancia longitudinal efetiva dos nb modos de oscilacao,
-        # considerando um feixe gaussiano, para o modo azimutal m e radial k=0;
-        # E calcula as instabilidades de Coupled_bunch a partir dela.
+        """Calcula a impedancia longitudinal efetiva dos nb modos de oscilacao,
+        considerando um feixe gaussiano, para o modo azimutal m e radial k=0;
+        E calcula as instabilidades de Coupled_bunch a partir dela.
+        """
 
         assert m > 0, 'azimuthal mode m must be greater than zero.'
         nus  = self.nus
@@ -182,12 +198,12 @@ class Ring:
         return deltaw
 
     def transverse_cbi(self, w,Z, sigma, m,  plane='y'):
-        # Calcula a impedância transversal efetiva dos nb modos de oscilacao,
-        # considerando um feixe gaussiano, para o modo azimutal m e radial k=0;
-        # E calcula as instabilidades de Coupled_bunch a partir dela.
-        #
-        # deltaw = transverse_cbi(w,Z, sigma, nb, w0, nus, nut, chrom, eta, m, E, I_tot)
+        """Calcula a impedância transversal efetiva dos nb modos de oscilacao,
+        considerando um feixe gaussiano, para o modo azimutal m e radial k=0;
+        E calcula as instabilidades de Coupled_bunch a partir dela.
 
+        deltaw = transverse_cbi(w,Z, sigma, nb, w0, nus, nut, chrom, eta, m, E, I_tot)
+        """
         nus  = self.nus
         w0   = self.w0
         eta  = self.mom_cmpct
