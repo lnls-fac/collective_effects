@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 import os
 import numpy as np
+import matplotlib.pyplot as plt
 import mathphys as mp
 
 factorial = np.math.factorial
 c = 299792458  # Velocity of light [m/s]
-_PROPS = {'Zl' :('Longitudinal Impedance',r'Zl [\Omega]',lambda x: 1),
-          'Zdv':('Driving Vertical Impedance',r'\beta_yZ_y [M\Omega]',lambda x:1e6*x.betay),
-          'Zdh':('Driving Horizontal Impedance',r'\beta_xZ_x [M\Omega]',lambda x:1e6*x.betax),
-          'Zqv':('Detuning Vertical Impedance',r'\beta_yZ_y^d [M\Omega]',lambda x:1e6*x.betay),
-          'Zqh':('Detuning Horizontal Impedance',r'\beta_xZ_x^d [M\Omega]',lambda x:1e6*x.betax)}
+_PROPS = {'Zl' :('Longitudinal Impedance',r'$Z_l [\Omega]$',lambda x: 1),
+          'Zdv':('Driving Vertical Impedance',r'$\beta_yZ_y [M\Omega]$',lambda x:1e-6*x.betay),
+          'Zdh':('Driving Horizontal Impedance',r'$\beta_xZ_x [M\Omega]$',lambda x:1e-6*x.betax),
+          'Zqv':('Detuning Vertical Impedance',r'$\beta_yZ_y^d [M\Omega]$',lambda x:1e-6*x.betay),
+          'Zqh':('Detuning Horizontal Impedance',r'$\beta_xZ_x^d [M\Omega]$',lambda x:1e-6*x.betax)}
 
 class Element:
 
-    def __init__(self,name=None, folder=None, betax=None,betay=None, quantity=1):
+    def __init__(self,name=None, path=None, betax=None,betay=None, quantity=1):
         self.name     = name or 'elements'
-        self.folder   = folder or os.path.abspath(os.path.curdir)
+        self.path     = path or os.path.abspath(os.path.curdir)
         self.quantity = quantity
         self.betax    = betax or 7.2
         self.betay    = betay or 11.0
@@ -33,10 +34,10 @@ class Element:
         self.Wqh      = np.array([],dtype=float)
 
     def save(self):
-        mp.utils.save_pickle(os.path.sep.join([self.folder,self.name]),element=self)
+        mp.utils.save_pickle(os.path.sep.join([self.path,self.name]),element=self)
 
     def load(self):
-        data = mp.utils.load_pickle(os.path.sep.join([self.folder,self.name]))
+        data = mp.utils.load_pickle(os.path.sep.join([self.path,self.name]))
         self = data['element']
 
     def plot(self, props='all', logscale=True, show = True, save = False):
@@ -56,12 +57,12 @@ class Element:
             return
 
 
-        for i,prop in enumerate(props):
+        for prop in props:
             Imp = getattr(self,prop)
-            if not Imp: continue
-            plt.figure(i)
+            if Imp is None or len(Imp)==0: continue
+            plt.figure()
             Imp *= _PROPS[prop][2](self)
-            w = self.w / 1e9
+            w = self.w
             if logscale:
                 plt.loglog(w,Imp.real,'b',label='Real')
                 plt.loglog(w,-Imp.real,'b--')
@@ -70,12 +71,13 @@ class Element:
             else:
                 plt.plot(w,Imp.real,'b',label='Real')
                 plt.plot(w,Imp.imag,'r',label='Imag')
-            plt.legend()
-            plt.xlabel(r'\omega [GHz]')
+            plt.legend(loc='best')
+            plt.grid(True)
+            plt.xlabel(r'$\omega [rad/s]$')
             plt.ylabel(_PROPS[prop][1])
             plt.title(_PROPS[prop][0])
             if save: plt.savefig(os.path.sep.join((self.path, prop + '.svg')))
-            if show: plt.show()
+        if show: plt.show()
 
 class Budget(list):
     def __init__(self, lista=None):
@@ -91,10 +93,10 @@ class Budget(list):
         if name in {self.__dict__ | {'w'}}:
             super().__getattr__(self,name)
         else:
-            if name in {'Zl','Zqv','Zqh','Zdv','Zdh'}:
-                temp = np.zeros(self._dict__['w'].shape,dtype=complex)
+            if name in _PROPS.keys():
+                temp = np.zeros(self.__dict__['w'].shape,dtype=complex)
                 for i in range(len(self)):
-                    factor = self[i].
+                    factor = self[i]
                     temp += 1j*np.interp(self.__dict__['w'],self[i].__dict__['w'],
                                          self[i].__dict__[name].imag,left=0.0,right=0.0)
                     temp +=    np.interp(self.__dict__['w'],self[i].__dict__['w'],

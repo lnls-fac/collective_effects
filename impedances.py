@@ -90,6 +90,14 @@ def transverse_resonator(Rs, Q, wr, w):
     Zt = wr*Rs/(w + 1j*Q*(wr - w**2/wr))
     return Zt
 
+def _prepare_input_epr_mur(w,epb,mub,ange,angm,sigmadc,tau):
+    epr = np.zeros((len(epb),len(w)),dtype=complex)
+    mur = np.zeros((len(epb),len(w)),dtype=complex)
+    for j in range(len(epb)):
+        epr[j,:] = epb[j]*(1-1j*np.sign(w)*np.tan(ange[j])) + sigmadc[j]/(1+1j*w*tau[j])/(1j*w*ep0)
+        mur[j,:] = mub[j]*(1-1j*np.sign(w)*np.tan(angm[j]))
+    return epr, mur
+
 def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
 
     def Mtil(m, epr, mur, bet, nu, b):
@@ -230,15 +238,11 @@ def ferrite_kicker_impedance(w,a,b,d,L,epr,mur,Zg, model, coupled):
     angm    = np.array([0, 0, 0, 0, 0, 0],dtype=float)
     sigmadc = np.array([0, 2.4e6,1,1,1, 5.9e7],dtype=float)
     tau     = np.array([0, 0, 0, 0, 0, 0],dtype=float)*27e-15
-    b1      = np.array([(b - 2.0e-3 - 10e-6), (b - 2.0e-3), (b-1.0e-3), b , d],dtype=float)
-
-    epr1 = np.zeros((epb.shape[0],w.shape[0]),dtype=complex)
-    mur1 = np.zeros((epb.shape[0],w.shape[0]),dtype=complex)
-    for j in range(len(epb)):
-        epr1[j,:] = epb[j]*(1-1j*np.sign(w)*np.tan(ange[j])) + sigmadc[j]/(1+1j*w*tau[j])/(1j*w*ep0)
-        mur1[j,:] = mub[j]*(1-1j*np.sign(w)*np.tan(angm[j]))
+    epr1, mur1 = _prepare_input_epr_mur(w,epb,mub,ange,angm,sigmadc,tau)
     epr1[5,:] = epr
     mur1[5,:] = mur
+
+    b1      = np.array([(b - 2.0e-3 - 10e-6), (b - 2.0e-3), (b-1.0e-3), b , d],dtype=float)
 
     if model.startswith('tsutsui'):
         Zl, Zh, Zv = kicker_tsutsui_model(w, epr, mur, a, b, d, L, 10)
