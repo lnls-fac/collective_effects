@@ -6,20 +6,30 @@ import mathphys as mp
 
 factorial = np.math.factorial
 c = 299792458  # Velocity of light [m/s]
-_PROPS = {'Zl' :('Longitudinal Impedance',r'$Z_l [\Omega]$',lambda x: 1),
-          'Zdv':('Driving Vertical Impedance',r'$\beta_yZ_y [M\Omega]$',lambda x:1e-6*x.betay),
-          'Zdh':('Driving Horizontal Impedance',r'$\beta_xZ_x [M\Omega]$',lambda x:1e-6*x.betax),
-          'Zqv':('Detuning Vertical Impedance',r'$\beta_yZ_y^d [M\Omega]$',lambda x:1e-6*x.betay),
-          'Zqh':('Detuning Horizontal Impedance',r'$\beta_xZ_x^d [M\Omega]$',lambda x:1e-6*x.betax)}
+_IMPS  = {'Zl','Zdv','Zdh','Zqv','Zqh'}
+_WAKES = {'Wl','Wdv','Wdh','Wqv','Wqh'}
+_TITLE = {'Zl':'Longitudinal Impedance',
+          'Zdv':'Driving Vertical Impedance',
+          'Zdh':'Driving Horizontal Impedance',
+          'Zqv':'Detuning Vertical Impedance',
+          'Zqh':'Detuning Horizontal Impedance'}
+_FACTOR ={'Zl':1e-3, 'Zdv':1e-6, 'Zdh':1e-6, 'Zqv':1e-6, 'Zqh':1e-6,
+          'Wl':1e-3, 'Wdv':1e-6, 'Wdh':1e-6, 'Wqv':1e-6, 'Wqh':1e-6}
 
 class Element:
+
+    _YLABEL ={'Zl' :r'$Z_l [k\Omega]$',
+              'Zdv':r'$Z_y^d [M\Omega/m]$',
+              'Zdh':r'$Z_x^d [M\Omega/m]$',
+              'Zqv':r'$Z_y^q [M\Omega/m]$',
+              'Zqh':r'$Z_x^q [M\Omega/m]$'}
 
     def __init__(self,name=None, path=None, betax=None,betay=None, quantity=1):
         self.name     = name or 'elements'
         self.path     = path or os.path.abspath(os.path.curdir)
-        self.quantity = quantity
-        self.betax    = betax or 7.2
-        self.betay    = betay or 11.0
+        self.quantity = quantity      # this field shall only be used in Budget
+        self.betax    = betax or 7.2  # this field shall only be used in Budget
+        self.betay    = betay or 11.0 # this field shall only be used in Budget
         self.w        = np.array([],dtype=float)
         self.Zl       = np.array([],dtype=complex)
         self.Zdv      = np.array([],dtype=complex)
@@ -44,29 +54,26 @@ class Element:
 
         if isinstance(props,str):
             if props.lower() == 'all':
-                props = sorted(list(_PROPS.keys()))
-            elif props.lower() in _PROPERTIES:
+                props = sorted(list(_IMPS))
+            elif props.lower() in _IMPS:
                 props = [props]
         elif isinstance(props,(list,tuple)):
-            wrong = set(props) - set(_PROPS.keys())
+            wrong = set(props) - _IMPS
             if wrong:
-                print('Wrong Property:',wrong)
-                return
+                raise AttributeError(wrong,' not supported for plot.')
         else:
-            print('Type not supported for "props"')
-            return
-
+            raise TypeError("Type '"+type(props)+"' not supported for 'props'.")
 
         for prop in props:
             Imp = getattr(self,prop)
             if Imp is None or len(Imp)==0: continue
             plt.figure()
-            Imp *= _PROPS[prop][2](self)
+            Imp *= _FACTOR[prop]
             w = self.w
             if logscale:
-                plt.loglog(w,Imp.real,'b',label='Real')
+                plt.loglog(w, Imp.real,'b'  ,label='Real')
                 plt.loglog(w,-Imp.real,'b--')
-                plt.loglog(w,Imp.imag,'r',label='Imag')
+                plt.loglog(w, Imp.imag,'r'  ,label='Imag')
                 plt.loglog(w,-Imp.imag,'r--')
             else:
                 plt.plot(w,Imp.real,'b',label='Real')
@@ -74,34 +81,96 @@ class Element:
             plt.legend(loc='best')
             plt.grid(True)
             plt.xlabel(r'$\omega [rad/s]$')
-            plt.ylabel(_PROPS[prop][1])
-            plt.title(_PROPS[prop][0])
+            plt.ylabel(_YLABEL[prop])
+            plt.title(_TITLE[prop])
             if save: plt.savefig(os.path.sep.join((self.path, prop + '.svg')))
         if show: plt.show()
 
 class Budget(list):
+
+    _YLABEL ={'Zl' :r'$Z_l [k\Omega]$',
+              'Zdv':r'$\beta_yZ_y^d [M\Omega]$',
+              'Zdh':r'$\beta_xZ_x^d [M\Omega]$',
+              'Zqv':r'$\beta_yZ_y^q [M\Omega]$',
+              'Zqh':r'$\beta_xZ_x^q [M\Omega]$'}
+    _BETA   ={'Zl':lambda x:1,
+              'Zdv':lambda x:x.betay,
+              'Zdh':lambda x:x.betax,
+              'Zqv':lambda x:x.betay,
+              'Zqh':lambda x:x.betax}
+    _COLORS =((0,0,1),(0,0.5,0),(1,0,0),(0,0.75,0.75),(0.75,0,0.75),
+              (0.75,0.75,0),(0.25,0.25,0.25),(1,0.69,0.39))
+
     def __init__(self, lista=None):
         lista = lista or []
         super().__init__(lista)
-        assert all(isinstance(x,Element) for x in self)
 
     def __setitem__(self,k,v):
         assert isinstance(v,Element)
         super().__setitem__(k,v)
 
     def __getattr__(self,name):
-        if name in {self.__dict__ | {'w'}}:
-            super().__getattr__(self,name)
-        else:
-            if name in _PROPS.keys():
-                temp = np.zeros(self.__dict__['w'].shape,dtype=complex)
-                for i in range(len(self)):
-                    factor = self[i]
-                    temp += 1j*np.interp(self.__dict__['w'],self[i].__dict__['w'],
-                                         self[i].__dict__[name].imag,left=0.0,right=0.0)
-                    temp +=    np.interp(self.__dict__['w'],self[i].__dict__['w'],
-                                         self[i].__dict__[name].real,left=0.0,right=0.0)
+        if name not in _IMPS | _WAKES | {'w','z'}:
+            return [getattr(x,name) for x in self]
 
+        w = np.unique(np.concatenate([getattr(x,'w') for x in self]))
+        if name == 'w': return w
+        if name in _IMPS:
+            temp = np.zeros(w.shape,dtype=complex)
+            for el in self:
+                attr = getattr(el,name)
+                if attr is None or len(attr) == 0: continue
+                temp += 1j*np.interp(w,el.w,attr.imag,left=0.0,right=0.0)*el.quantity*_BETA[name](el)
+                temp +=    np.interp(w,el.w,attr.real,left=0.0,right=0.0)*el.quantity*_BETA[name](el)
+            return temp
+
+        z = np.unique(np.concatenate([getattr(x,'z') for x in self]))
+        if name == 'z': return z
+        if name in _WAKES:
+            temp = np.zeros(z.shape,dtype=float)
+            for el in self:
+                attr = getattr(el,name)
+                if attr is None or len(attr) == 0: continue
+                temp += np.interp(z,el.z,attr,left=0.0,right=0.0)*el.quantity*_BETA[name](el)
+            return temp
+        raise AttributeError("'"+self.__class__+ "' object has no attribute '"+name+"'" )
+
+    def plot(self, props='all', logscale=True, show = True, save = False):
+
+        if isinstance(props,str):
+            if props.lower() == 'all':
+                props = sorted(list(_IMPS))
+            elif props.lower() in _IMPS:
+                props = [props]
+        elif isinstance(props,(list,tuple)):
+            wrong = set(props) - _IMPS
+            if wrong:
+                raise AttributeError(wrong,' not supported for plot.')
+        else:
+            raise TypeError("Type '"+type(props)+"' not supported for 'props'.")
+
+        for prop in props:
+            for el in self:
+                Imp = getattr(self,prop)
+                if Imp is None or len(Imp)==0: continue
+            plt.figure()
+            Imp *= _FACTOR[prop]
+            w = self.w
+            if logscale:
+                plt.loglog(w, Imp.real,'b'  ,label='Real')
+                plt.loglog(w,-Imp.real,'b--')
+                plt.loglog(w, Imp.imag,'r'  ,label='Imag')
+                plt.loglog(w,-Imp.imag,'r--')
+            else:
+                plt.plot(w,Imp.real,'b',label='Real')
+                plt.plot(w,Imp.imag,'r',label='Imag')
+            plt.legend(loc='best')
+            plt.grid(True)
+            plt.xlabel(r'$\omega [rad/s]$')
+            plt.ylabel(_YLABEL[prop])
+            plt.title(_TITLE[prop])
+            if save: plt.savefig(os.path.sep.join((self.path, prop + '.svg')))
+        if show: plt.show()
 
 class Ring:
     def __init__(self,phase=None):
