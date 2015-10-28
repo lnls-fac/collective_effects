@@ -5,10 +5,11 @@ import matplotlib.pyplot as _plt
 import scipy.special as _scy
 import mathphys as _mp
 
-c   = _mp.constants.light_speed
-mu0 = _mp.constants.vacuum_permeability
-ep0 = _mp.constants.vacuum_permitticity
-Z0  = mu0*c
+_c   = _mp.constants.light_speed
+_mu0 = _mp.constants.vacuum_permeability
+_ep0 = _mp.constants.vacuum_permitticity
+_Z0  = _mp.constants.vacuum_impedance
+E0   = _mp.constants.electron_rest_energy * _mp.units.joule_2_eV
 
 _IMPS  = {'Zl','Zdv','Zdh','Zqv','Zqh'}
 _WAKES = {'Wl','Wdv','Wdh','Wqv','Wqh'}
@@ -17,23 +18,31 @@ _TITLE = {'Zl':'Longitudinal Impedance',
           'Zdh':'Driving Horizontal Impedance',
           'Zqv':'Detuning Vertical Impedance',
           'Zqh':'Detuning Horizontal Impedance'}
-_FACTOR ={'Zl':1e-3, 'Zdv':1e-6, 'Zdh':1e-6, 'Zqv':1e-6, 'Zqh':1e-6,
+_FACTOR ={'Zl':1, 'Zdv':1e-3, 'Zdh':1e-3, 'Zqv':1e-3, 'Zqh':1e-3,
           'Wl':1e-3, 'Wdv':1e-6, 'Wdh':1e-6, 'Wqv':1e-6, 'Wqh':1e-6}
+_BETA   ={'Zl':lambda x:1,
+          'Zdv':lambda x:x.betay,
+          'Zdh':lambda x:x.betax,
+          'Zqv':lambda x:x.betay,
+          'Zqh':lambda x:x.betax}
+_COLORS =((0,0,1),(0,0.5,0),(1,0,0),(0,0.75,0.75),(0.75,0,0.75),
+          (0.75,0.75,0),(0.25,0.25,0.25),(1,0.69,0.39))
+
 
 class Element:
 
-    _YLABEL ={'Zl' :r'$Z_l [k\Omega]$',
-              'Zdv':r'$Z_y^d [M\Omega/m]$',
-              'Zdh':r'$Z_x^d [M\Omega/m]$',
-              'Zqv':r'$Z_y^q [M\Omega/m]$',
-              'Zqh':r'$Z_x^q [M\Omega/m]$'}
+    _YLABEL ={'Zl' :r'$Z_l [\Omega]$',
+              'Zdv':r'$Z_y^d [k\Omega/m]$',
+              'Zdh':r'$Z_x^d [k\Omega/m]$',
+              'Zqv':r'$Z_y^q [k\Omega/m]$',
+              'Zqh':r'$Z_x^q [k\Omega/m]$'}
 
-    def __init__(self,name=None, path=None, betax=None,betay=None, quantity=1):
-        self.name     = name or 'elements'
+    def __init__(self,name=None, path=None):
+        self.name     = name or 'element'
         self.path     = path or _os.path.abspath(_os.path.curdir)
-        self.quantity = quantity      # this field shall only be used in Budget
-        self.betax    = betax or 7.2  # this field shall only be used in Budget
-        self.betay    = betay or 11.0 # this field shall only be used in Budget
+        self.quantity = 0   # this field shall only be used in Budget
+        self.betax    = 0.0 # this field shall only be used in Budget
+        self.betay    = 0.0 # this field shall only be used in Budget
         self.w        = _np.array([],dtype=float)
         self.Zl       = _np.array([],dtype=complex)
         self.Zdv      = _np.array([],dtype=complex)
@@ -48,10 +57,10 @@ class Element:
         self.Wqh      = _np.array([],dtype=float)
 
     def save(self):
-        _mp.utils.save_pickle(_os.path.sep.join([self.path,self.name]),element=self)
+        _mp.utils.save_pickle(_os.path.sep.join([self.path,self.name.replace(' ','_')]),element=self)
 
     def load(self):
-        data = _mp.utils.load_pickle(_os.path.sep.join([self.path,self.name]))
+        data = _mp.utils.load_pickle(_os.path.sep.join([self.path,self.name.replace(' ','_')]))
         self = data['element']
 
     def plot(self, props='all', logscale=True, show = True, save = False):
@@ -85,25 +94,18 @@ class Element:
             _plt.legend(loc='best')
             _plt.grid(True)
             _plt.xlabel(r'$\omega [rad/s]$')
-            _plt.ylabel(_YLABEL[prop])
+            _plt.ylabel(Element._YLABEL[prop])
             _plt.title(_TITLE[prop])
             if save: _plt.savefig(_os.path.sep.join((self.path, prop + '.svg')))
         if show: _plt.show()
 
 class Budget(list):
 
-    _YLABEL ={'Zl' :r'$Z_l [k\Omega]$',
-              'Zdv':r'$\beta_yZ_y^d [M\Omega]$',
-              'Zdh':r'$\beta_xZ_x^d [M\Omega]$',
-              'Zqv':r'$\beta_yZ_y^q [M\Omega]$',
-              'Zqh':r'$\beta_xZ_x^q [M\Omega]$'}
-    _BETA   ={'Zl':lambda x:1,
-              'Zdv':lambda x:x.betay,
-              'Zdh':lambda x:x.betax,
-              'Zqv':lambda x:x.betay,
-              'Zqh':lambda x:x.betax}
-    _COLORS =((0,0,1),(0,0.5,0),(1,0,0),(0,0.75,0.75),(0.75,0,0.75),
-              (0.75,0.75,0),(0.25,0.25,0.25),(1,0.69,0.39))
+    _YLABEL ={'Zl' :r'$Z_l [\Omega]$',
+              'Zdv':r'$\beta_yZ_y^d [k\Omega]$',
+              'Zdh':r'$\beta_xZ_x^d [k\Omega]$',
+              'Zqv':r'$\beta_yZ_y^q [k\Omega]$',
+              'Zqh':r'$\beta_xZ_x^q [k\Omega]$'}
 
     def __init__(self, lista=None):
         lista = lista or []
@@ -179,8 +181,8 @@ class Budget(list):
             ax[0].grid(True)
             ax[1].grid(True)
             ax[1].xlabel(r'$\omega [rad/s]$')
-            ax[1].ylabel(r'Re'+_YLABEL[prop])
-            ax[1].ylabel(r'Imag'+_YLABEL[prop])
+            ax[1].ylabel(r'Re'+Budget._YLABEL[prop])
+            ax[1].ylabel(r'Imag'+Budget._YLABEL[prop])
             ax[0].title(_TITLE[prop])
             if save: _plt.savefig(_os.path.sep.join((self.path, prop + '.svg')))
         if show: _plt.show()
@@ -270,7 +272,7 @@ def _prepare_input_epr_mur(w,epb,mub,ange,angm,sigmadc,tau):
     epr = _np.zeros((len(epb),len(w)),dtype=complex)
     mur = _np.zeros((len(epb),len(w)),dtype=complex)
     for j in range(len(epb)):
-        epr[j,:] = epb[j]*(1-1j*_np.sign(w)*_np.tan(ange[j])) + sigmadc[j]/(1+1j*w*tau[j])/(1j*w*ep0)
+        epr[j,:] = epb[j]*(1-1j*_np.sign(w)*_np.tan(ange[j])) + sigmadc[j]/(1+1j*w*tau[j])/(1j*w*_ep0)
         mur[j,:] = mub[j]*(1-1j*_np.sign(w)*_np.tan(angm[j]))
     return epr, mur
 
@@ -361,12 +363,12 @@ def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
         return alphaTM
 
     ####################
-    gam = E/511e3
+    gam = E/E0
     bet = _np.sqrt(1-1/gam**2)
-    nu  = _np.ones((epr.shape[0],1))*abs(w/c)*_np.sqrt(1 - bet**2*epr*mur)
+    nu  = _np.ones((epr.shape[0],1))*abs(w/_c)*_np.sqrt(1 - bet**2*epr*mur)
 
-    Zl = 1j*L*w   /(2*_np.pi*ep0 * (bet*c)**2*gam**2)*alphaTM(0, epr, mur, bet, nu, b)
-    Zv = 1j*L*w**2/(4*_np.pi*ep0*c**2*(bet*c)*gam**4)*alphaTM(1, epr, mur, bet, nu, b)
+    Zl = 1j*L*w   /(2*_np.pi*_ep0 * (bet*_c)**2*gam**2)*alphaTM(0, epr, mur, bet, nu, b)
+    Zv = 1j*L*w**2/(4*_np.pi*_ep0*_c**2*(bet*_c)*gam**4)*alphaTM(1, epr, mur, bet, nu, b)
 
     # The code cant handle w = 0;
     ind0, = _np.where(w == 0)
@@ -378,66 +380,9 @@ def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
     # n=10;
     # fil   = exp(-((-n:n)/(n/5)).^2)/sqrt(pi)/n*5;
     # Zv = conv(Zv,fil,'same');
-    Zh = Zv
+    Zh = Zv.copy()
 
     return Zl.conj(), Zv.conj(), Zh.conj()
-
-def ferrite_kicker_impedance(w,a,b,d,L,epr,mur,Zg, model, coupled):
-    # Calculates Impedances for a ferrite kicker:
-    #       PIOR CASO:
-    #       multi-layer cilindrica com vacuo-coating(2microns)-ceramica-ferrite-PEC
-    #
-    #       MELHOR CASO:
-    #       multi-layer cilindrica com vacuo-coating(2microns)-ceramica-PEC
-    #
-    # Inputs:
-    #
-    # w   = vector of angular frequencies to evaluate impedances [rad/s]
-    # epr = vector with real and imaginary electric permeability of ferrite for
-    #       the frequency range of interest
-    # mur = vector with real and imaginary magnetic permissivity of ferrite for
-    #       the frequency range of interest
-    # L   = length of the structure [m]
-    # Zg  = Vector with generator impedance in function of w [Ohm]
-    #
-    # Outputs:
-    #
-    # Zl = Impedancia Longitudinal [Ohm]
-    # Zh = Impedancia Horizontal [Ohm/m]
-    # Zv = Impedancia Vertical   [Ohm/m]
-    #
-    #
-
-    epb     = _np.array([1, 1, 9.3, 1, 12, 1],dtype=float)
-    mub     = _np.array([1, 1, 1, 1, 1, 1],dtype=float)
-    ange    = _np.array([0, 0, 0, 0, 0, 0],dtype=float)
-    angm    = _np.array([0, 0, 0, 0, 0, 0],dtype=float)
-    sigmadc = _np.array([0, 2.4e6,1,1,1, 5.9e7],dtype=float)
-    tau     = _np.array([0, 0, 0, 0, 0, 0],dtype=float)*27e-15
-    epr1, mur1 = _prepare_input_epr_mur(w,epb,mub,ange,angm,sigmadc,tau)
-    epr1[5,:] = epr
-    mur1[5,:] = mur
-
-    b1      = _np.array([(b - 2.0e-3 - 10e-6), (b - 2.0e-3), (b-1.0e-3), b , d],dtype=float)
-
-    if model.startswith('tsutsui'):
-        Zl, Zh, Zv = kicker_tsutsui_model(w, epr, mur, a, b, d, L, 10)
-    elif model.startswith('pior'):
-        Zl, Zv, Zh = resistive_multilayer_round_pipe(w, epr1, mur1, b1, L, 3)
-        Zv = _np.pi**2/12*Zv
-        Zh = _np.pi**2/24*Zh
-        Zqh = -Zh
-        Zqv = Zh
-    else:
-        indx = [0, 1, 2, 3, 5]
-        mur1 = mur1[indx,:]
-        epr1 = epr1[indx,:]
-        b1    = b1([0, 1, 2, 3])
-        Zl, Zv, Zh = resistive_multilayer_round_pipe(w, epr1, mur1, b1, L, 3)
-        Zv = _np.pi**2/12*Zv
-        Zh = _np.pi**2/24*Zh
-        Zqh = -Zh
-        Zqv = Zh
 
 def kicker_coupled_flux(w,h,W,t,L,mur,Zg):
     # Calculates Impedances for a ferrite kicker:
@@ -470,12 +415,12 @@ def kicker_coupled_flux(w,h,W,t,L,mur,Zg):
 
     # Equivalent Circuit model.
     D = 0.5e-3
-    M  = L*D*mu0/W
-    #     L2 = L*2*a*mu0/2/b
-    L2 = L*h*mu0/W*(mur*t/(mur*t+h*(h/W+1)))
+    M  = L*D*_mu0/W
+    #     L2 = L*2*a*_mu0/2/b
+    L2 = L*h*_mu0/W*(mur*t/(mur*t+h*(h/W+1)))
 
     Zk =      w * (M/L2)**2 * Zg*L2*1j/(1j*w*L2 + Zg)
-    Zx = c/D**2 * (M/L2)**2 * Zg*L2*1j/(1j*w*L2 + Zg)
+    Zx = _c/D**2 * (M/L2)**2 * Zg*L2*1j/(1j*w*L2 + Zg)
 
     return Zk.conj(), Zx.conj()  # take the conjugate to adapt impedance convention
 
@@ -542,7 +487,7 @@ def kicker_tsutsui_model(w, epr, mur, a, b, d, L, n):
     # Terms for the infinite sum:
     n = _np.arange(0,n+1)
 
-    k = _np.ones(n.shape)*w/c
+    k = _np.ones(n.shape)*w/_c
     epr = _np.ones(n.shape)*epr
     mur = _np.ones(n.shape)*mur
 
@@ -554,17 +499,17 @@ def kicker_tsutsui_model(w, epr, mur, a, b, d, L, n):
     tn  = _np.tan(kyn*(b-d))
     ct  = 1/_np.tan(kyn*(b-d))
 
-    Zl = 1j*Z0*L/2/a / (
+    Zl = 1j*_Z0*L/2/a / (
         (kxn/k*sh*ch*(1+epr*mur) + kyn/k*(mur*sh**2*tn - epr*ch**2*ct)
         )/(epr*mur-1) - k/kxn*sh*ch)
     Zl = Zl.sum(0)
 
-    Zv = 1j*Z0*L/2/a * kxn**2/k/(
+    Zv = 1j*_Z0*L/2/a * kxn**2/k/(
         (kxn/k*sh*ch*(1+epr*mur) + kyn/k*(mur*ch**2*tn - epr*sh**2*ct)
         )/(epr*mur-1) - k/kxn*sh*ch)
     Zv = Zv.sum(0)
 
-    Zh = 1j*Z0*L/2/a * kxn**2/k/(
+    Zh = 1j*_Z0*L/2/a * kxn**2/k/(
         (kxn/k*sh*ch*(1+epr*mur) + kyn/k*(mur*sh**2*tn - epr*ch**2*ct)
         )/(epr*mur-1) - k/kxn*sh*ch)
     Zh = Zh.sum(0)
