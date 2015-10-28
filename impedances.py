@@ -1,12 +1,189 @@
 #!/usr/bin/env python3
+import os as _os
+import numpy as _np
+import matplotlib.pyplot as _plt
+import scipy.special as _scy
+import mathphys as _mp
 
-import numpy as np
-import scipy.special as scy
-
-c   = 299792458
-mu0 = 4*np.pi*1e-7
-ep0 = 1/c**2/mu0
+c   = _mp.constants.light_speed
+mu0 = _mp.constants.vacuum_permeability
+ep0 = _mp.constants.vacuum_permitticity
 Z0  = mu0*c
+
+_IMPS  = {'Zl','Zdv','Zdh','Zqv','Zqh'}
+_WAKES = {'Wl','Wdv','Wdh','Wqv','Wqh'}
+_TITLE = {'Zl':'Longitudinal Impedance',
+          'Zdv':'Driving Vertical Impedance',
+          'Zdh':'Driving Horizontal Impedance',
+          'Zqv':'Detuning Vertical Impedance',
+          'Zqh':'Detuning Horizontal Impedance'}
+_FACTOR ={'Zl':1e-3, 'Zdv':1e-6, 'Zdh':1e-6, 'Zqv':1e-6, 'Zqh':1e-6,
+          'Wl':1e-3, 'Wdv':1e-6, 'Wdh':1e-6, 'Wqv':1e-6, 'Wqh':1e-6}
+
+class Element:
+
+    _YLABEL ={'Zl' :r'$Z_l [k\Omega]$',
+              'Zdv':r'$Z_y^d [M\Omega/m]$',
+              'Zdh':r'$Z_x^d [M\Omega/m]$',
+              'Zqv':r'$Z_y^q [M\Omega/m]$',
+              'Zqh':r'$Z_x^q [M\Omega/m]$'}
+
+    def __init__(self,name=None, path=None, betax=None,betay=None, quantity=1):
+        self.name     = name or 'elements'
+        self.path     = path or _os.path.abspath(_os.path.curdir)
+        self.quantity = quantity      # this field shall only be used in Budget
+        self.betax    = betax or 7.2  # this field shall only be used in Budget
+        self.betay    = betay or 11.0 # this field shall only be used in Budget
+        self.w        = _np.array([],dtype=float)
+        self.Zl       = _np.array([],dtype=complex)
+        self.Zdv      = _np.array([],dtype=complex)
+        self.Zdh      = _np.array([],dtype=complex)
+        self.Zqv      = _np.array([],dtype=complex)
+        self.Zqh      = _np.array([],dtype=complex)
+        self.z        = _np.array([],dtype=float)
+        self.Wl       = _np.array([],dtype=float)
+        self.Wdv      = _np.array([],dtype=float)
+        self.Wdh      = _np.array([],dtype=float)
+        self.Wqv      = _np.array([],dtype=float)
+        self.Wqh      = _np.array([],dtype=float)
+
+    def save(self):
+        _mp.utils.save_pickle(_os.path.sep.join([self.path,self.name]),element=self)
+
+    def load(self):
+        data = _mp.utils.load_pickle(_os.path.sep.join([self.path,self.name]))
+        self = data['element']
+
+    def plot(self, props='all', logscale=True, show = True, save = False):
+
+        if isinstance(props,str):
+            if props.lower() == 'all':
+                props = sorted(list(_IMPS))
+            elif props.lower() in _IMPS:
+                props = [props]
+        elif isinstance(props,(list,tuple)):
+            wrong = set(props) - _IMPS
+            if wrong:
+                raise AttributeError(wrong,' not supported for plot.')
+        else:
+            raise TypeError("Type '"+type(props)+"' not supported for 'props'.")
+
+        for prop in props:
+            Imp = getattr(self,prop)
+            if Imp is None or len(Imp)==0: continue
+            _plt.figure()
+            Imp *= _FACTOR[prop]
+            w = self.w
+            if logscale:
+                _plt.loglog(w, Imp.real,'b'  ,label='Real')
+                _plt.loglog(w,-Imp.real,'b--')
+                _plt.loglog(w, Imp.imag,'r'  ,label='Imag')
+                _plt.loglog(w,-Imp.imag,'r--')
+            else:
+                _plt.plot(w,Imp.real,'b',label='Real')
+                _plt.plot(w,Imp.imag,'r',label='Imag')
+            _plt.legend(loc='best')
+            _plt.grid(True)
+            _plt.xlabel(r'$\omega [rad/s]$')
+            _plt.ylabel(_YLABEL[prop])
+            _plt.title(_TITLE[prop])
+            if save: _plt.savefig(_os.path.sep.join((self.path, prop + '.svg')))
+        if show: _plt.show()
+
+class Budget(list):
+
+    _YLABEL ={'Zl' :r'$Z_l [k\Omega]$',
+              'Zdv':r'$\beta_yZ_y^d [M\Omega]$',
+              'Zdh':r'$\beta_xZ_x^d [M\Omega]$',
+              'Zqv':r'$\beta_yZ_y^q [M\Omega]$',
+              'Zqh':r'$\beta_xZ_x^q [M\Omega]$'}
+    _BETA   ={'Zl':lambda x:1,
+              'Zdv':lambda x:x.betay,
+              'Zdh':lambda x:x.betax,
+              'Zqv':lambda x:x.betay,
+              'Zqh':lambda x:x.betax}
+    _COLORS =((0,0,1),(0,0.5,0),(1,0,0),(0,0.75,0.75),(0.75,0,0.75),
+              (0.75,0.75,0),(0.25,0.25,0.25),(1,0.69,0.39))
+
+    def __init__(self, lista=None):
+        lista = lista or []
+        super().__init__(lista)
+
+    def __setitem__(self,k,v):
+        assert isinstance(v,Element)
+        super().__setitem__(k,v)
+
+    def __getattr__(self,name):
+        if name not in _IMPS | _WAKES | {'w','z'}:
+            return [getattr(x,name) for x in self]
+
+        w = _np.unique(_np.concatenate([getattr(x,'w') for x in self]))
+        if name == 'w': return w
+        if name in _IMPS:
+            temp = _np.zeros(w.shape,dtype=complex)
+            for el in self:
+                attr = getattr(el,name)
+                if attr is None or len(attr) == 0: continue
+                temp += 1j*_np.interp(w,el.w,attr.imag,left=0.0,right=0.0)*el.quantity*_BETA[name](el)
+                temp +=    _np.interp(w,el.w,attr.real,left=0.0,right=0.0)*el.quantity*_BETA[name](el)
+            return temp
+
+        z = _np.unique(_np.concatenate([getattr(x,'z') for x in self]))
+        if name == 'z': return z
+        if name in _WAKES:
+            temp = _np.zeros(z.shape,dtype=float)
+            for el in self:
+                attr = getattr(el,name)
+                if attr is None or len(attr) == 0: continue
+                temp += _np.interp(z,el.z,attr,left=0.0,right=0.0)*el.quantity*_BETA[name](el)
+            return temp
+        raise AttributeError("'"+self.__class__+ "' object has no attribute '"+name+"'" )
+
+    def plot(self, props='all', logscale=True, show = True, save = False):
+
+        if isinstance(props,str):
+            if props.lower() == 'all':
+                props = sorted(list(_IMPS))
+            elif props.lower() in _IMPS:
+                props = [props]
+        elif isinstance(props,(list,tuple)):
+            wrong = set(props) - _IMPS
+            if wrong:
+                raise AttributeError(wrong,' not supported for plot.')
+        else:
+            raise TypeError("Type '"+type(props)+"' not supported for 'props'.")
+
+        for prop in props:
+            a = True
+            for el in self:
+                Imp = getattr(self,prop)
+                a &= Imp is None or len(Imp)==0
+                if not a: break
+            if a: continue
+            f,ax = _plt.subplots()
+            for i,el in enumerate(self):
+                Imp = getattr(self,prop)
+                if Imp is None or len(Imp)==0: continue
+                Imp *= _FACTOR[prop] * el.quantity * _BETA[prop](el)
+                w = el.w
+                cor = _COLOR[i % len(_COLOR)]
+                if logscale:
+                    ax[0].loglog(w, Imp.real,color=cor)
+                    ax[0].loglog(w,-Imp.real,'--',color=cor)
+                    ax[1].loglog(w, Imp.imag,color=cor,label=el.name)
+                    ax[1].loglog(w,-Imp.imag,'--',color=cor)
+                else:
+                    ax[0].plot(w,Imp.real,color=cor)
+                    ax[1].plot(w,Imp.imag,color=cor,label=el.name)
+            ax[1].legend(loc='best')
+            ax[0].grid(True)
+            ax[1].grid(True)
+            ax[1].xlabel(r'$\omega [rad/s]$')
+            ax[1].ylabel(r'Re'+_YLABEL[prop])
+            ax[1].ylabel(r'Imag'+_YLABEL[prop])
+            ax[0].title(_TITLE[prop])
+            if save: _plt.savefig(_os.path.sep.join((self.path, prop + '.svg')))
+        if show: _plt.show()
 
 def longitudinal_resonator(Rs, Q, wr, w):
     """Returns the longitudinal resonator impedance for w.
@@ -27,26 +204,25 @@ def longitudinal_resonator(Rs, Q, wr, w):
         Accelerators, Wiley 1993.
 
     Examples:
-    >>> w = np.linspace(-5e9,5e9,1000)
-    >>> Rs, Q, wr = 1000, 1, 2*np.pi*1e9
+    >>> w = _np.linspace(-5e9,5e9,1000)
+    >>> Rs, Q, wr = 1000, 1, 2*_np.pi*1e9
     >>> Zl = longitudinal_resonator(Rs,Q,wr,w)
     >>> Zl.shape
     (1000,)
-    >>> Rs, Q, wr = [1000,2000], [1,10], [2*np.pi*1e9,2*np.pi*5e8]
+    >>> Rs, Q, wr = [1000,2000], [1,10], [2*_np.pi*1e9,2*_np.pi*5e8]
     >>> Zl = longitudinal_resonator(Rs,Q,wr,w)
     >>> Zl.shape
     (1000,)
-    >>> Rs, Q, wr = np.array(Rs), np.array(Q), np.array(wr)
+    >>> Rs, Q, wr = _np.array(Rs), _np.array(Q), _np.array(wr)
     >>> Zl = longitudinal_resonator(Rs,Q,wr,w)
     >>> Zl.shape
     (1000,)
     """
-    Rs = np.array(Rs,ndmin=1,dtype=float)[:,None] # I am using broadcasting
-    Q  = np.array(Q, ndmin=1,dtype=float)[:,None]
-    wr = np.array(wr,ndmin=1,dtype=float)[:,None]
+    Rs = _np.array(Rs,ndmin=1,dtype=float)[:,None] # I am using broadcasting
+    Q  = _np.array(Q, ndmin=1,dtype=float)[:,None]
+    wr = _np.array(wr,ndmin=1,dtype=float)[:,None]
     Zl = w*Rs / (w+1j*Q*(wr - w**2/wr))
     return Zl.sum(0).flatten()
-
 
 def transverse_resonator(Rs, Q, wr, w):
     """Returns the longitudinal resonator impedance for w.
@@ -67,23 +243,23 @@ def transverse_resonator(Rs, Q, wr, w):
         Accelerators, Wiley 1993.
 
     Examples:
-    >>> w = np.linspace(-5e9,5e9,1000)
-    >>> Rs, Q, wr = 1000, 1, 2*np.pi*1e9
+    >>> w = _np.linspace(-5e9,5e9,1000)
+    >>> Rs, Q, wr = 1000, 1, 2*_np.pi*1e9
     >>> Zt = longitudinal_resonator(Rs,Q,wr,w)
     >>> Zt.shape
     (1000,)
-    >>> Rs, Q, wr = [1000,2000], [1,10], [2*np.pi*1e9,2*np.pi*5e8]
+    >>> Rs, Q, wr = [1000,2000], [1,10], [2*_np.pi*1e9,2*_np.pi*5e8]
     >>> Zt = longitudinal_resonator(Rs,Q,wr,w)
     >>> Zt.shape
     (1000,)
-    >>> Rs, Q, wr = np.array(Rs), np.array(Q), np.array(wr)
+    >>> Rs, Q, wr = _np.array(Rs), _np.array(Q), _np.array(wr)
     >>> Zt = longitudinal_resonator(Rs,Q,wr,w)
     >>> Zt.shape
     (1000,)
     """
-    Rs = np.array(Rs,ndmin=1,dtype=float)[:,None] # I am using broadcasting
-    Q  = np.array(Q, ndmin=1,dtype=float)[:,None]
-    wr = np.array(wr,ndmin=1,dtype=float)[:,None]
+    Rs = _np.array(Rs,ndmin=1,dtype=float)[:,None] # I am using broadcasting
+    Q  = _np.array(Q, ndmin=1,dtype=float)[:,None]
+    wr = _np.array(wr,ndmin=1,dtype=float)[:,None]
     Zt = wr*Rs/(w + 1j*Q*(wr - w**2/wr))
     return Zt.sum(0).flatten()
 
@@ -91,18 +267,18 @@ def transverse_resonator(Rs, Q, wr, w):
     return Zt
 
 def _prepare_input_epr_mur(w,epb,mub,ange,angm,sigmadc,tau):
-    epr = np.zeros((len(epb),len(w)),dtype=complex)
-    mur = np.zeros((len(epb),len(w)),dtype=complex)
+    epr = _np.zeros((len(epb),len(w)),dtype=complex)
+    mur = _np.zeros((len(epb),len(w)),dtype=complex)
     for j in range(len(epb)):
-        epr[j,:] = epb[j]*(1-1j*np.sign(w)*np.tan(ange[j])) + sigmadc[j]/(1+1j*w*tau[j])/(1j*w*ep0)
-        mur[j,:] = mub[j]*(1-1j*np.sign(w)*np.tan(angm[j]))
+        epr[j,:] = epb[j]*(1-1j*_np.sign(w)*_np.tan(ange[j])) + sigmadc[j]/(1+1j*w*tau[j])/(1j*w*ep0)
+        mur[j,:] = mub[j]*(1-1j*_np.sign(w)*_np.tan(angm[j]))
     return epr, mur
 
 def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
 
     def Mtil(m, epr, mur, bet, nu, b):
         def produto(A,B):
-            C = np.zeros((A.shape[0],B.shape[1],A.shape[2]),dtype=complex)
+            C = _np.zeros((A.shape[0],B.shape[1],A.shape[2]),dtype=complex)
             for i in range(A.shape[0]):
                 for j in range(B.shape[1]):
                     for k in range(A.shape[1]):
@@ -112,55 +288,55 @@ def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
         for i in range(len(b)): # lembrando que length(b) = número de camadas - 1
             x = nu[i+1,:] * b[i]
             y = nu[i  ,:] * b[i]
-            Mt = np.zeros((4,4,w.shape[0]),dtype=complex)
+            Mt = _np.zeros((4,4,w.shape[0]),dtype=complex)
 
             if i<len(b)-1:
-                D = np.zeros((4,4,nu.shape[1]),dtype=complex)
+                D = _np.zeros((4,4,nu.shape[1]),dtype=complex)
                 z = nu[i+1,:]*b[i+1]
                 if not any(z.real<0):
                     ind = (z.real<60)
 
-                    A = scy.iv(m,z[ind])
-                    B = scy.kv(m,z[ind])
-                    C = scy.iv(m,x[ind])
-                    E = scy.kv(m,x[ind])
+                    A = _scy.iv(m,z[ind])
+                    B = _scy.kv(m,z[ind])
+                    C = _scy.iv(m,x[ind])
+                    E = _scy.kv(m,x[ind])
 
                     D[0,0,:]    =  1
                     D[1,1,ind]  = - B*C/(A*E)
-                    D[1,1,~ind] = - np.exp(-2*(z[~ind]-x[~ind]))
+                    D[1,1,~ind] = - _np.exp(-2*(z[~ind]-x[~ind]))
                     D[2,2,:]    =  1
                     D[3,3,ind]  = - B*C/(A*E)
-                    D[3,3,~ind] = - np.exp(-2*(z[~ind]-x[~ind]))
+                    D[3,3,~ind] = - _np.exp(-2*(z[~ind]-x[~ind]))
 
             Mt[0,0,:] = -nu[i+1,:]**2*b[i]/epr[i+1,:]*(
-                    epr[i+1,:]/nu[i+1,:]*(-scy.kve(m-1,x)/scy.kve(m,x) - m/x)
-                    - epr[i,:]/nu[i,:]  *( scy.ive(m-1,y)/scy.ive(m,y) - m/y))
+                    epr[i+1,:]/nu[i+1,:]*(-_scy.kve(m-1,x)/_scy.kve(m,x) - m/x)
+                    - epr[i,:]/nu[i,:]  *( _scy.ive(m-1,y)/_scy.ive(m,y) - m/y))
             Mt[0,1,:] = -nu[i+1,:]**2*b[i]/epr[i+1,:]*(
-                    epr[i+1,:]/nu[i+1,:]*(-scy.kve(m-1,x)/scy.kve(m,x) - m/x)
-                    - epr[i,:]/nu[i,:]  *(-scy.kve(m-1,y)/scy.kve(m,y) - m/y))
+                    epr[i+1,:]/nu[i+1,:]*(-_scy.kve(m-1,x)/_scy.kve(m,x) - m/x)
+                    - epr[i,:]/nu[i,:]  *(-_scy.kve(m-1,y)/_scy.kve(m,y) - m/y))
             Mt[1,0,:] = -nu[i+1,:]**2*b[i]/epr[i+1,:]*(
-                    epr[i+1,:]/nu[i+1,:]*( scy.ive(m-1,x)/scy.ive(m,x) - m/x)
-                    - epr[i,:]/nu[i,:]  *( scy.ive(m-1,y)/scy.ive(m,y) - m/y))
+                    epr[i+1,:]/nu[i+1,:]*( _scy.ive(m-1,x)/_scy.ive(m,x) - m/x)
+                    - epr[i,:]/nu[i,:]  *( _scy.ive(m-1,y)/_scy.ive(m,y) - m/y))
             Mt[1,1,:] = -nu[i+1,:]**2*b[i]/epr[i+1,:]*(
-                    epr[i+1,:]/nu[i+1,:]*( scy.ive(m-1,x)/scy.ive(m,x) - m/x)
-                    - epr[i,:]/nu[i,:]  *(-scy.kve(m-1,y)/scy.kve(m,y) - m/y))
+                    epr[i+1,:]/nu[i+1,:]*( _scy.ive(m-1,x)/_scy.ive(m,x) - m/x)
+                    - epr[i,:]/nu[i,:]  *(-_scy.kve(m-1,y)/_scy.kve(m,y) - m/y))
 
             Mt[0,2,:] = (nu[i+1,:]**2/nu[i,:]**2 - 1)*m/(bet*epr[i+1,:])
             Mt[0,3,:] = Mt[0,2,:]
             Mt[1,2,:] = Mt[0,2,:]
             Mt[1,3,:] = Mt[0,2,:]
             Mt[2,2,:] = -nu[i+1,:]**2*b[i]/mur[i+1,:]*(
-                    mur[i+1,:]/nu[i+1,:]*(-scy.kve(m-1,x)/scy.kve(m,x) - m/x)
-                    - mur[i,:]/nu[i,:]  *( scy.ive(m-1,y)/scy.ive(m,y) - m/y))
+                    mur[i+1,:]/nu[i+1,:]*(-_scy.kve(m-1,x)/_scy.kve(m,x) - m/x)
+                    - mur[i,:]/nu[i,:]  *( _scy.ive(m-1,y)/_scy.ive(m,y) - m/y))
             Mt[2,3,:] = -nu[i+1,:]**2*b[i]/mur[i+1,:]*(
-                    mur[i+1,:]/nu[i+1,:]*(-scy.kve(m-1,x)/scy.kve(m,x) - m/x)
-                    - mur[i,:]/nu[i,:]  *(-scy.kve(m-1,y)/scy.kve(m,y) - m/y))
+                    mur[i+1,:]/nu[i+1,:]*(-_scy.kve(m-1,x)/_scy.kve(m,x) - m/x)
+                    - mur[i,:]/nu[i,:]  *(-_scy.kve(m-1,y)/_scy.kve(m,y) - m/y))
             Mt[3,2,:] = -nu[i+1,:]**2*b[i]/mur[i+1,:]*(
-                    mur[i+1,:]/nu[i+1,:]*( scy.ive(m-1,x)/scy.ive(m,x) - m/x)
-                    - mur[i,:]/nu[i,:]  *( scy.ive(m-1,y)/scy.ive(m,y) - m/y))
+                    mur[i+1,:]/nu[i+1,:]*( _scy.ive(m-1,x)/_scy.ive(m,x) - m/x)
+                    - mur[i,:]/nu[i,:]  *( _scy.ive(m-1,y)/_scy.ive(m,y) - m/y))
             Mt[3,3,:] = -nu[i+1,:]**2*b[i]/mur[i+1,:]*(
-                    mur[i+1,:]/nu[i+1,:]*( scy.ive(m-1,x)/scy.ive(m,x) - m/x)
-                    - mur[i,:]/nu[i,:]  *(-scy.kve(m-1,y)/scy.kve(m,y) - m/y))
+                    mur[i+1,:]/nu[i+1,:]*( _scy.ive(m-1,x)/_scy.ive(m,x) - m/x)
+                    - mur[i,:]/nu[i,:]  *(-_scy.kve(m-1,y)/_scy.kve(m,y) - m/y))
             Mt[2,0,:] = (nu[i+1,:]**2/nu[i,:]**2 - 1)*m/(bet*mur[i+1,:])
             Mt[2,1,:] = Mt[2,0,:]
             Mt[3,0,:] = Mt[2,0,:]
@@ -181,19 +357,19 @@ def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
         M = Mtil(m, epr, mur, bet, nu, b)
 
         B = (M[0,1,:]*M[2,2,:] - M[2,1,:]*M[0,2,:]) / (M[0,0,:]*M[2,2,:] - M[0,2,:]*M[2,0,:])
-        alphaTM = scy.kv(m,nu[0,:]*b[0])/scy.iv(m,nu[0,:]*b[0]) * B
+        alphaTM = _scy.kv(m,nu[0,:]*b[0])/_scy.iv(m,nu[0,:]*b[0]) * B
         return alphaTM
 
     ####################
     gam = E/511e3
-    bet = np.sqrt(1-1/gam**2)
-    nu  = np.ones((epr.shape[0],1))*abs(w/c)*np.sqrt(1 - bet**2*epr*mur)
+    bet = _np.sqrt(1-1/gam**2)
+    nu  = _np.ones((epr.shape[0],1))*abs(w/c)*_np.sqrt(1 - bet**2*epr*mur)
 
-    Zl = 1j*L*w   /(2*np.pi*ep0 * (bet*c)**2*gam**2)*alphaTM(0, epr, mur, bet, nu, b)
-    Zv = 1j*L*w**2/(4*np.pi*ep0*c**2*(bet*c)*gam**4)*alphaTM(1, epr, mur, bet, nu, b)
+    Zl = 1j*L*w   /(2*_np.pi*ep0 * (bet*c)**2*gam**2)*alphaTM(0, epr, mur, bet, nu, b)
+    Zv = 1j*L*w**2/(4*_np.pi*ep0*c**2*(bet*c)*gam**4)*alphaTM(1, epr, mur, bet, nu, b)
 
     # The code cant handle w = 0;
-    ind0, = np.where(w == 0)
+    ind0, = _np.where(w == 0)
     if ind0:
         Zl[ind0] = (Zl[ind0+1] + Zl[ind0-1]).real/2
         Zv[ind0] = 0 + 1j*Zv[ind0+1].imag
@@ -232,24 +408,24 @@ def ferrite_kicker_impedance(w,a,b,d,L,epr,mur,Zg, model, coupled):
     #
     #
 
-    epb     = np.array([1, 1, 9.3, 1, 12, 1],dtype=float)
-    mub     = np.array([1, 1, 1, 1, 1, 1],dtype=float)
-    ange    = np.array([0, 0, 0, 0, 0, 0],dtype=float)
-    angm    = np.array([0, 0, 0, 0, 0, 0],dtype=float)
-    sigmadc = np.array([0, 2.4e6,1,1,1, 5.9e7],dtype=float)
-    tau     = np.array([0, 0, 0, 0, 0, 0],dtype=float)*27e-15
+    epb     = _np.array([1, 1, 9.3, 1, 12, 1],dtype=float)
+    mub     = _np.array([1, 1, 1, 1, 1, 1],dtype=float)
+    ange    = _np.array([0, 0, 0, 0, 0, 0],dtype=float)
+    angm    = _np.array([0, 0, 0, 0, 0, 0],dtype=float)
+    sigmadc = _np.array([0, 2.4e6,1,1,1, 5.9e7],dtype=float)
+    tau     = _np.array([0, 0, 0, 0, 0, 0],dtype=float)*27e-15
     epr1, mur1 = _prepare_input_epr_mur(w,epb,mub,ange,angm,sigmadc,tau)
     epr1[5,:] = epr
     mur1[5,:] = mur
 
-    b1      = np.array([(b - 2.0e-3 - 10e-6), (b - 2.0e-3), (b-1.0e-3), b , d],dtype=float)
+    b1      = _np.array([(b - 2.0e-3 - 10e-6), (b - 2.0e-3), (b-1.0e-3), b , d],dtype=float)
 
     if model.startswith('tsutsui'):
         Zl, Zh, Zv = kicker_tsutsui_model(w, epr, mur, a, b, d, L, 10)
     elif model.startswith('pior'):
         Zl, Zv, Zh = resistive_multilayer_round_pipe(w, epr1, mur1, b1, L, 3)
-        Zv = np.pi**2/12*Zv
-        Zh = np.pi**2/24*Zh
+        Zv = _np.pi**2/12*Zv
+        Zh = _np.pi**2/24*Zh
         Zqh = -Zh
         Zqv = Zh
     else:
@@ -258,8 +434,8 @@ def ferrite_kicker_impedance(w,a,b,d,L,epr,mur,Zg, model, coupled):
         epr1 = epr1[indx,:]
         b1    = b1([0, 1, 2, 3])
         Zl, Zv, Zh = resistive_multilayer_round_pipe(w, epr1, mur1, b1, L, 3)
-        Zv = np.pi**2/12*Zv
-        Zh = np.pi**2/24*Zh
+        Zv = _np.pi**2/12*Zv
+        Zh = _np.pi**2/24*Zh
         Zqh = -Zh
         Zqv = Zh
 
@@ -364,19 +540,19 @@ def kicker_tsutsui_model(w, epr, mur, a, b, d, L, n):
     # L = 0.6
 
     # Terms for the infinite sum:
-    n = np.arange(0,n+1)
+    n = _np.arange(0,n+1)
 
-    k = np.ones(n.shape)*w/c
-    epr = np.ones(n.shape)*epr
-    mur = np.ones(n.shape)*mur
+    k = _np.ones(n.shape)*w/c
+    epr = _np.ones(n.shape)*epr
+    mur = _np.ones(n.shape)*mur
 
 
-    kxn = np.repeats((2*n[:,None]+1)*np.pi/2/a, w.shape[0], axis=1)
-    kyn = np.sqrt((epr*mur-1)*k**2 - kxn**2)
-    sh  = np.sinh(kxn*b)
-    ch  = np.cosh(kxn*b)
-    tn  = np.tan(kyn*(b-d))
-    ct  = 1/np.tan(kyn*(b-d))
+    kxn = _np.repeats((2*n[:,None]+1)*_np.pi/2/a, w.shape[0], axis=1)
+    kyn = _np.sqrt((epr*mur-1)*k**2 - kxn**2)
+    sh  = _np.sinh(kxn*b)
+    ch  = _np.cosh(kxn*b)
+    tn  = _np.tan(kyn*(b-d))
+    ct  = 1/_np.tan(kyn*(b-d))
 
     Zl = 1j*Z0*L/2/a / (
         (kxn/k*sh*ch*(1+epr*mur) + kyn/k*(mur*sh**2*tn - epr*ch**2*ct)
