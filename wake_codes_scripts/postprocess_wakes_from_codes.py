@@ -17,17 +17,10 @@ class GlobData:
 class Ringpar:
     def __init__(self):
         self.circumf = 518.396       # Ring circumference [m]
-        self.omega0 = 3.63361516e6   # Revolution frequency [rad/s]
+        self.omega0 = 2*_np.pi*299792458/self.circumf   # Revolution frequency [rad/s]
         self.sigma = 2.5e-3          # Nominal Bunch Length[m]
         self.sigmamax = 15e-3        # Maximum Bunch Length of interest[m]
         self.Iavg = 500e-3           # Beam current [A]
-        self.h = 864                 # Harmonic number
-        self.beta = 0.9999999855     # Beam speed (fraction of c)
-        self.E0 = 3e9                # Beam Energy [eV]
-        self.Ee = 0.510998910e6      # Electron Rest Energy [eV]
-        self.alpha = 1.74e-4         # Momentum Compaction Factor
-        self.nux = 48.0977           # Horizontal Tune
-        self.omegas = 2*_np.pi*299792458/518.396*0.00393 # Synchrotron Frequency [rad/s]
 
 class Simpar:
     def __init__(self):

@@ -28,6 +28,31 @@ _BETA   ={'Zl':lambda x:1,
 _COLORS =((0,0,1),(0,0.5,0),(1,0,0),(0,0.75,0.75),(0.75,0,0.75),
           (0.75,0.75,0),(0.25,0.25,0.25),(1,0.69,0.39))
 
+def _plotlog(x, y, color=None, label=None, ax=None):
+    if ax is None: ax = _plt.gca()
+
+    if any(y > 0):
+        ax.loglog(x,y,color=color,label=label)
+        ax.loglog(x,-y,'--',color=color)
+    else:
+        ax.loglog(x,-y,'--',color=color)
+        ax.loglog(x,y,color=color,label=label)
+
+def _prepare_props(props):
+    if isinstance(props,str):
+        if props.lower() == 'all':
+            props = sorted(list(_IMPS))
+        elif props in _IMPS:
+            props = [props]
+        else:
+            raise AttributeError(props,' not supported for plot.')
+    elif isinstance(props,(list,tuple)):
+        wrong = set(props) - _IMPS
+        if wrong:
+            raise AttributeError(wrong,' not supported for plot.')
+    else:
+        raise TypeError("Type '"+type(props)+"' not supported for 'props'.")
+    return props
 
 class Element:
 
@@ -37,12 +62,12 @@ class Element:
               'Zqv':r'$Z_y^q [k\Omega/m]$',
               'Zqh':r'$Z_x^q [k\Omega/m]$'}
 
-    def __init__(self,name=None, path=None):
+    def __init__(self,name=None, path=None, betax=None,betay=None,quantity=None):
         self.name     = name or 'element'
         self.path     = path or _os.path.abspath(_os.path.curdir)
-        self.quantity = 0   # this field shall only be used in Budget
-        self.betax    = 0.0 # this field shall only be used in Budget
-        self.betay    = 0.0 # this field shall only be used in Budget
+        self.quantity = quantity or 0 # this field shall only be used in Budget
+        self.betax    = betax or 0.0  # this field shall only be used in Budget
+        self.betay    = betay or 0.0  # this field shall only be used in Budget
         self.w        = _np.array([],dtype=float)
         self.Zl       = _np.array([],dtype=complex)
         self.Zdv      = _np.array([],dtype=complex)
@@ -63,19 +88,10 @@ class Element:
         data = _mp.utils.load_pickle(_os.path.sep.join([self.path,self.name.replace(' ','_')]))
         self = data['element']
 
-    def plot(self, props='all', logscale=True, show = True, save = False):
+    def plot(self, props='all', logscale=True, show = True, save = False, name=''):
 
-        if isinstance(props,str):
-            if props.lower() == 'all':
-                props = sorted(list(_IMPS))
-            elif props.lower() in _IMPS:
-                props = [props]
-        elif isinstance(props,(list,tuple)):
-            wrong = set(props) - _IMPS
-            if wrong:
-                raise AttributeError(wrong,' not supported for plot.')
-        else:
-            raise TypeError("Type '"+type(props)+"' not supported for 'props'.")
+        if name: name = '_'+name
+        props = _prepare_props(props)
 
         for prop in props:
             Imp = getattr(self,prop)
@@ -84,10 +100,8 @@ class Element:
             Imp *= _FACTOR[prop]
             w = self.w
             if logscale:
-                _plt.loglog(w, Imp.real,'b'  ,label='Real')
-                _plt.loglog(w,-Imp.real,'b--')
-                _plt.loglog(w, Imp.imag,'r'  ,label='Imag')
-                _plt.loglog(w,-Imp.imag,'r--')
+                _plotlog(w, Imp.real,color='b',label='Real')
+                _plotlog(w, Imp.imag,color='r',label='Imag')
             else:
                 _plt.plot(w,Imp.real,'b',label='Real')
                 _plt.plot(w,Imp.imag,'r',label='Imag')
@@ -96,7 +110,7 @@ class Element:
             _plt.xlabel(r'$\omega [rad/s]$')
             _plt.ylabel(Element._YLABEL[prop])
             _plt.title(_TITLE[prop])
-            if save: _plt.savefig(_os.path.sep.join((self.path, prop + '.svg')))
+            if save: _plt.savefig(_os.path.sep.join((self.path, prop + name + '.svg')))
         if show: _plt.show()
 
 class Budget(list):
@@ -140,20 +154,11 @@ class Budget(list):
                 temp += _np.interp(z,el.z,attr,left=0.0,right=0.0)*el.quantity*_BETA[name](el)
             return temp
         raise AttributeError("'"+self.__class__+ "' object has no attribute '"+name+"'" )
+    
+    def plot(self, props='all', logscale=True, show = True, save = False, name=''):
 
-    def plot(self, props='all', logscale=True, show = True, save = False):
-
-        if isinstance(props,str):
-            if props.lower() == 'all':
-                props = sorted(list(_IMPS))
-            elif props.lower() in _IMPS:
-                props = [props]
-        elif isinstance(props,(list,tuple)):
-            wrong = set(props) - _IMPS
-            if wrong:
-                raise AttributeError(wrong,' not supported for plot.')
-        else:
-            raise TypeError("Type '"+type(props)+"' not supported for 'props'.")
+        if name: name = '_'+name
+        props = _prepare_props(props)
 
         for prop in props:
             a = True
@@ -162,29 +167,27 @@ class Budget(list):
                 a &= Imp is None or len(Imp)==0
                 if not a: break
             if a: continue
-            f,ax = _plt.subplots()
+            f,ax = _plt.subplots(2,1,sharex=True)
             for i,el in enumerate(self):
-                Imp = getattr(self,prop)
+                Imp = getattr(el,prop)
                 if Imp is None or len(Imp)==0: continue
                 Imp *= _FACTOR[prop] * el.quantity * _BETA[prop](el)
                 w = el.w
-                cor = _COLOR[i % len(_COLOR)]
+                cor = _COLORS[i % len(_COLORS)]
                 if logscale:
-                    ax[0].loglog(w, Imp.real,color=cor)
-                    ax[0].loglog(w,-Imp.real,'--',color=cor)
-                    ax[1].loglog(w, Imp.imag,color=cor,label=el.name)
-                    ax[1].loglog(w,-Imp.imag,'--',color=cor)
+                    _plotlog(w, Imp.real, color=cor, ax=ax[0])
+                    _plotlog(w, Imp.imag, color=cor, label=el.name, ax=ax[1])
                 else:
                     ax[0].plot(w,Imp.real,color=cor)
                     ax[1].plot(w,Imp.imag,color=cor,label=el.name)
             ax[1].legend(loc='best')
             ax[0].grid(True)
             ax[1].grid(True)
-            ax[1].xlabel(r'$\omega [rad/s]$')
-            ax[1].ylabel(r'Re'+Budget._YLABEL[prop])
-            ax[1].ylabel(r'Imag'+Budget._YLABEL[prop])
-            ax[0].title(_TITLE[prop])
-            if save: _plt.savefig(_os.path.sep.join((self.path, prop + '.svg')))
+            ax[1].set_xlabel(r'$\omega [rad/s]$')
+            ax[0].set_ylabel(r'Re'+Budget._YLABEL[prop])
+            ax[1].set_ylabel(r'Im'+Budget._YLABEL[prop])
+            ax[0].set_title(_TITLE[prop])
+            if save: f.savefig(_os.path.sep.join((self.path, prop + name + '.svg')))
         if show: _plt.show()
 
 def longitudinal_resonator(Rs, Q, wr, w):
