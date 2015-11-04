@@ -135,7 +135,7 @@ class Ring:
         deltaw = 1j/(2*_np.pi*2**m*_factorial(m - 1)) * I_tot*eta/(E*nus*(sigma/c)**2) * Zl_eff
         return deltaw
 
-    def transverse_cbi(self, budget=None, element=None, w=None, Zt=None, sigma=None, m,  plane='y'):
+    def transverse_cbi(self, budget=None, element=None, w=None, Zt=None, sigma=None, m=0,  plane='y'):
         """Calcula a impedância transversal efetiva dos nb modos de oscilacao,
         considerando um feixe gaussiano, para o modo azimutal m e radial k=0;
         E calcula as instabilidades de Coupled_bunch a partir dela.

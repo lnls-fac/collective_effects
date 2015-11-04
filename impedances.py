@@ -64,6 +64,7 @@ class Element:
 
     def __init__(self,name=None, path=None, betax=None,betay=None,quantity=None):
         self.name     = name or 'element'
+        if path is not None: path = _os.path.abspath(path)
         self.path     = path or _os.path.abspath(_os.path.curdir)
         self.quantity = quantity or 0 # this field shall only be used in Budget
         self.betax    = betax or 0.0  # this field shall only be used in Budget
@@ -82,11 +83,13 @@ class Element:
         self.Wqh      = _np.array([],dtype=float)
 
     def save(self):
-        _mp.utils.save_pickle(_os.path.sep.join([self.path,self.name.replace(' ','_')]),element=self)
+        name = self.name.replace(' ','_').lower()
+        _mp.utils.save_pickle(_os.path.sep.join([self.path, name]),element=self)
 
     def load(self):
-        data = _mp.utils.load_pickle(_os.path.sep.join([self.path,self.name.replace(' ','_')]))
-        self = data['element']
+        name = self.name.replace(' ','_').lower()
+        data = _mp.utils.load_pickle(_os.path.sep.join([self.path, name]))
+        return data['element']
 
     def plot(self, props='all', logscale=True, show = True, save = False, name=''):
 
@@ -109,7 +112,7 @@ class Element:
             _plt.grid(True)
             _plt.xlabel(r'$\omega [rad/s]$')
             _plt.ylabel(Element._YLABEL[prop])
-            _plt.title(_TITLE[prop])
+            _plt.title(self.name+': '+_TITLE[prop])
             if save: _plt.savefig(_os.path.sep.join((self.path, prop + name + '.svg')))
         if show: _plt.show()
 
@@ -121,13 +124,24 @@ class Budget(list):
               'Zqv':r'$\beta_yZ_y^q [k\Omega]$',
               'Zqh':r'$\beta_xZ_x^q [k\Omega]$'}
 
-    def __init__(self, lista=None):
+    def __init__(self, lista=None, name=None, path = None):
         lista = lista or []
+        if lista and not isinstance(lista[0],Element):
+            assert 'Input must be a sequence of Element objects.'
         super().__init__(lista)
+        self.name = name or 'Budget'
+        if path is not None: path = _os.path.abspath(path)
+        self.path = path or _os.path.abspath(_os.path.curdir)
 
     def __setitem__(self,k,v):
         assert isinstance(v,Element)
         super().__setitem__(k,v)
+
+    def __setattr__(self,name,value):
+        if name in {'name','path'}:
+            self.__dict__[name] = str(value)
+        else:
+            raise AttributeError('Attribute '+name+' is read only.')
 
     def __getattr__(self,name):
         if name not in _IMPS | _WAKES | {'w','z'}:
@@ -154,7 +168,16 @@ class Budget(list):
                 temp += _np.interp(z,el.z,attr,left=0.0,right=0.0)*el.quantity*_BETA[name](el)
             return temp
         raise AttributeError("'"+self.__class__+ "' object has no attribute '"+name+"'" )
-    
+
+    def save(self):
+        name = self.name.replace(' ','_').lower()
+        _mp.utils.save_pickle(_os.path.sep.join([self.path,name]),budget=self)
+
+    def load(self):
+        name = self.name.replace(' ','_').lower()
+        data = _mp.utils.load_pickle(_os.path.sep.join([self.path,name]))
+        return data['budget']
+
     def plot(self, props='all', logscale=True, show = True, save = False, name=''):
 
         if name: name = '_'+name
@@ -180,13 +203,13 @@ class Budget(list):
                 else:
                     ax[0].plot(w,Imp.real,color=cor)
                     ax[1].plot(w,Imp.imag,color=cor,label=el.name)
-            ax[1].legend(loc='best')
+            ax[1].legend(loc='best',fontsize=10)
             ax[0].grid(True)
             ax[1].grid(True)
             ax[1].set_xlabel(r'$\omega [rad/s]$')
             ax[0].set_ylabel(r'Re'+Budget._YLABEL[prop])
             ax[1].set_ylabel(r'Im'+Budget._YLABEL[prop])
-            ax[0].set_title(_TITLE[prop])
+            ax[0].set_title(self.name+': '+_TITLE[prop])
             if save: f.savefig(_os.path.sep.join((self.path, prop + name + '.svg')))
         if show: _plt.show()
 
