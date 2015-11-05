@@ -6,7 +6,7 @@ import gzip as _gzip
 import pickle as _pickle
 import numpy as _np
 import matplotlib.pyplot as _plt
-from matplotlib import _rc
+from matplotlib import rc as _rc
 
 class GlobData:
     def __init__(self):
@@ -21,6 +21,7 @@ class Ringpar:
         self.sigma = 2.5e-3          # Nominal Bunch Length[m]
         self.sigmamax = 15e-3        # Maximum Bunch Length of interest[m]
         self.Iavg = 500e-3           # Beam current [A]
+        self.h    = 864              # Harmonic Number
 
 class Simpar:
     def __init__(self):
@@ -34,15 +35,6 @@ class Simpar:
         self.units     = 0     # # of components in the ring
         self.bunlen    = 0e-3  # Bunch Length Used in simulation[m]
         self.cutoff    = 2     # multiple of the bunch frequency to calculate impedance
-
-class PeakInfo:
-    def __init__(self):
-        self.omegar   = _np.array([],dtype=float)     # Modes Center Frequencies
-        self.BW       = _np.array([],dtype=float)     # Modes Bandwidths (half height)
-        self.Rshunt   = _np.array([],dtype=float)     # Modes Peak Values
-        self.Q        = _np.array([],dtype=float)     # Modes Quality Factors
-        self.ReZmodel = _np.array([],dtype=float)     # Impedance Spectrum Modeled from Peaks Info
-        self.wmodel   = _np.array([],dtype=float)     # Frequency axis referred to ReZmodel
 
 class Results:
     def __init__(self):
@@ -75,7 +67,6 @@ class Results:
         self.GR_HOM       = _np.array([],dtype=float) # Growth Rate value for each CBM accumulated through each HOM
         self.ReZsampl     = _np.array([],dtype=float) # Impedance Spectrum Sampled by fastest CBM
         self.fsampl       = _np.array([],dtype=float) # Frequency axis for sampled impedance
-        self.peakinfo     = PeakInfo()
 
 def prepare_struct_for_load(newdir=None, m=0, sigma=5e-4, rootdir=_os.path.abspath(_os.curdir)):
     globdata = GlobData()
@@ -481,7 +472,6 @@ def plot_results(globdata, mostra=False, salva = True):
     _plt.ylim([wake.min()*1.1, wake.max()*1.1])
     _plt.legend(loc='best')
     if salva: _plt.savefig(_os.path.sep.join((tardir,fname+'.svg')))
-    if mostra: _plt.show()
 
     #===== Long Range =====
     _plt.figure(2)
@@ -502,7 +492,6 @@ def plot_results(globdata, mostra=False, salva = True):
         _plt.title (wplane+' Quadrupole Wakepotential ('+dsrc+')',fontsize=13)
         _plt.ylabel(r'W_Q_{0:s} [V/m]'.format(waxis),fontsize=13)
     if salva: _plt.savefig(_os.path.sep.join((tardir,fname+'.svg')))
-    if mostra: _plt.show()
 
     #=========== Plot Impedance ==========================
     _plt.figure(3)
@@ -525,7 +514,6 @@ def plot_results(globdata, mostra=False, salva = True):
     _plt.legend (loc='best')
     _plt.xlim(_np.array(f[[0,-1]],dtype=float)/1e9)
     if salva: _plt.savefig(_os.path.sep.join((tardir,fname+'.svg')))
-    if mostra: _plt.show()
 
     #===============Plot Loss/Kick Factor vs. Sigma ======================
     if m==0:
