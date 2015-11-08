@@ -71,8 +71,6 @@ class Results:
 def prepare_struct_for_load(newdir=None, m=0, sigma=5e-4, rootdir=_os.path.abspath(_os.curdir)):
     globdata = GlobData()
 
-    if newdir is None: raise Exception('must give a folder name')
-
     globdata.simpar.wakepath = rootdir
 
     if newdir:
@@ -251,12 +249,12 @@ def calc_impedance(globdata):
 
     # Modified Hanning window proposed by Caiafa. Not sure of mathematical
     # validity:
-    # window = _np.hanning(2*wake.shape[0])[wake.shape[0]-1:-1]
-    # fftt = _np.fft.rfft(wake*window)
+    window = _np.hanning(2*wake.shape[0])[wake.shape[0]-1:-1]
 
     # calculates FFT and frequency:
     #fftt == \int exp(-i*2pi*f*t/n) G(t) dt
-    fftt = _np.fft.fft(wake)
+    # fftt = _np.fft.fft(wake)
+    fftt = _np.fft.fft(wake*window)
     freq = _np.fft.fftfreq(wake.shape[0],d=dt)
 
     # shift the negative frequencies to the correct position

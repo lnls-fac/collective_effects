@@ -97,10 +97,10 @@ class Element:
         props = _prepare_props(props)
 
         for prop in props:
-            Imp = getattr(self,prop)
-            if Imp is None or len(Imp)==0: continue
+            Imp2 = getattr(self,prop)
+            if Imp2 is None or len(Imp2)==0: continue
             _plt.figure()
-            Imp *= _FACTOR[prop]
+            Imp = Imp2*_FACTOR[prop]
             w = self.w
             if logscale:
                 _plotlog(w, Imp.real,color='b',label='Real')
@@ -167,7 +167,7 @@ class Budget(list):
                 if attr is None or len(attr) == 0: continue
                 temp += _np.interp(z,el.z,attr,left=0.0,right=0.0)*el.quantity*_BETA[name](el)
             return temp
-        raise AttributeError("'"+self.__class__+ "' object has no attribute '"+name+"'" )
+        raise AttributeError("'"+self.__class__.__name__+ "' object has no attribute '"+name+"'" )
 
     def save(self):
         name = self.name.replace(' ','_').lower()

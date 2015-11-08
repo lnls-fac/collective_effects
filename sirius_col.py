@@ -1,7 +1,11 @@
 import numpy as _np
 import collective_effects as colefcts
+import impedances as imp
+import mathphys as _mp
 
-def create_ring(phase='phase_1'):
+c = _mp.constants.light_speed
+
+def create_ring(phase=2):
     ring = colefcts.Ring()
     ring.version   = 'SI.v12.c02'
     ring.circ      = 518.396
@@ -20,7 +24,7 @@ def create_ring(phase='phase_1'):
 
     I = _np.linspace(0,4,num=40)
     ring.cur_bun   = I*1e-3
-    if phase.startswith('commissioning'):
+    if phase == 0: #commissioning
         ring.nom_cur     = 0.100       # total current [A]
         ring.nus         = 0.00435    # synchrotron tune
         ring.espread     = lambda x:7.64e-4 +0*x
@@ -31,7 +35,7 @@ def create_ring(phase='phase_1'):
         ring.dampty      = 22.7e-3
         ring.dampte      = 13.6e-3
         ring.en_lost_rad = 456740.6 #eV
-    elif phase.startswith('phase_1'):
+    elif phase == 1: #phase_1
         ring.nom_cur     = 0.10         # total current [A]
         ring.nus         = 0.00435        # synchrotron tune
         ring.espread     = lambda x:1e-2*(9.4e-2+3.80e-2*x-1.83e-2*x**2+4.78e-3*x**3-4.73e-4*x**4)
@@ -42,7 +46,7 @@ def create_ring(phase='phase_1'):
         ring.dampty      = 15.1e-3
         ring.dampte      =  8.5e-3
         ring.en_lost_rad = 685374.1 #eV
-    elif phase.startswith('phase_2'):
+    elif phase == 2: #phase_2
         ring.nom_cur     = 0.35        # total current [A]
         ring.nus         = 0.00435    # synchrotron tune
         ring.espread     = lambda x:1e-2*(8.87e-2+1.58e-2*x-5.48e-3*x**2+1.25e-3*x**3-1.14e-4*x**4)
@@ -53,7 +57,7 @@ def create_ring(phase='phase_1'):
         ring.dampty      = 12.5e-3
         ring.dampte      =  6.9e-3
         ring.en_lost_rad = 829761.9 #eV
-    elif phase.startswith('phase_2_HC'):
+    elif phase == 3: #phase_2_HC
         ring.nom_cur     = 0.5        # total current [A]
         ring.nus         = 0.00435    # synchrotron tune
         ring.espread     = lambda x:1e-2*(8.87e-2+1.58e-2*x-5.48e-3*x**2+1.25e-3*x**3-1.14e-4*x**4)
@@ -64,6 +68,7 @@ def create_ring(phase='phase_1'):
         ring.dampty      = 12.5e-3
         ring.dampte      =  6.9e-3
         ring.en_lost_rad = 829761.9 #eV
+    return ring
 
-def create_budget(phase = 'phase_1'):
-    return Budget()
+def create_budget(phase = 2):
+    return imp.Budget()

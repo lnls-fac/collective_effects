@@ -1,8 +1,36 @@
 #!/usr/bin/env python3
 import numpy as _np
 import impedances as _imp
+import mathphys as _mp
 
+_c   = _mp.constants.light_speed
 _factorial = _np.math.factorial
+
+_TYPES = dict(version = str,
+          circ        = (float,_np.float_),
+          T0          = (float,_np.float_),
+          f0          = (float,_np.float_),
+          w0          = (float,_np.float_),
+          mom_cmpct   = (float,_np.float_),
+          E           = (float,_np.float_),
+          nuy         = (float,_np.float_),
+          nux         = (float,_np.float_),
+          chromx      = (float,_np.float_),
+          chromy      = (float,_np.float_),
+          harm_num    = (int,_np.int_),
+          nbun        = (int,_np.int_),
+          budget      = _imp.Budget,
+          cur_bun     = _np.ndarray,
+          nom_cur     = (float,_np.float_),
+          nus         = (float,_np.float_),
+          espread     = type(lambda x:x),
+          sigma       = type(lambda x:x),
+          emitx       = type(lambda x:x),
+          emity       = type(lambda x:x),
+          damptx      = (float,_np.float_),
+          dampty      = (float,_np.float_),
+          dampte      = (float,_np.float_),
+          en_lost_rad = (float,_np.float_))
 
 class Ring:
     def __init__(self):
@@ -35,10 +63,13 @@ class Ring:
         self.en_lost_rad = 0.0 # Energy lost per turn in [eV]
 
     def __setattr__(self,attr,value):
-        if attr not in self.__dict__:
-            raise AttributeError('Invalid attribute '+attr+' for object of class '+self.__class__+'.')
-        if not isinstance(value,type(getattr(self,attr))):
-            raise TypeError(attr+' must be '+type(getattr(self,attr))+' not '+ type(value)+'.')
+        if attr not in _TYPES.keys():
+            raise TypeError(attr+' not an attribute of '+self.__module__+'.'
+                            +self.__class__.__name__+' object')
+        if not isinstance(value,_TYPES[attr]):
+            raise TypeError(attr+' must be '+
+                  ', '.join(['{0.__name__}'.format(t) for t in _TYPES[attr]])+
+                  ', not '+ type(value).__name__+'.')
         self.__dict__[attr] = value
 
     def loss_factor(self,w,Z,sigma):
@@ -117,7 +148,7 @@ class Ring:
         I_tot= self.nom_cur
 
         if sigma is None: sigma = self.sigma(I_tot/nb)
-        w, Zl = prepare_input_impedance(budget,element,w,Zl,'Zl')
+        w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zl')
 
         # Calculate Effective Impedance
         pmin = _np.ceil( (w[ 0] -    m*nus*w0    )/(w0*nb)) #arredonda em direcao a +infinito
@@ -154,7 +185,7 @@ class Ring:
             nut, chrom, imp   = self.nuy, self.chromy, 'Zdv'
 
         if sigma is None: sigma = self.sigma(I_tot/nb)
-        w, Zt = prepare_input_impedance(budget,element,w,Zt,imp)
+        w, Zt = self._prepare_input_impedance(budget,element,w,Zt,imp)
 
         ## Calculate Effective Impedance
         nucro = chrom/eta
@@ -182,7 +213,7 @@ class Ring:
             for _ in range(n): res *= vetor
             return res
 
-        sigW = wp*sigma/c/_np.sqrt(2)
+        sigW = wp*sigma/_c/_np.sqrt(2)
         spectrum = dict()
         spect    = dict()
         expo     = _np.exp(-my_pow(sigW,2))
@@ -239,7 +270,7 @@ class Ring:
         nb    = self.nbun
 
         if sigma is None: sigma = self.sigma(I_b)
-        w, Zl = prepare_input_impedance(budget,element,w,Zl,'Zl')
+        w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zl')
 
         pmin = _np.ceil( (w[0] -(mu + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a +infinito
         pmax = _np.floor((w[-1]-(mu + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a -infinito
@@ -247,25 +278,25 @@ class Ring:
         p = _np.arange(pmin,pmax+1)
         wp = w0*(p*nb + mu + 1*nus)
         # Complex interpolation is ill-defined
-        interpol_Z  = 1j*_np.interp(wp, w, Z.imag) # imaginary must come first
-        interpol_Z +=    _np.interp(wp, w, Z.real)
+        interpol_Z  = 1j*_np.interp(wp, w, Zl.imag) # imaginary must come first
+        interpol_Z +=    _np.interp(wp, w, Zl.real)
 
         delta = _np.zeros([len(I_b),(n_rad+1)*(2*n_azi+1)],dtype=complex)
         if not len(sigma)==1:
             for ii in range(len(I_b)):
                 A, M = calc_M(interpol_Z, wp, sigma[ii], n_azi, n_rad)
-                K    = I_b[ii]*nb*w0*eta/(2*_np.pi)/(nus*w0)**2/E/(sigma[ii]/c)**2
+                K    = I_b[ii]*nb*w0*eta/(2*_np.pi)/(nus*w0)**2/E/(sigma[ii]/_c)**2
                 B    = A + K*M
                 delta[ii,:] = _np.linalg.eigvals(B)
         else:
             A, M = calc_M(interpol_Z, wp, sigma, n_azi, n_rad)
             for ii in range(len(I_b)):
-                K = I_b[ii]*nb*w0*eta/(2*_np.pi)/(nus*w0)**2/E/(sigma/c)**2
+                K = I_b[ii]*nb*w0*eta/(2*_np.pi)/(nus*w0)**2/E/(sigma/_c)**2
                 B = A + K*M
                 delta[ii,:] = _np.linalg.eigvals(B)
         return delta
 
-    def transverse_mode_coupling(self, budget=None, element=None, w=None, Zl=None, sigma=None, plane='y', n_azi=3, n_rad=4, mu=0):
+    def transverse_mode_coupling(self, budget=None, element=None, w=None, Zt=None, sigma=None, plane='y', n_azi=3, n_rad=4, mu=0):
         def calc_M(interpol_Z, wpcro, sigma, n_azi, n_rad):
             def fill_M(m,k,n,l,Mmknl):
                 M[n_azi+m, k, n_azi+n, l] =             Mmknl
@@ -314,7 +345,7 @@ class Ring:
             nut, chrom, imp = self.nuy, self.chromy, 'Zdv'
 
         if sigma is None: sigma = self.sigma(I_b)
-        w, Zt = prepare_input_impedance(budget,element,w,Zt,imp)
+        w, Zt = self._prepare_input_impedance(budget,element,w,Zt,imp)
 
         nucro = chrom/eta
         pmin = _np.ceil( (w[0] -(mu + nut + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a +infinito
@@ -323,8 +354,8 @@ class Ring:
         p = _np.arange(pmin,pmax+1)
         wp = w0*(p*nb + mu +nut + 1*nus)
         # Complex interpolation is ill-defined
-        interpol_Z  = 1j*_np.interp(wp, w, Z.imag) # imaginary must come first
-        interpol_Z +=    _np.interp(wp, w, Z.real)
+        interpol_Z  = 1j*_np.interp(wp, w, Zt.imag) # imaginary must come first
+        interpol_Z +=    _np.interp(wp, w, Zt.real)
         wpcro = wp - nucro*w0
 
         delta = _np.zeros([len(I_b),(n_rad+1)*(2*n_azi+1)],dtype=complex)
