@@ -20,11 +20,12 @@ def create_ring(phase=2):
     ring.chromy    = 0.0       # vertical chromaticity
     ring.harm_num  = 864       # harmonic Number
     ring.nbun      = 864       # number of bunches filled
-    ring.budget    = create_budget(phase)
+    # ring.budget    = create_budget(phase)
 
     I = _np.linspace(0,4,num=40)
     ring.cur_bun   = I*1e-3
     if phase == 0: #commissioning
+        ring.version    += '.Commisioning'
         ring.nom_cur     = 0.100       # total current [A]
         ring.nus         = 0.00435    # synchrotron tune
         ring.espread     = lambda x:7.64e-4 +0*x
@@ -36,6 +37,7 @@ def create_ring(phase=2):
         ring.dampte      = 13.6e-3
         ring.en_lost_rad = 456740.6 #eV
     elif phase == 1: #phase_1
+        ring.version    += '.Phase1'
         ring.nom_cur     = 0.10         # total current [A]
         ring.nus         = 0.00435        # synchrotron tune
         ring.espread     = lambda x:1e-2*(9.4e-2+3.80e-2*x-1.83e-2*x**2+4.78e-3*x**3-4.73e-4*x**4)
@@ -47,6 +49,7 @@ def create_ring(phase=2):
         ring.dampte      =  8.5e-3
         ring.en_lost_rad = 685374.1 #eV
     elif phase == 2: #phase_2
+        ring.version    += '.Phase2'
         ring.nom_cur     = 0.35        # total current [A]
         ring.nus         = 0.00435    # synchrotron tune
         ring.espread     = lambda x:1e-2*(8.87e-2+1.58e-2*x-5.48e-3*x**2+1.25e-3*x**3-1.14e-4*x**4)
@@ -58,10 +61,11 @@ def create_ring(phase=2):
         ring.dampte      =  6.9e-3
         ring.en_lost_rad = 829761.9 #eV
     elif phase == 3: #phase_2_HC
+        ring.version    += '.Phase3'
         ring.nom_cur     = 0.5        # total current [A]
-        ring.nus         = 0.00435    # synchrotron tune
+        ring.nus         = 0.00135    # synchrotron tune
         ring.espread     = lambda x:1e-2*(8.87e-2+1.58e-2*x-5.48e-3*x**2+1.25e-3*x**3-1.14e-4*x**4)
-        ring.sigma       = lambda x:3e-3    +0*x
+        ring.sigma       = lambda x:12e-3    +0*x
         ring.emitx       = lambda x:1e-9*(1.89e-1+5.68e-2*x-1.59e-2*x**2+3.45e-3*x**3-3.10e-4*x**4)
         ring.emity       = lambda x:1e-12*(1.6497+1.04220*x-5.15e-1*x**2+1.45e-1*x**3-1.51e-2*x**4)
         ring.damptx      = 10.6e-3

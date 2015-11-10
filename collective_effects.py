@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import numpy as _np
-import impedances as _imp
 import mathphys as _mp
+# import impedances as _imp
 
 _c   = _mp.constants.light_speed
 _factorial = _np.math.factorial
@@ -19,7 +19,7 @@ _TYPES = dict(version = str,
           chromy      = (float,_np.float_),
           harm_num    = (int,_np.int_),
           nbun        = (int,_np.int_),
-          budget      = _imp.Budget,
+        #   budget      = _imp.Budget,
           cur_bun     = _np.ndarray,
           nom_cur     = (float,_np.float_),
           nus         = (float,_np.float_),
@@ -47,7 +47,7 @@ class Ring:
         self.chromy    = 0.0  # vertical chromaticity
         self.harm_num  = 1    # harmonic Number
         self.nbun      = 1    # number of bunches filled
-        self.budget    = _imp.Budget() # impedance Budget
+        # self.budget    = _imp.Budget() # impedance Budget
 
         I = _np.linspace(0,4,num=40)
         self.cur_bun     = I*0.0 # bunch current vector in [A]
@@ -62,6 +62,24 @@ class Ring:
         self.dampte      = 0.0 # longitudinal damping time in [s]
         self.en_lost_rad = 0.0 # Energy lost per turn in [eV]
 
+    def __str__(self):
+        string = ''
+        string += '{0:28s}: {1:^20s}\n'.format('Lattice Version',self.version)
+        string += '{0:28s}: {1:^20.3f}\n'.format('Circumference [m]',self.circ)
+        string += '{0:28s}: {1:^20.3f}\n'.format('Revolution Period [us]',self.T0*1e6)
+        string += '{0:28s}: {1:^20.4f}\n'.format('Revolution Frequency [kHz]',self.f0/1e3)
+        string += '{0:28s}: {1:^20.1f}\n'.format('Energy [GeV]',self.E/1e9)
+        string += '{0:28s}: {1:^20.2e}\n'.format('Momentum Compaction',self.mom_cmpct)
+        string += '{0:28s}: {1:^20d}\n'.format('Harmonic Number',self.harm_num)
+        string += '{0:28s}: {1:^20.1f}\n'.format('Current [mA]',self.nom_cur*1e3)
+        string += '{0:28s}: {1:^20.3f}\n'.format('Current per Bunch [mA]',self.nom_cur/self.nbun*1e3)
+        string += '{0:28s}: {1:^20.3e}\n'.format('Synchrotron Tune',self.nus)
+        string += '{0:28s}: {1:>9.3f}/{2:<10.3f}\n'.format('Tunes x/y',self.nux,self.nuy)
+        string += '{0:28s}: {1:>6.1f}/{2:^6.1f}/{3:<6.1f}\n'.format('Damping Times x/y/e [ms]',self.damptx*1e3,self.dampty*1e3,self.dampte*1e3)
+        string += '{0:28s}: {1:^20.2e}\n'.format('Energy Spread',self.espread(self.nom_cur/self.nbun))
+        string += '{0:28s}: {1:^20.2e}\n'.format('Bunch Length [mm]',self.sigma(self.nom_cur/self.nbun)*1e3)
+        return string
+
     def __setattr__(self,attr,value):
         if attr not in _TYPES.keys():
             raise TypeError(attr+' not an attribute of '+self.__module__+'.'
@@ -72,7 +90,7 @@ class Ring:
                   ', not '+ type(value).__name__+'.')
         self.__dict__[attr] = value
 
-    def loss_factor(self,w,Z,sigma):
+    def loss_factor(self,budget=None, element=None, w=None, Zl=None,sigma):
         """ Calcula o loss factor and effective impedance para nb pacotes com
         comprimento longitudinal sigma igualmente espacados.
 
@@ -89,14 +107,16 @@ class Ring:
 
         w0 = self.w0
         nb = self.nbun
+        w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zl')
 
         pmin = _np.ceil( w[0] /(w0*nb))  # arredonda em direcao a +infinito
         pmax = _np.floor(w[-1]/(w0*nb)) # arredonda em direcao a -infinito
         p = _np.arange(pmin, pmax+1)
         wp = w0*p*nb
 
-        h = _np.exp(-(wp*sigma/c)**2)
-        interpol_Z = _np.interp(wp,w,Z.real)
+        # h = _np.exp(-(wp*sigma/_c)**2)
+        h = self.calc_spectrum(wp,n_azi=0,n_rad=0)[(0,0)]**2
+        interpol_Z = _np.interp(wp,w,Zl.real)
 
         lossf = nb*(w0/2/_np.pi)*sum(interpol_Z*h)
         return wp, h, lossf
@@ -108,6 +128,7 @@ class Ring:
 
         w0 = self.w0
         nb = self.nbun
+        w, Zl = self._prepare_input_impedance(budget,element,w,Zl,)
 
         pmin = _np.ceil( w[0] /(w0*nb))  # arredonda em direcao a +infinito
         pmax = _np.floor(w[-1]/(w0*nb)) # arredonda em direcao a -infinito
@@ -115,7 +136,8 @@ class Ring:
 
         wp = w0*p*nb
 
-        h = _np.exp(-(wp*sigma/c)**2)
+        # h = _np.exp(-(wp*sigma/_c)**2)
+        h = self.calc_spectrum(wp,n_azi=0,n_rad=0)[(0,0)]**2
         interpol_Z = _np.interp(wp,w,Z.imag)
 
         Zt_eff = sum(interpol_Z*h)
@@ -128,8 +150,8 @@ class Ring:
             return element.w, getattr(element,imp)
         elif w is not None and Z is not None:
             return w, Z
-        elif self.budget is not None:
-            return self.budget.w, getattr(self.budget,imp)
+        # elif self.budget is not None:
+        #     return self.budget.w, getattr(self.budget,imp)
         else:
             raise Exception('Incorrect impedance input.')
 
@@ -157,13 +179,13 @@ class Ring:
         p = _np.arange(pmin,pmax+1)
         wp = w0*(nb*p[None,:] + _np.arange(0,nb)[:,None] + m*nus)
 
-        h = (wp*sigma/c)**(2*abs(m))*_np.exp(-(wp*sigma/c)**2)
+        h = (wp*sigma/_c)**(2*abs(m))*_np.exp(-(wp*sigma/_c)**2)
         # Complex interpolation is ill-defined
         interpol_Z  = 1j*_np.interp(wp, w, Zl.imag) # imaginary must come first
         interpol_Z +=    _np.interp(wp, w, Zl.real)
         Zl_eff = (interpol_Z/wp * h).sum(1)
 
-        deltaw = 1j/(2*_np.pi*2**m*_factorial(m - 1)) * I_tot*eta/(E*nus*(sigma/c)**2) * Zl_eff
+        deltaw = 1j/(2*_np.pi*2**m*_factorial(m - 1)) * I_tot*eta/(E*nus*(sigma/_c)**2) * Zl_eff
         return deltaw
 
     def transverse_cbi(self, budget=None, element=None, w=None, Zt=None, sigma=None, m=0,  plane='y'):
@@ -196,7 +218,7 @@ class Ring:
         wp = w0*(nb*p[None,:] + _np.arange(0,nb)[:,None] + nut + m*nus)
         wpcro = wp - nucro*w0
 
-        h = (wpcro*sigma/c)**(2*abs(m))*_np.exp(-(wpcro*sigma/c)**2)
+        h = (wpcro*sigma/_c)**(2*abs(m))*_np.exp(-(wpcro*sigma/_c)**2)
         # Complex interpolation is ill-defined
         interpol_Z  = 1j*_np.interp(wp, w, Zt.imag) # imaginary must come first
         interpol_Z +=    _np.interp(wp, w, Zt.real)
@@ -270,6 +292,8 @@ class Ring:
         nb    = self.nbun
 
         if sigma is None: sigma = self.sigma(I_b)
+        if isinstance(sigma,(float,_np.float_)): sigma = [sigma]
+
         w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zl')
 
         pmin = _np.ceil( (w[0] -(mu + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a +infinito
@@ -289,9 +313,9 @@ class Ring:
                 B    = A + K*M
                 delta[ii,:] = _np.linalg.eigvals(B)
         else:
-            A, M = calc_M(interpol_Z, wp, sigma, n_azi, n_rad)
+            A, M = calc_M(interpol_Z, wp, sigma[0], n_azi, n_rad)
             for ii in range(len(I_b)):
-                K = I_b[ii]*nb*w0*eta/(2*_np.pi)/(nus*w0)**2/E/(sigma/_c)**2
+                K = I_b[ii]*nb*w0*eta/(2*_np.pi)/(nus*w0)**2/E/(sigma[0]/_c)**2
                 B = A + K*M
                 delta[ii,:] = _np.linalg.eigvals(B)
         return delta
@@ -345,6 +369,8 @@ class Ring:
             nut, chrom, imp = self.nuy, self.chromy, 'Zdv'
 
         if sigma is None: sigma = self.sigma(I_b)
+        if isinstance(sigma,(float,_np.float_)): sigma = [sigma]
+
         w, Zt = self._prepare_input_impedance(budget,element,w,Zt,imp)
 
         nucro = chrom/eta
@@ -366,7 +392,7 @@ class Ring:
                 B    = A + K*M
                 delta[ii,:] = _np.linalg.eigvals(B)
         else:
-            A, M = calc_M(interpol_Z, wpcro, sigma, n_azi, n_rad)
+            A, M = calc_M(interpol_Z, wpcro, sigma[0], n_azi, n_rad)
             for ii in range(len(I_b)):
                 K = I_b[ii]*nb*w0/(4*_np.pi)/(nus*w0)/E
                 B = A + K*M

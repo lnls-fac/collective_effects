@@ -25,18 +25,16 @@ _BETA   ={'Zl':lambda x:1,
           'Zdh':lambda x:x.betax,
           'Zqv':lambda x:x.betay,
           'Zqh':lambda x:x.betax}
-_COLORS =((0,0,1),(0,0.5,0),(1,0,0),(0,0.75,0.75),(0.75,0,0.75),
-          (0.75,0.75,0),(0.25,0.25,0.25),(1,0.69,0.39))
 
-def _plotlog(x, y, color=None, label=None, ax=None):
+def _plotlog(x, y, color=None, label=None, ax=None,linewidth=1.5):
     if ax is None: ax = _plt.gca()
 
     if any(y > 0):
-        ax.loglog(x,y,color=color,label=label)
-        ax.loglog(x,-y,'--',color=color)
+        ax.loglog(x,y,color=color,label=label,linewidth=linewidth)
+        ax.loglog(x,-y,'--',color=color,linewidth=linewidth)
     else:
-        ax.loglog(x,-y,'--',color=color)
-        ax.loglog(x,y,color=color,label=label)
+        ax.loglog(x,-y,'--',color=color,linewidth=linewidth)
+        ax.loglog(x,y,color=color,label=label,linewidth=linewidth)
 
 def _prepare_props(props):
     if isinstance(props,str):
@@ -91,7 +89,7 @@ class Element:
         data = _mp.utils.load_pickle(_os.path.sep.join([self.path, name]))
         return data['element']
 
-    def plot(self, props='all', logscale=True, show = True, save = False, name=''):
+    def plot(self, props='all', logscale=True, show = True, save = False, name='',figsize=(8,4)):
 
         if name: name = '_'+name
         props = _prepare_props(props)
@@ -99,7 +97,7 @@ class Element:
         for prop in props:
             Imp2 = getattr(self,prop)
             if Imp2 is None or len(Imp2)==0: continue
-            _plt.figure()
+            _plt.figure(figsize=figsize)
             Imp = Imp2*_FACTOR[prop]
             w = self.w
             if logscale:
@@ -169,6 +167,14 @@ class Budget(list):
             return temp
         raise AttributeError("'"+self.__class__.__name__+ "' object has no attribute '"+name+"'" )
 
+    def __str__(self):
+        string  = '{0:^48s}\n'.format(self.name)
+        string += '{0:^15s}: {1:^10s} {2:^10s} {3:^10s}\n'.format('Element','Quantity','Betax','Betay')
+        for el in self:
+            string += '{0:<15s}: {1:^10d} {2:^10.1f} {3:^10.1f}\n'.format(el.name,el.quantity,el.betax,el.betay)
+        string +='\n'
+        return string
+
     def save(self):
         name = self.name.replace(' ','_').lower()
         _mp.utils.save_pickle(_os.path.sep.join([self.path,name]),budget=self)
@@ -178,38 +184,42 @@ class Budget(list):
         data = _mp.utils.load_pickle(_os.path.sep.join([self.path,name]))
         return data['budget']
 
-    def plot(self, props='all', logscale=True, show = True, save = False, name=''):
+    def plot(self, props='all', logscale=True, show = True, save = False, name='',figsize=(8,6),fontsize=14,linewidth=1.5):
 
+        color_map = _plt.get_cmap('nipy_spectral')
         if name: name = '_'+name
         props = _prepare_props(props)
 
         for prop in props:
             a = True
             for el in self:
-                Imp = getattr(self,prop)
-                a &= Imp is None or len(Imp)==0
+                Imp3 = getattr(el,prop)
+                a &= Imp3 is None or len(Imp3)==0
                 if not a: break
             if a: continue
-            f,ax = _plt.subplots(2,1,sharex=True)
+            f,ax = _plt.subplots(2,1,sharex=True,figsize=figsize)
+            N = len(self)
             for i,el in enumerate(self):
-                Imp = getattr(el,prop)
-                if Imp is None or len(Imp)==0: continue
-                Imp *= _FACTOR[prop] * el.quantity * _BETA[prop](el)
+                Imp2 = getattr(el,prop)
+                if Imp2 is None or len(Imp2)==0: continue
+                Imp = Imp2*_FACTOR[prop] * el.quantity * _BETA[prop](el)
                 w = el.w
-                cor = _COLORS[i % len(_COLORS)]
+                cor = color_map(i/N)
                 if logscale:
-                    _plotlog(w, Imp.real, color=cor, ax=ax[0])
-                    _plotlog(w, Imp.imag, color=cor, label=el.name, ax=ax[1])
+                    _plotlog(w, Imp.real, color=cor, ax=ax[0],linewidth=linewidth)
+                    _plotlog(w, Imp.imag, color=cor, label=el.name, ax=ax[1],linewidth=linewidth)
                 else:
-                    ax[0].plot(w,Imp.real,color=cor)
-                    ax[1].plot(w,Imp.imag,color=cor,label=el.name)
+                    ax[0].plot(w,Imp.real,color=cor,linewidth=linewidth)
+                    ax[1].plot(w,Imp.imag,color=cor,label=el.name,linewidth=linewidth)
             ax[1].legend(loc='best',fontsize=10)
             ax[0].grid(True)
+            ax[0].tick_params(labelsize=fontsize)
             ax[1].grid(True)
-            ax[1].set_xlabel(r'$\omega [rad/s]$')
-            ax[0].set_ylabel(r'Re'+Budget._YLABEL[prop])
-            ax[1].set_ylabel(r'Im'+Budget._YLABEL[prop])
-            ax[0].set_title(self.name+': '+_TITLE[prop])
+            ax[1].tick_params(labelsize=fontsize)
+            ax[1].set_xlabel(r'$\omega [rad/s]$',fontsize=fontsize)
+            ax[0].set_ylabel(r'Re'+Budget._YLABEL[prop],fontsize=fontsize)
+            ax[1].set_ylabel(r'Im'+Budget._YLABEL[prop],fontsize=fontsize)
+            ax[0].set_title(self.name+': '+_TITLE[prop],fontsize=fontsize)
             if save: f.savefig(_os.path.sep.join((self.path, prop + name + '.svg')))
         if show: _plt.show()
 
