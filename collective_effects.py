@@ -90,7 +90,7 @@ class Ring:
                   ', not '+ type(value).__name__+'.')
         self.__dict__[attr] = value
 
-    def loss_factor(self,budget=None, element=None, w=None, Zl=None,sigma):
+    def loss_factor(self,budget=None, element=None, w=None, Zl=None,sigma=None):
         """ Calcula o loss factor and effective impedance para nb pacotes com
         comprimento longitudinal sigma igualmente espacados.
 
@@ -107,6 +107,8 @@ class Ring:
 
         w0 = self.w0
         nb = self.nbun
+        sigma = sigma or self.sigma(self.nom_cur/nb)
+
         w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zl')
 
         pmin = _np.ceil( w[0] /(w0*nb))  # arredonda em direcao a +infinito
@@ -115,33 +117,40 @@ class Ring:
         wp = w0*p*nb
 
         # h = _np.exp(-(wp*sigma/_c)**2)
-        h = self.calc_spectrum(wp,n_azi=0,n_rad=0)[(0,0)]**2
+        h = self.calc_spectrum(wp,sigma,n_rad=0,n_azi=0,only=True)**2
         interpol_Z = _np.interp(wp,w,Zl.real)
 
-        lossf = nb*(w0/2/_np.pi)*sum(interpol_Z*h)
-        return wp, h, lossf
+        # Loss factor and Power loss:
+        lossf  = nb*(w0/2/_np.pi)*sum(interpol_Z*h)
+        Pl     = lossf * (ring.T0*ring.nom_cur**2/nb)
 
-    def kick_factor(self, w,Z,sigma):
+        #Effective Impedance:
+        interpol_Z = _np.interp(wp,w,Zl.imag)
+        Zl_eff =  nb*(w0/2/_np.pi)*sum(interpol_Z*h/wp)
+
+        return lossf, Pl, Zl_eff, wp
+
+    def kick_factor(self,budget=None, element=None, w=None, Z=None, sigma=None, Imp='Zdv'):
         """Calcula o kick factor para nb pacotes com comprimento longitudinal sigma
         igualmente espacados.
         """
 
         w0 = self.w0
         nb = self.nbun
-        w, Zl = self._prepare_input_impedance(budget,element,w,Zl,)
+        w, Z = self._prepare_input_impedance(budget,element,w,Z,Imp)
 
         pmin = _np.ceil( w[0] /(w0*nb))  # arredonda em direcao a +infinito
         pmax = _np.floor(w[-1]/(w0*nb)) # arredonda em direcao a -infinito
         p = _np.arange(pmin, pmax+1)
-
         wp = w0*p*nb
 
-        # h = _np.exp(-(wp*sigma/_c)**2)
-        h = self.calc_spectrum(wp,n_azi=0,n_rad=0)[(0,0)]**2
+        h = self.calc_spectrum(wp,sigma,n_rad=0,n_azi=0,only=True)**2
         interpol_Z = _np.interp(wp,w,Z.imag)
 
         Zt_eff = sum(interpol_Z*h)
-        return nb*(w0/2/_np.pi)*Zt_eff
+        Kick_f = nb*(w0/2/_np.pi)*Zt_eff
+        Tush = (I_tot/nb)/(2*E) * Kick_f
+        return Kick_f, Tush, Zt_eff
 
     def _prepare_input_impedance(self, budget,element,w,Z,imp='Zl'):
         if budget is not None:
@@ -179,13 +188,14 @@ class Ring:
         p = _np.arange(pmin,pmax+1)
         wp = w0*(nb*p[None,:] + _np.arange(0,nb)[:,None] + m*nus)
 
-        h = (wp*sigma/_c)**(2*abs(m))*_np.exp(-(wp*sigma/_c)**2)
+        h = self.calc_spectrum(wp,sigma,n_rad=0,n_azi=m,only=True)**2
         # Complex interpolation is ill-defined
         interpol_Z  = 1j*_np.interp(wp, w, Zl.imag) # imaginary must come first
         interpol_Z +=    _np.interp(wp, w, Zl.real)
         Zl_eff = (interpol_Z/wp * h).sum(1)
 
-        deltaw = 1j/(2*_np.pi*2**m*_factorial(m - 1)) * I_tot*eta/(E*nus*(sigma/_c)**2) * Zl_eff
+        #Returns the relative Tune Shift:
+        deltaw = 1j*abs(m)* I_tot*w0*eta/(2*_np.pi)/(nus*w0)**2/E/(sigma/_c)**2 * Zl_eff
         return deltaw
 
     def transverse_cbi(self, budget=None, element=None, w=None, Zt=None, sigma=None, m=0,  plane='y'):
@@ -218,35 +228,38 @@ class Ring:
         wp = w0*(nb*p[None,:] + _np.arange(0,nb)[:,None] + nut + m*nus)
         wpcro = wp - nucro*w0
 
-        h = (wpcro*sigma/_c)**(2*abs(m))*_np.exp(-(wpcro*sigma/_c)**2)
+        h = self.calc_spectrum(wpcro,sigma,n_rad=0,n_azi=m,only=True)**2
         # Complex interpolation is ill-defined
         interpol_Z  = 1j*_np.interp(wp, w, Zt.imag) # imaginary must come first
         interpol_Z +=    _np.interp(wp, w, Zt.real)
         Zt_eff = (interpol_Z * h).sum(1)
 
         ## Calculate Coupled_bunch Instability
-
-        deltaw = -1j*I_tot/(4*_np.pi*2**abs(m)*_factorial(abs(m))) / E * w0 * Zt_eff
+        #Returns the relative Tune Shift:
+        deltaw = -1j*I_tot*w0/(4*_np.pi)/(nus*w0)/E * Zt_eff
         return deltaw
 
-    def calc_spectrum(self,wp,sigma,n_rad=4,n_azi=3):
+    def calc_spectrum(self,wp,sigma,n_rad=4,n_azi=3,only=False):
         def my_pow(vetor,n):
             res = _np.ones(vetor.shape)
             for _ in range(n): res *= vetor
             return res
 
+        n_azi0, n_rad0 = 0, 0
+        if only: n_azi0, n_rad0 = n_azi, n_rad
         sigW = wp*sigma/_c/_np.sqrt(2)
         spectrum = dict()
         spect    = dict()
         expo     = _np.exp(-my_pow(sigW,2))
-        for azi in range(n_azi+1):
-            for rad in range(n_rad+1):
+        for azi in range(n_azi0, n_azi+1):
+            for rad in range(n_rad0, n_rad+1):
                 chave = (abs(azi),rad)
                 chave2 = abs(azi)+2*rad
                 if chave2 not in spect.keys():
                     spect[chave2] = my_pow(sigW,chave2)
                 spectrum[chave] = (1/_np.math.sqrt(float(_factorial(abs(azi)+rad) *
                                            _factorial(rad))) * spect[chave2] * expo)
+        if only: spectrum = spectrum[chave]
         return spectrum
 
     def longitudinal_mode_coupling(self, budget=None, element=None, w=None, Zl=None, sigma=None, n_azi=10, n_rad=12,mu=0):
@@ -398,3 +411,7 @@ class Ring:
                 B = A + K*M
                 delta[ii,:] = _np.linalg.eigvals(B)
         return delta
+
+    def budget_summary(self,budget=None):
+        
+        print('{0:^15s} {1:^15s}'.format('Element','Loss Factor'))

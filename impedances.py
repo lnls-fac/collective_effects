@@ -175,6 +175,14 @@ class Budget(list):
         string +='\n'
         return string
 
+    def budget2element(self,name=None,path=None):
+        ele = Element(name=name,path=path)
+        for prop in _IMPS | _WAKES | {'w','z'}:
+            Imp2 = getattr(self,prop)
+            if not _np.isclose(Imp2,0).all():
+                setattr(ele,prop,Imp2.copy())
+        return ele
+
     def save(self):
         name = self.name.replace(' ','_').lower()
         _mp.utils.save_pickle(_os.path.sep.join([self.path,name]),budget=self)
