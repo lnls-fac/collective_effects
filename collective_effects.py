@@ -122,11 +122,11 @@ class Ring:
 
         # Loss factor and Power loss:
         lossf  = nb*(w0/2/_np.pi)*sum(interpol_Z*h)
-        Pl     = lossf * (ring.T0*ring.nom_cur**2/nb)
+        Pl     = lossf * (self.T0*self.nom_cur**2/nb)
 
         #Effective Impedance:
         interpol_Z = _np.interp(wp,w,Zl.imag)
-        Zl_eff =  nb*(w0/2/_np.pi)*sum(interpol_Z*h/wp)
+        Zl_eff =  nb*(w0/2/_np.pi)*sum(interpol_Z*h/(wp+1e-4))
 
         return lossf, Pl, Zl_eff, wp
 
@@ -137,6 +137,8 @@ class Ring:
 
         w0 = self.w0
         nb = self.nbun
+        sigma = sigma or self.sigma(self.nom_cur/nb)
+
         w, Z = self._prepare_input_impedance(budget,element,w,Z,Imp)
 
         pmin = _np.ceil( w[0] /(w0*nb))  # arredonda em direcao a +infinito
@@ -149,7 +151,7 @@ class Ring:
 
         Zt_eff = sum(interpol_Z*h)
         Kick_f = nb*(w0/2/_np.pi)*Zt_eff
-        Tush = (I_tot/nb)/(2*E) * Kick_f
+        Tush = (self.nom_cur/nb)/(2*self.E) * Kick_f
         return Kick_f, Tush, Zt_eff
 
     def _prepare_input_impedance(self, budget,element,w,Z,imp='Zl'):
@@ -412,6 +414,96 @@ class Ring:
                 delta[ii,:] = _np.linalg.eigvals(B)
         return delta
 
-    def budget_summary(self,budget=None):
-        
-        print('{0:^15s} {1:^15s}'.format('Element','Loss Factor'))
+    def budget_summary(self,budget=None, props=None ):
+        #          name                     unit           value
+        ele=(('{0:^17s}','Element'),('{0:^17s}',' '),    '{0:<17s}' )
+        printer = dict(
+        lsf=('KLoss',  '[V/pC]',1e-9),
+        zln=('Zl/n',   '[Ohm]', 1),
+        pls=('PLoss',  '[W]',   1),
+        kdx=('Kdx',    '[kV/pC]',1e-15),
+        kdy=('Kdy',    '[kV/pC]',1e-15),
+        kqx=('Kqx',    '[kV/pC]',1e-15),
+        kqy=('Kqx',    '[kV/pC]',1e-15),
+        ktx=('Kx',     '[kV/pC]',1e-15),
+        kty=('Ky',     '[kV/pC]',1e-15),
+        ndx=('TuShdx', ' ',     1),
+        ndy=('TuShdy', ' ',     1),
+        nqx=('TuShqx', ' ',     1),
+        nqy=('TuShqy', ' ',     1),
+        ntx=('TuShx',  ' ',     1),
+        nty=('TuShy',  ' ',     1),
+        )
+        FMTS = r'{0:^10s}'
+        FMTF = r'{0:^10.2g}'
+
+        if props == 'all': props = sorted(list(printer.keys()))
+        if isinstance(props,(list,tuple)):
+            props = sorted(list(set(props).intersection(printer.keys())))
+        if props is None: props = ['lsf','zln','pls','kdx','kdy']
+
+
+        # Print Names
+        print(ele[0][0].format(ele[0][1]),end='')
+        for prop in props: print(FMTS.format(printer[prop][0]),end='')
+        print()
+        # Print Units
+        print(ele[1][0].format(ele[1][1]),end='')
+        for prop in props: print(FMTS.format(printer[prop][1]),end='')
+        print()
+
+        for el in budget:
+            values = dict()
+            print(ele[2].format(el.name),end='')
+            w = el.w
+
+            Zl = el.Zl * el.quantity
+            if len(Zl) != 0:
+                values['lsf'], values['pls'],values['zln'],*_ = self.loss_factor(w=w,Zl=Zl)
+
+            Zd = el.Zdv * el.quantity * el.betay
+            if len(Zd) != 0:
+                values['kdy'], values['ndy'],*_ = self.kick_factor(w=w,Z=Zd,Imp='Zdv')
+            Zq = el.Zqv * el.quantity * el.betay
+            if len(Zq) != 0:
+                values['kqy'], values['nqy'],*_ = self.kick_factor(w=w,Z=Zq,Imp='Zqv')
+            if len(Zd) != 0 or len(Zq) != 0:
+                values['kty'] = values.get('kdy',0) + values.get('kqy',0)
+                values['nty'] = values.get('ndy',0) + values.get('nqy',0)
+
+            Zd = el.Zdh * el.quantity * el.betax
+            if len(Zd) != 0:
+                values['kdx'], values['ndx'],*_ = self.kick_factor(w=w,Z=Zd,Imp='Zdh')
+            Zq = el.Zqh * el.quantity * el.betax
+            if len(Zq) != 0:
+                values['kqx'], values['nqx'],*_ = self.kick_factor(w=w,Z=Zq,Imp='Zqh')
+            if len(Zd) != 0 or len(Zq) != 0:
+                values['ktx'] = values.get('kdx',0) + values.get('kqx',0)
+                values['ntx'] = values.get('ndx',0) + values.get('nqx',0)
+
+            for prop in props:
+                val = values.get(prop)
+                if val is not None:
+                    val *= printer[prop][2]
+                else: val = '-'
+                print(FMTF.format(val),end='')
+            print()
+
+        values = dict()
+        print(ele[2].format('Total'),end='')
+        w = budget.w
+
+
+        values['lsf'], values['pls'],values['zln'],*_ = self.loss_factor(budget = budget)
+        values['kdy'], values['ndy'],*_ = self.kick_factor(budget = budget,Imp='Zdv')
+        values['kqy'], values['nqy'],*_ = self.kick_factor(budget = budget,Imp='Zqv')
+        values['kty'] = values['kdy'] + values['kqy']
+        values['nty'] = values['ndy'] + values['nqy']
+
+        values['kdx'], values['ndx'],*_ = self.kick_factor(budget = budget,Imp='Zdh')
+        values['kqx'], values['nqx'],*_ = self.kick_factor(budget = budget,Imp='Zqh')
+        values['ktx'] = values['kdx'] + values['kqx']
+        values['ntx'] = values['ndx'] + values['nqx']
+
+        for prop in props: print(FMTF.format(values.get(prop)*printer[prop][2]),end='')
+        print()
