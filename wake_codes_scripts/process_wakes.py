@@ -68,7 +68,7 @@ class Results:
         self.ReZsampl     = _np.array([],dtype=float) # Impedance Spectrum Sampled by fastest CBM
         self.fsampl       = _np.array([],dtype=float) # Frequency axis for sampled impedance
 
-def prepare_struct_for_load(newdir=None, m=0, sigma=5e-4, rootdir=_os.path.abspath(_os.curdir)):
+def prepare_struct_for_load(newdir=None, m=0, sigma=5e-4, rootdir=_os.path.abspath(_os.curdir), code='ECHO'):
     globdata = GlobData()
 
     globdata.simpar.wakepath = rootdir
@@ -80,7 +80,7 @@ def prepare_struct_for_load(newdir=None, m=0, sigma=5e-4, rootdir=_os.path.abspa
         newdir = rootdir
 
     globdata.simpar.targetdir = newdir
-    globdata.simpar.datasource = 'ECHO'
+    globdata.simpar.datasource = code
     globdata.simpar.cutoff = 2
     globdata.simpar.bunlen = sigma
     globdata.simpar.m = m

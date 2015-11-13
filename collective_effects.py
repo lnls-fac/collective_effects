@@ -117,7 +117,8 @@ class Ring:
         wp = w0*p*nb
 
         # h = _np.exp(-(wp*sigma/_c)**2)
-        h = self.calc_spectrum(wp,sigma,n_rad=0,n_azi=0,only=True)**2
+        specs = self.calc_spectrum(wp,sigma,n_rad=0,n_azi=1)
+        h = specs[(0,0)]**2
         interpol_Z = _np.interp(wp,w,Zl.real)
 
         # Loss factor and Power loss:
@@ -126,7 +127,8 @@ class Ring:
 
         #Effective Impedance:
         interpol_Z = _np.interp(wp,w,Zl.imag)
-        Zl_eff =  nb*(w0/2/_np.pi)*sum(interpol_Z*h/(wp+1e-4))
+        h = specs[(1,0)]**2
+        Zl_eff =  sum(interpol_Z*h/( (wp+1e-4)/w0 )) / sum(h) #pag 223 K.Y.Ng book
 
         return lossf, Pl, Zl_eff, wp
 
@@ -146,12 +148,16 @@ class Ring:
         p = _np.arange(pmin, pmax+1)
         wp = w0*p*nb
 
-        h = self.calc_spectrum(wp,sigma,n_rad=0,n_azi=0,only=True)**2
+        specs = self.calc_spectrum(wp,sigma,n_rad=0,n_azi=1)
+        h = specs[(0,0)]**2
         interpol_Z = _np.interp(wp,w,Z.imag)
 
-        Zt_eff = sum(interpol_Z*h)
-        Kick_f = nb*(w0/2/_np.pi)*Zt_eff
-        Tush = (self.nom_cur/nb)/(2*self.E) * Kick_f
+        Kick_f = nb*(w0/2/_np.pi)* sum(interpol_Z*h)
+        Tush = (self.nom_cur/nb)/(2*self.E) * Kick_f / w0
+
+        h = specs[(1,0)]**2
+        Zt_eff = sum(interpol_Z*h) / sum(h) #pag 383 K.Y.Ng Book
+
         return Kick_f, Tush, Zt_eff
 
     def _prepare_input_impedance(self, budget,element,w,Z,imp='Zl'):
@@ -418,28 +424,29 @@ class Ring:
         #          name                     unit           value
         ele=(('{0:^17s}','Element'),('{0:^17s}',' '),    '{0:<17s}' )
         printer = dict(
-        lsf=('KLoss',  '[V/pC]',1e-9),
-        zln=('Zl/n',   '[Ohm]', 1),
-        pls=('PLoss',  '[W]',   1),
-        kdx=('Kdx',    '[kV/pC]',1e-15),
-        kdy=('Kdy',    '[kV/pC]',1e-15),
-        kqx=('Kqx',    '[kV/pC]',1e-15),
-        kqy=('Kqx',    '[kV/pC]',1e-15),
-        ktx=('Kx',     '[kV/pC]',1e-15),
-        kty=('Ky',     '[kV/pC]',1e-15),
-        ndx=('TuShdx', ' ',     1),
-        ndy=('TuShdy', ' ',     1),
-        nqx=('TuShqx', ' ',     1),
-        nqy=('TuShqy', ' ',     1),
-        ntx=('TuShx',  ' ',     1),
-        nty=('TuShy',  ' ',     1),
-        )
+                        lsf=('KLoss',  '[mV/pC]',1e-9),
+                        zln=('Zl/n',   '[mOhm]', 1e3),
+                        pls=('PLoss',  '[W]',    1),
+                        kdx=('Kdx',    '[kV/pC]',1e-15),
+                        kdy=('Kdy',    '[kV/pC]',1e-15),
+                        kqx=('Kqx',    '[kV/pC]',1e-15),
+                        kqy=('Kqx',    '[kV/pC]',1e-15),
+                        ktx=('Kx',     '[kV/pC]',1e-15),
+                        kty=('Ky',     '[kV/pC]',1e-15),
+                        ndx=('TuShdx', 'x10^3',  1e3),
+                        ndy=('TuShdy', 'x10^3',  1e3),
+                        nqx=('TuShqx', 'x10^3',  1e3),
+                        nqy=('TuShqy', 'x10^3',  1e3),
+                        ntx=('TuShx',  'x10^3',  1e3),
+                        nty=('TuShy',  'x10^3',  1e3),
+                      )
         FMTS = r'{0:^10s}'
-        FMTF = r'{0:^10.2g}'
+        FMTF = r'{0:^10.2f}'
 
         if props == 'all': props = sorted(list(printer.keys()))
         if isinstance(props,(list,tuple)):
-            props = sorted(list(set(props).intersection(printer.keys())))
+            for i,prop in enumerate(props):
+                if prop not in printer.keys(): props.pop(i)
         if props is None: props = ['lsf','zln','pls','kdx','kdy']
 
 
@@ -485,8 +492,8 @@ class Ring:
                 val = values.get(prop)
                 if val is not None:
                     val *= printer[prop][2]
-                else: val = '-'
-                print(FMTF.format(val),end='')
+                    print(FMTF.format(val),end='')
+                else: print(FMTS.format('-'),end='')
             print()
 
         values = dict()
@@ -507,3 +514,22 @@ class Ring:
 
         for prop in props: print(FMTF.format(values.get(prop)*printer[prop][2]),end='')
         print()
+
+    def kicker_power(self, gr, Rshunt=15e3, betak=5, Ab=1e-3, betab=5, coupled_mode=None):
+        ''' Calculate the minimum transverse bunch by bunch feedback power necessary
+        to damp coupled-bunch oscillations, assuming perfect tunning of the system.
+            Formula taken from CAS_Digital_Signal_Processing, pag. 314.
+
+        INPUTS:
+          gr     : growth rate you want to damp [Hz].
+          Rshunt : shunt resistence of the kicker [Ohm].
+          betak  : betatron function at kicker position [m].
+          betab  : betatron function at bpm postiion [m].
+          Ab     : Initial amplitude of the the oscilation at the BPM position [m].
+          coupled_mode : coupled bunch mode of the instability. Not used yet.
+
+        OUTPUT: RF power needed to damp instability [W].
+        '''
+
+        P = 2/Rshunt/betak * self.E**2 * (self.T0*gr)**2 * (Ab**2/betab)
+        return P
