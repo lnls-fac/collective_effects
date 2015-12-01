@@ -20,7 +20,7 @@ _TITLE = {'Zl':'Longitudinal Impedance',
           'Zqh':'Detuning Horizontal Impedance'}
 _FACTOR ={'Zl':1, 'Zdv':1e-3, 'Zdh':1e-3, 'Zqv':1e-3, 'Zqh':1e-3,
           'Wl':1e-3, 'Wdv':1e-6, 'Wdh':1e-6, 'Wqv':1e-6, 'Wqh':1e-6}
-_BETA   ={'Zl':lambda x:1,
+_BETA   ={'Zl' :lambda x:1,
           'Zdv':lambda x:x.betay,
           'Zdh':lambda x:x.betax,
           'Zqv':lambda x:x.betay,
