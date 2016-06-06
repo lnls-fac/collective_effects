@@ -1,6 +1,7 @@
 #python files
 __pycache_/_
 *.py[cod]
+*.egg-info/
 
 # Object files
 *.o
