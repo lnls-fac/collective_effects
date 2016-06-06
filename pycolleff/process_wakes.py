@@ -618,3 +618,36 @@ def load_results(filename):
     with _gzip.open(filename,'rb') as fh:
         globdata = _pickle.load(fh)
     return globdata
+
+def analysis_example():
+
+    analysis = '''
+    #!/usr/bin/env python3
+    import import pycolleff.process_wakes as funcs
+
+    newdir = ''
+    m = 1
+    bunlen = 0.5e-3
+    globdata = funcs.prepare_struct_for_load(newdir, m, bunlen)
+
+    # Load wakepotential result from referred software, rescale and save
+    #  txt-file on default format
+    globdata = funcs.load_wake(globdata)
+
+    # Calculates Impedance Spectrum from Wakepotential Results
+    globdata = funcs.calc_impedance(globdata)
+
+    # Calculates Loss Factor
+    if m == 0:
+        globdata = funcs.calc_loss_factor(globdata)
+    elif m > 0:
+        globdata = funcs.calc_kick_factor(globdata)
+
+    # Plot Results
+    funcs.plot_results(globdata,mostra=True)
+
+    # Export Results
+    funcs.save_results(globdata)
+    '''
+    print(analysis)
+    return None

@@ -1,6 +1,6 @@
 import numpy as _np
-import collective_effects as colefcts
-import impedances as imp
+from . import collective_effects as colefcts
+from . import impedances as imp
 import mathphys as _mp
 
 c = _mp.constants.light_speed
