@@ -1,5 +1,5 @@
 
-from . import collective_effects as colleff
+from . import colleff
 from . import impedances
 from . import process_wakes
 from . import sirius
