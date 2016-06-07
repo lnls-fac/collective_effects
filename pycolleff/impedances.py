@@ -469,52 +469,54 @@ def kicker_coupled_flux(w,h,W,t,L,mur,Zg):
     return Zk.conj(), Zx.conj()  # take the conjugate to adapt impedance convention
 
 def kicker_tsutsui_model(w, epr, mur, a, b, d, L, n):
-    #   - For the Uncoupled Flux, we can choose between three models:
-    #
-    #       TSUTSUI MODEL:
-    #
-    #  ******************PEC**********************
-    #  *******************************************
-    #  **#######################################**      |
-    #  **################FERRITE################**      |
-    #  **#######################################**      |
-    #  **                                       **  |   d
-    #  **                                       **  b   |
-    #  **                                       **  |   |
-    #  **     VACUUM        .                   **  |   |
-    #  **                                       **
-    #  **                                       **
-    #  **                                       **
-    #  **#######################################**
-    #  **#######################################**
-    #  **#######################################**
-    #  *******************************************
-    #  *******************************************
-    #                       |__________a________|
-    #
-    # Inputs:
-    #
-    # w   = vector of angular frequencies to evaluate impedances [rad/s]
-    # epr = vector with real and imaginary electric permeability of ferrite for
-    #       the frequency range of interest
-    # mur = vector with real and imaginary magnetic permissivity of ferrite for
-    #       the frequency range of interest
-    # n   = max order of terms to sum
-    # L   = length of the structure [m]
-    #
-    # Outputs:
-    #
-    # Zl = Impedancia Longitudinal [Ohm]
-    # Zh = Impedancia Horizontal [Ohm/m]
-    # Zv = Impedancia Vertical   [Ohm/m]
-    #
-    # Bibliografias:
-    #
-    # - Tsutsui_H - Some Simplified Models of Ferrite Kicker Magnet for
-    #   Calculation of longitudinal Coupling Impedance - CERN-SL-2000-004
-    #
-    # - Tsutsui_H - Transverse Coupling Impedance of a Simplified Ferrite
-    #   Kicker Magnet Model - LHC Project Note 234 - 2000
+    '''
+       - For the Uncoupled Flux, we can choose between three models:
+
+           TSUTSUI MODEL:
+
+      ******************PEC**********************
+      *******************************************
+      **#######################################**      |
+      **################FERRITE################**      |
+      **#######################################**      |
+      **                                       **  |   d
+      **                                       **  b   |
+      **                                       **  |   |
+      **     VACUUM        .                   **  |   |
+      **                                       **
+      **                                       **
+      **                                       **
+      **#######################################**
+      **#######################################**
+      **#######################################**
+      *******************************************
+      *******************************************
+                           |__________a________|
+
+     Inputs:
+
+     w   = vector of angular frequencies to evaluate impedances [rad/s]
+     epr = vector with real and imaginary electric permeability of ferrite for
+           the frequency range of interest
+     mur = vector with real and imaginary magnetic permissivity of ferrite for
+           the frequency range of interest
+     n   = max order of terms to sum
+     L   = length of the structure [m]
+
+     Outputs:
+
+     Zl = Impedancia Longitudinal [Ohm]
+     Zh = Impedancia Horizontal [Ohm/m]
+     Zv = Impedancia Vertical   [Ohm/m]
+
+     Bibliografias:
+
+     - Tsutsui_H - Some Simplified Models of Ferrite Kicker Magnet for
+       Calculation of longitudinal Coupling Impedance - CERN-SL-2000-004
+
+     - Tsutsui_H - Transverse Coupling Impedance of a Simplified Ferrite
+       Kicker Magnet Model - LHC Project Note 234 - 2000
+'''
 
     # Valores do artigo do Wang et al para testar a implementacao das formulas
     # do modelo do Tsutui.
@@ -559,3 +561,18 @@ def kicker_tsutsui_model(w, epr, mur, a, b, d, L, n):
     Zh = Zh.sum(0)
 
     return Zl.conj(), Zh.conj(), Zv.conj() # impedance convention
+
+def taper(w,R1,R2,L1,L2):
+    '''
+                   L2
+    _____|- - - - - - - - - - - - |_____
+          \                      /    :
+           \                    /     :
+            \                  /      :
+             \_______L1_______/       : R2
+                :                     :
+                : R1                  :
+                :                     :
+    - - - - - - - - - - - - - - - - - - -
+    '''
+    theta = (L2-L1)/2 / (R2-R1)
