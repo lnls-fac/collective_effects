@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 
 import os as _os
-import shutil as _shutil
+import sh as _sh
 import gzip as _gzip
 import pickle as _pickle
 import numpy as _np
 import matplotlib.pyplot as _plt
 from matplotlib import rc as _rc
+
+_jnPth = _os.path.sep.join
 
 class GlobData:
     def __init__(self):
@@ -68,13 +70,15 @@ class Results:
         self.ReZsampl     = _np.array([],dtype=float) # Impedance Spectrum Sampled by fastest CBM
         self.fsampl       = _np.array([],dtype=float) # Frequency axis for sampled impedance
 
-def prepare_struct_for_load(newdir=None, m=0, sigma=5e-4, rootdir=_os.path.abspath(_os.curdir), code='ECHO'):
-    globdata = GlobData()
+def prepare_struct_for_load(newdir=None, m=0, sigma=5e-4, rootdir=None, code='ECHO'):
 
+    if not rootdir: rootdir = _os.path.abspath(_os.curdir)
+
+    globdata = GlobData()
     globdata.simpar.wakepath = rootdir
 
     if newdir:
-        newdir = _os.path.sep.join([rootdir,newdir])
+        newdir = _jnPth([rootdir,newdir])
         if not _os.path.isdir(newdir): _os.mkdir(newdir)
     else:
         newdir = rootdir
@@ -103,38 +107,38 @@ def load_wake(globdata):
 
     # Each Software uses a different nomenclature. Setting complete path for loading:
     if dsrc.startswith('ACE3P'):
-        wakepath = _os.path.sep.join([wdir,'wakefield.out'])
+        wakepath = _jnPth([wdir,'wakefield.out'])
         headerL = 3
     elif dsrc.startswith('GdfidL'):
         headerL = 11
 
         if m==0:
-            wakepath = _os.path.sep.join([wdir,'Results-Wq_AT_XY.0001'])
+            wakepath = _jnPth([wdir,'Results-Wq_AT_XY.0001'])
         elif m==1:
             if sym:
-                shiftpath = _os.path.sep.join([wdir,'Results-Wq_AT_XY.0001'])
-                wakepath1 = _os.path.sep.join([wdir,'Results-W'+whaxis.upper()+'_AT_XY.0001'])
-                wakepath2 = _os.path.sep.join([wdir,'Results-W'+whaxis.upper()+'_AT_XY.0002'])
+                shiftpath = _jnPth([wdir,'Results-Wq_AT_XY.0001'])
+                wakepath1 = _jnPth([wdir,'Results-W'+whaxis.upper()+'_AT_XY.0001'])
+                wakepath2 = _jnPth([wdir,'Results-W'+whaxis.upper()+'_AT_XY.0002'])
             else:
-                shiftpath = _os.path.sep.join([wdir,'dxdpl','Results-Wq_AT_XY.0001'])
-                wakepath1 = _os.path.sep.join([wdir,'d'+whaxis+'dpl','Results-W'+whaxis.upper()+'_AT_XY.0001'])
-                wakepath2 = _os.path.sep.join([wdir,'d'+whaxis+'dpl','Results-W'+whaxis.upper()+'_AT_XY.0002'])
-                wakepath3 = _os.path.sep.join([wdir,'d'+whaxis+'dmi','Results-W'+whaxis.upper()+'_AT_XY.0001'])
-                wakepath4 = _os.path.sep.join([wdir,'d'+whaxis+'dmi','Results-W'+whaxis.upper()+'_AT_XY.0002'])
+                shiftpath = _jnPth([wdir,'dxdpl','Results-Wq_AT_XY.0001'])
+                wakepath1 = _jnPth([wdir,'d'+whaxis+'dpl','Results-W'+whaxis.upper()+'_AT_XY.0001'])
+                wakepath2 = _jnPth([wdir,'d'+whaxis+'dpl','Results-W'+whaxis.upper()+'_AT_XY.0002'])
+                wakepath3 = _jnPth([wdir,'d'+whaxis+'dmi','Results-W'+whaxis.upper()+'_AT_XY.0001'])
+                wakepath4 = _jnPth([wdir,'d'+whaxis+'dmi','Results-W'+whaxis.upper()+'_AT_XY.0002'])
         elif m==2:
-            wakepath1 = _os.path.sep.join([wdir,'Results-W'+whaxis.upper()+'_AT_XY.0001'])
+            wakepath1 = _jnPth([wdir,'Results-W'+whaxis.upper()+'_AT_XY.0001'])
             if not sym:
-                wakepath2 = _os.path.sep.join([wdir,'Results-W'+whaxis.upper()+'_AT_XY.0002'])
+                wakepath2 = _jnPth([wdir,'Results-W'+whaxis.upper()+'_AT_XY.0002'])
     elif dsrc.startswith('CST'):
-        wakepath = _os.path.sep.join([wdir,'wake.txt'])
+        wakepath = _jnPth([wdir,'wake.txt'])
         headerL = 2
     elif dsrc.startswith('ECHO'):
         if m==0:
-            wakepath = _os.path.sep.join([wdir,'wake.dat'])
+            wakepath = _jnPth([wdir,'wake.dat'])
             headerL = 0
         elif m > 0:
             if sym:
-                wakepath = _os.path.sep.join([wdir,'wakeT.dat'])
+                wakepath = _jnPth([wdir,'wakeT.dat'])
                 headerL = 0
             else:
                 wrt = 'symetry error: wrong set'
@@ -142,7 +146,7 @@ def load_wake(globdata):
     # Read specified file(s)
     if not dsrc.startswith('GdfidL'):
         loadres = _np.loadtxt(wakepath, skiprows=headerL)
-        if cpfile: _shutil.copy2(wakepath, tardir)
+        if cpfile: _sh.cp(wakepath, tardir)
 
         spos = loadres[:,0]
         # I know this is correct for ECHO (2015/08/27):
@@ -155,8 +159,8 @@ def load_wake(globdata):
             loadres1 = _np.loadtxt(wakepath1, skiprows=headerL)
             loadres2 = _np.loadtxt(wakepath2, skiprows=headerL)
             if cpfile:
-                _shutil.copy2(wakepath1, tardir)
-                _shutil.copy2(wakepath2, tardir)
+                _sh.cp(wakepath1, tardir)
+                _sh.cp(wakepath2, tardir)
 
             spos = loadres1[:,0]
             wabs = (loadres1[:,1]+loadres2[:,1])/2
@@ -165,8 +169,8 @@ def load_wake(globdata):
                 loadres3 = _np.loadtxt(wakepath3, skiprows=headerL)
                 loadres4 = _np.loadtxt(wakepath4, skiprows=headerL)
                 if cpfile:
-                    _shutil.copy2(wakepath3, tardir)
-                    _shutil.copy2(wakepath4, tardir)
+                    _sh.cp(wakepath3, tardir)
+                    _sh.cp(wakepath4, tardir)
 
                 wabs2 = (loadres3[:,1]+loadres4[:,1])/2
                 wabs = (wabs - wabs2)/2
@@ -175,7 +179,7 @@ def load_wake(globdata):
             with open(shiftpath,'r') as fi:
                 for _ in range(0,3):
                     loadres5 = fi.readline()
-            if cpfile: _shutil.copy2(shiftpath, tardir)
+            if cpfile: _sh.cp(shiftpath, tardir)
 
             coord = textscan(loadres5,' %% subtitle= "W_l (x,y)= ( %f, %f ) [m]"')
 
@@ -188,14 +192,14 @@ def load_wake(globdata):
             wake = wabs/shift
         elif m==2:
             loadres1 = _np.loadtxt(wakepath1, skiprows=headerL)
-            if cpfile: _shutil.copy2(wakepath1, tardir)
+            if cpfile: _sh.cp(wakepath1, tardir)
 
             spos = loadres1[:,0]
             wabs = loadres1[:,1]
 
             if ~sym:
                 loadres2 = _np.loadtxt(wakepath2, skiprows=headerL)
-                if cpfile: _shutil.copy2(wakepath2, tardir)
+                if cpfile: _sh.cp(wakepath2, tardir)
 
                 w2 = loadres2[:,1]
                 wabs = (wabs - w2)/2
@@ -204,7 +208,7 @@ def load_wake(globdata):
             with open(wakepath1,'r') as fi:
                 for _ in range(0,3):
                     loadres5 = fi.readline()
-            if cpfile: _shutil.copy2(wakepath1, tardir)
+            if cpfile: _sh.cp(wakepath1, tardir)
 
             if whaxis.startswith('x'):
                 coord = textscan(loadres5,' %% subtitle= "integral d/dx W(z) dz, (x,y)=( %f, %f )"')
@@ -461,15 +465,15 @@ def plot_results(globdata, mostra=False, salva = True):
     elif m==1:
         fname += wplane+'DipWakePot'
         _plt.title (wplane+' Dipole Wakepotential ('+dsrc+')',fontsize=13)
-        _plt.ylabel(r'W_D_{0:s} [V/m]'.format(waxis),fontsize=13)
+        _plt.ylabel(r'$W_{{D_{0:s}}}$ [V/m]'.format(waxis),fontsize=13)
     elif m==2:
         fname += wplane+'QuadWakePot'
         _plt.title (wplane+' Quadrupole Wakepotential ('+dsrc+')',fontsize=13)
-        _plt.ylabel(r'W_Q_{0:s} [V/m]'.format(waxis),fontsize=13)
+        _plt.ylabel(r'$W_{{Q_{0:s}}}$ [V/m]'.format(waxis),fontsize=13)
     _plt.xlim([spos[0]*1000, 7000*sigs])
     _plt.ylim([wake.min()*1.1, wake.max()*1.1])
     _plt.legend(loc='best')
-    if salva: _plt.savefig(_os.path.sep.join((tardir,fname+'.svg')))
+    if salva: _plt.savefig(_jnPth((tardir,fname+'.svg')))
 
     #===== Long Range =====
     _plt.figure(2)
@@ -484,12 +488,12 @@ def plot_results(globdata, mostra=False, salva = True):
     elif m==1:
         fname += wplane+'DipWakePot'
         _plt.title (wplane+' Dipole Wakepotential ('+dsrc+')',fontsize=13)
-        _plt.ylabel(r'W_D_{0:s} [V/m]'.format(waxis),fontsize=13)
+        _plt.ylabel(r'$W_{{D_{0:s}}}$ [V/m]'.format(waxis),fontsize=13)
     elif m==2:
         fname += wplane+'QuadWakePot'
         _plt.title (wplane+' Quadrupole Wakepotential ('+dsrc+')',fontsize=13)
-        _plt.ylabel(r'W_Q_{0:s} [V/m]'.format(waxis),fontsize=13)
-    if salva: _plt.savefig(_os.path.sep.join((tardir,fname+'.svg')))
+        _plt.ylabel(r'$W_{{Q_{0:s}}}$ [V/m]'.format(waxis),fontsize=13)
+    if salva: _plt.savefig(_jnPth((tardir,fname+'.svg')))
 
     #=========== Plot Impedance ==========================
     _plt.figure(3)
@@ -499,31 +503,31 @@ def plot_results(globdata, mostra=False, salva = True):
     if m==0:
         fname = 'ImpLongit'
         _plt.title('Longitudinal Impedance ('+dsrc+')',fontsize=13)
-        _plt.ylabel(r'$\displaystyle Z_{||} [\Omega]$',fontsize=13)
+        _plt.ylabel(r'$Z_{||}$ [$\Omega$]',fontsize=13)
     elif m==1:
         fname = 'ImpDip'+wplane
         _plt.title (wplane+' Dipole Impedance ('+dsrc+')',fontsize=13)
-        _plt.ylabel(r'Z_D_{0:s} [k\Omega/m]'.format(waxis),fontsize=13)
+        _plt.ylabel(r'$Z_{{D_{0:s}}}$ [k$\Omega$/m]'.format(waxis),fontsize=13)
     elif m==2:
         fname = 'ImpQuad'+wplane
         _plt.title (wplane+' Quadrupole Impedance ('+dsrc+')',fontsize=13)
-        _plt.ylabel(r'Z_Q_{0:s} [k\Omega/m]'.format(waxis),fontsize=13)
+        _plt.ylabel(r'$Z_{{Q_{0:s}}}$ [k$\Omega$/m]'.format(waxis),fontsize=13)
     _plt.grid(True)
     _plt.legend (loc='best')
     _plt.xlim(_np.array(f[[0,-1]],dtype=float)/1e9)
-    if salva: _plt.savefig(_os.path.sep.join((tardir,fname+'.svg')))
+    if salva: _plt.savefig(_jnPth((tardir,fname+'.svg')))
 
     #===============Plot Loss/Kick Factor vs. Sigma ======================
     if m==0:
         fname = 'LossFactor'
         _plt.figure(4)
-        _plt.plot(sigi * 1e3, kZi * 1e3, 'o',markersize=2,label=r'$\displaystyle K_L^Z$')
-        _plt.plot(sigs * 1e3, kW * 1e3, '*',markersize=5,linewidth=2,color=[1, 0, 0],label=r'$\displaystyle K_L^W$')
+        _plt.plot(sigi * 1e3, kZi * 1e3, 'o',markersize=2,label=r'$K_L^Z$')
+        _plt.plot(sigs * 1e3, kW * 1e3, '*',markersize=5,linewidth=2,color=[1, 0, 0],label=r'$\K_L^W$')
         _plt.xlabel(r'\sigma [mm]')
-        _plt.ylabel(r'$\displaystyle K_L [mV/pC]$')
+        _plt.ylabel(r'$K_L$ [mV/pC]')
         _plt.legend(loc='best')
         _plt.grid(True)
-        _plt.annotate(r'$\displaystyle K_L^W = {0:5.2f} mV/pC$'.format(kW*1e3),xy=(sigs*1.1e3, kW*1e3),fontsize=12)
+        _plt.annotate(r'$K_L^W = {0:5.2f}$ mV/pC'.format(kW*1e3),xy=(sigs*1.1e3, kW*1e3),fontsize=12)
     elif m > 0:
         fname = 'KickFactor'
         if m==1:
@@ -531,14 +535,14 @@ def plot_results(globdata, mostra=False, salva = True):
         else:
             subind = 'Q'
         _plt.figure(4)
-        _plt.plot(sigi * 1e3, kickZi, 'o',markersize=2,label=r"$\displaystyle\kappa_{0:s}^Z$".format(waxis))
-        _plt.plot(sigs * 1e3, kickW, '*',markersize=5,linewidth=2,color=[1, 0, 0],label=r"$\displaystyle\kappa_{0:s}^W$".format(waxis))
-        _plt.xlabel(r'\sigma [mm]',fontsize=13)
-        _plt.ylabel(r'$\displaystyle\kappa_{0:s} [V/pC/m]$'.format(waxis),fontsize=13)
+        _plt.plot(sigi * 1e3, kickZi, 'o',markersize=2,label=r"$\kappa_{0:s}^Z$".format(waxis))
+        _plt.plot(sigs * 1e3, kickW, '*',markersize=5,linewidth=2,color=[1, 0, 0],label=r"$\kappa_{0:s}^W$".format(waxis))
+        _plt.xlabel(r'$\sigma$ [mm]',fontsize=13)
+        _plt.ylabel(r'$\kappa_{0:s}$ [V/pC/m]'.format(waxis),fontsize=13)
         _plt.legend(loc='best')
         _plt.grid(True)
-        _plt.annotate(r'$\displaystyle\kappa_{0:s}^W = {1:5.2f} V/pC/m$'.format(waxis,kickW), xy=(sigs * 1.1e3, kickW), fontsize=13)
-    if salva: _plt.savefig(_os.path.sep.join((tardir,fname+'.svg')))
+        _plt.annotate(r'$\kappa_{0:s}^W = {1:5.2f}$ V/pC/m'.format(waxis,kickW), xy=(sigs * 1.1e3, kickW), fontsize=13)
+    if salva: _plt.savefig(_jnPth((tardir,fname+'.svg')))
     if mostra: _plt.show()
 
 def save_results(globdata):
@@ -578,40 +582,40 @@ def save_results(globdata):
     T0    = 2*_np.pi/globdata.ringpar.omega0
 
     # Tick Position # 2: Export wakepotential
-    _np.savetxt(_os.path.sep.join((filesout, 'W'+wtype+dsrc+'.txt')),
+    _np.savetxt(_jnPth((filesout, 'W'+wtype+dsrc+'.txt')),
                 _np.array([spos,wake]).transpose(),fmt=['%30.16g','%30.16g'])
 
     #% Tick Position # 5: Export Impedance
-    _np.savetxt(_os.path.sep.join((filesout, 'ReZ'+wtype+dsrc+'.txt')),
+    _np.savetxt(_jnPth((filesout, 'ReZ'+wtype+dsrc+'.txt')),
                 _np.array([f,rez]).transpose(),fmt=['%30.16g','%30.16g'])
-    _np.savetxt(_os.path.sep.join((filesout, 'ImZ'+wtype+dsrc+'.txt')),
+    _np.savetxt(_jnPth((filesout, 'ImZ'+wtype+dsrc+'.txt')),
                 _np.array([f,imz]).transpose(),fmt=['%30.16g','%30.16g'])
 
     if m==0:
-        _np.savetxt(_os.path.sep.join((filesout, 'ImZoN'+wtype+dsrc+'.txt')),
+        _np.savetxt(_jnPth((filesout, 'ImZoN'+wtype+dsrc+'.txt')),
                     _np.array([naxis, ImZoN]).transpose(),fmt=['%30.16g','%30.16g'])
 
     #% Tick Position # 8: Export Loss Factor vs. Sigma and Loss Info
     if m==0:
-        with open(_os.path.sep.join((filesout,'Loss info_'+dsrc+'.txt')), 'w') as fi:
+        with open(_jnPth((filesout,'Loss info_'+dsrc+'.txt')), 'w') as fi:
             fi.writelines('Loss factor Z = {0:10.6f} mV/pC  \n'.format(kZi[0]*1e3))
             fi.writelines('Loss factor W = {0:10.6f} mV/pC  \n'.format(kW*1e3))
             fi.writelines('Power Loss = {0:10.5f} W \n'.format( Ploss))
             fi.writelines('for I = {0:9.4f} mA  h = {1:5.0f}  T0 = {2:8.4f} ns '.format(
                           globdata.ringpar.Iavg*1e3, globdata.ringpar.h, T0*1e9))
 
-        _np.savetxt(_os.path.sep.join((filesout, 'Kloss'+dsrc+'.txt')),
+        _np.savetxt(_jnPth((filesout, 'Kloss'+dsrc+'.txt')),
                     _np.array([sigi/1e-3, kZi]).transpose(),fmt=['%12.8g','%12.8g'])
     elif m>0:
-        with open(_os.path.sep.join((filesout,'Kick info_'+wtype+dsrc+'.txt')), 'w') as fi:
+        with open(_jnPth((filesout,'Kick info_'+wtype+dsrc+'.txt')), 'w') as fi:
             fi.writelines('Kick Z = {0:10.6f} V/pC/m  \n'.format( kickZi[0]))
             fi.writelines('Kick W = {0:10.6f} V/pC/m  \n'.format(kickW))
 
-        _np.savetxt(_os.path.sep.join((filesout, 'K'+wtype+dsrc+'.txt')),
+        _np.savetxt(_jnPth((filesout, 'K'+wtype+dsrc+'.txt')),
                     _np.array([sigi/1e-3, kickZi]).transpose(),fmt=['%12.8g','%12.8g'])
 
 
-    with _gzip.open(_os.path.sep.join((filesout,'globdata'+wtype+dsrc+'.pickle')), 'wb') as f:
+    with _gzip.open(_jnPth((filesout,'globdata'+wtype+dsrc+'.pickle')), 'wb') as f:
         _pickle.dump(globdata,f,_pickle.HIGHEST_PROTOCOL)
 
 def load_results(filename):
