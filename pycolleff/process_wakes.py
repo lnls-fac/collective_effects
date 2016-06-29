@@ -10,13 +10,7 @@ from matplotlib import rc as _rc
 
 _jnPth = _os.path.sep.join
 
-class GlobData:
-    def __init__(self):
-        self.ringpar = Ringpar()
-        self.simpar  = Simpar()
-        self.results = Results()
-
-class Ringpar:
+class EMSimulData:
     def __init__(self):
         self.circumf = 518.396       # Ring circumference [m]
         self.omega0 = 2*_np.pi*299792458/self.circumf   # Revolution frequency [rad/s]
@@ -25,56 +19,28 @@ class Ringpar:
         self.Iavg = 500e-3           # Beam current [A]
         self.h    = 864              # Harmonic Number
 
-class Simpar:
-    def __init__(self):
-        self.wakepath  = ''    # Path where the wake file (from any of the softwares) is
-        self.targetdir = ''    # Path where all results will be saved
-        self.datasource= ''    # CST3PO or GdfidL
-        self.m         = 0     # 0=longipole transuadrupole trans
-        self.offset    = 0     # offset for transverse analysis
-        self.sym       = ''    # mirror symmetry for transverse?
-        self.whichaxis = ''    # y or x
-        self.units     = 0     # # of components in the ring
-        self.bunlen    = 0e-3  # Bunch Length Used in simulation[m]
-        self.cutoff    = 2     # multiple of the bunch frequency to calculate impedance
+        self.path       = _os.path.abspath('.') # Path where the wake file (from any of the softwares) is
+        self.datasource = ''    # CST, ACE3P, GdfidL, ECHOz1 ECHOz2, ...
+        self.wake_type  = ''    # DX, DY, QX, QY, LL
+        self.symmetry   = False # mirror symmetry for transverse?
+        self.bunlen     = 0e-3  # Bunch Length Used in simulation[m]
+        self.cutoff     = 2     # multiple of the bunch frequency to calculate impedance
 
-class Results:
-    def __init__(self):
-        self.s            = _np.array([],dtype=float) # axis: distance from following to drive bunch [m]
-        self.W            = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
-        self.freq         = _np.array([],dtype=float) # axis: frequency obtained from FFT [GHz]
-        self.naxis        = _np.array([],dtype=float) # axis: omega/omega0
-        self.interfreq    = _np.array([],dtype=float) # interpolated frequency
-        self.ReZlong      = _np.array([],dtype=float) # Real Part of Longitudinal Impedance [Ohm]
-        self.interReZlong = _np.array([],dtype=float) # interpolated impedance
-        self.ImZlong      = _np.array([],dtype=float) # Imaginary Part of Longitudinal Impedance [Ohm]
-        self.ImZoN        = _np.array([],dtype=float) # Imaginary Part of Longitudinal Impedance over n [Ohm]
-        self.interReZt    = _np.array([],dtype=float) # interpolated impedance
-        self.ImZt         = _np.array([],dtype=float) # Imaginary Part of Vertical Dipole Impedance [KOhm/m]
-        self.ReZt         = _np.array([],dtype=float) # Real Part of Horizontal Dipole Impedance [KOhm/m]
-        self.interImZt    = _np.array([],dtype=float) # interpolated impedance
-        self.peakinfo     = _np.array([],dtype=float) # Omegar [rad/s], Rshunt [Ohm] and Q from ReZ
-        self.klossW       = _np.array([],dtype=float) # Single-bunch Loss Factor Calculated from Wlong [mV/pC]
-        self.klossZ       = _np.array([],dtype=float) # Single-bunch Loss Factor Calculated from ReZlong [mV/pC]
-        self.kickW        = _np.array([],dtype=float) # Vertical Kick Factor Calculated from Wy [V/pC/m]
-        self.kickZ        = _np.array([],dtype=float) # Vertical Kick Factor Calculated from ImZy [V/pC/m]
-        self.sigmak       = _np.array([],dtype=float) # axis: bunch length for kloss|kick integration [mm]
-        self.Ploss        = _np.array([],dtype=float) # Power loss from single-bunch loss factor [W]
-        self.Plossvec     = _np.array([],dtype=float) # Power loss vector for different sigmas [W]
-        self.klossWM      = _np.array([],dtype=float) # Multi-bunch Loss Factor Calculated from Wlong [mV/pC]
-        self.klossZM      = _np.array([],dtype=float) # Multi-bunch Loss Factor Calculated from ReZlong [mV/pC]
-        self.PlossM       = _np.array([],dtype=float) # Power loss from multi-bunch loss factor [W]
-        self.ifast        = _np.array([],dtype=float) # # of fastest CBM
-        self.GRs          = _np.array([],dtype=float) # Growth Rate value for each CBM
-        self.GR_HOM       = _np.array([],dtype=float) # Growth Rate value for each CBM accumulated through each HOM
-        self.ReZsampl     = _np.array([],dtype=float) # Impedance Spectrum Sampled by fastest CBM
-        self.fsampl       = _np.array([],dtype=float) # Frequency axis for sampled impedance
+        self.s        = _np.array([],dtype=float) # axis: distance from following to drive bunch [m]
+        self.W        = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
+        self.freq     = _np.array([],dtype=float) # axis: frequency obtained from FFT [GHz]
+        self.Z        = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
+        self.klossW   = _np.array([],dtype=float) # Single-bunch Loss Factor Calculated from Wlong [mV/pC]
+        self.klossZ   = _np.array([],dtype=float) # Single-bunch Loss Factor Calculated from ReZlong [mV/pC]
+        self.sigmak   = _np.array([],dtype=float) # axis: bunch length for kloss|kick integration [mm]
+        self.Ploss    = _np.array([],dtype=float) # Power loss from single-bunch loss factor [W]
+        self.Plossvec = _np.array([],dtype=float) # Power loss vector for different sigmas [W]
 
 def prepare_struct_for_load(newdir=None, m=0, sigma=5e-4, rootdir=None, code='ECHO'):
 
     if not rootdir: rootdir = _os.path.abspath(_os.curdir)
 
-    globdata = GlobData()
+    globdata = EMSimulData()
     globdata.simpar.wakepath = rootdir
 
     if newdir:
@@ -93,144 +59,183 @@ def prepare_struct_for_load(newdir=None, m=0, sigma=5e-4, rootdir=None, code='EC
     globdata.simpar.units = 1
     return globdata
 
-def load_wake(globdata):
-    nsigmas = 5 # Only used for ACE3P displacement, standard value!
+def _load_data_ACE3P(simpar):
 
-    dsrc   = globdata.simpar.datasource
-    m      = globdata.simpar.m
-    sym    = globdata.simpar.sym
-    whaxis = globdata.simpar.whichaxis
-    wdir   = globdata.simpar.wakepath
-    tardir = globdata.simpar.targetdir
+    m       = simpar.m
+    sym     = simpar.sym
+    whaxis  = simpar.whichaxis
+    wdir    = simpar.wakepath
+    tardir  = simpar.targetdir
+    sigma   = simpar.sigma
+    nsigmas = 5
+    headerL = 3
     if wdir.startswith(tardir): cpfile = False
     else: cpfile = True
 
-    # Each Software uses a different nomenclature. Setting complete path for loading:
-    if dsrc.startswith('ACE3P'):
-        wakepath = _jnPth([wdir,'wakefield.out'])
-        headerL = 3
-    elif dsrc.startswith('GdfidL'):
-        headerL = 11
+    wakepath = _jnPth([wdir,'wakefield.out'])
+    loadres = _np.loadtxt(wakepath, skiprows=headerL)
+    if cpfile: _sh.cp(wakepath, tardir)
 
-        if m==0:
-            wakepath = _jnPth([wdir,'Results-Wq_AT_XY.0001'])
-        elif m==1:
-            if sym:
-                shiftpath = _jnPth([wdir,'Results-Wq_AT_XY.0001'])
-                wakepath1 = _jnPth([wdir,'Results-W'+whaxis.upper()+'_AT_XY.0001'])
-                wakepath2 = _jnPth([wdir,'Results-W'+whaxis.upper()+'_AT_XY.0002'])
-            else:
-                shiftpath = _jnPth([wdir,'dxdpl','Results-Wq_AT_XY.0001'])
-                wakepath1 = _jnPth([wdir,'d'+whaxis+'dpl','Results-W'+whaxis.upper()+'_AT_XY.0001'])
-                wakepath2 = _jnPth([wdir,'d'+whaxis+'dpl','Results-W'+whaxis.upper()+'_AT_XY.0002'])
-                wakepath3 = _jnPth([wdir,'d'+whaxis+'dmi','Results-W'+whaxis.upper()+'_AT_XY.0001'])
-                wakepath4 = _jnPth([wdir,'d'+whaxis+'dmi','Results-W'+whaxis.upper()+'_AT_XY.0002'])
-        elif m==2:
+    spos = loadres[:,0]
+    # I know this is correct for ECHO (2015/08/27):
+    if m==0: wake = -loadres[:,1]
+    else: wake = loadres[:,1]
+
+    spos = spos - nsigmas* sigma   # Performs displacement over s axis
+
+    return spos, wake
+
+def _load_data_GdfidL(globdata):
+
+    m      = simpar.m
+    sym    = simpar.sym
+    whaxis = simpar.whichaxis
+    wdir   = simpar.wakepath
+    tardir = simpar.targetdir
+    headerL = 11
+    if wdir.startswith(tardir): cpfile = False
+    else: cpfile = True
+
+
+    if m==0:
+        wakepath = _jnPth([wdir,'Results-Wq_AT_XY.0001'])
+        res = _np.loadtxt(wakepath, skiprows=headerL)
+        wake = -res[:,1]
+    elif m==1:
+        if sym:
+            shiftpath = _jnPth([wdir,'Results-Wq_AT_XY.0001'])
             wakepath1 = _jnPth([wdir,'Results-W'+whaxis.upper()+'_AT_XY.0001'])
-            if not sym:
-                wakepath2 = _jnPth([wdir,'Results-W'+whaxis.upper()+'_AT_XY.0002'])
-    elif dsrc.startswith('CST'):
-        wakepath = _jnPth([wdir,'wake.txt'])
-        headerL = 2
-    elif dsrc.startswith('ECHO'):
-        if m==0:
-            wakepath = _jnPth([wdir,'wake.dat'])
-            headerL = 0
-        elif m > 0:
-            if sym:
-                wakepath = _jnPth([wdir,'wakeT.dat'])
-                headerL = 0
-            else:
-                wrt = 'symetry error: wrong set'
-
-    # Read specified file(s)
-    if not dsrc.startswith('GdfidL'):
-        loadres = _np.loadtxt(wakepath, skiprows=headerL)
-        if cpfile: _sh.cp(wakepath, tardir)
-
-        spos = loadres[:,0]
-        # I know this is correct for ECHO (2015/08/27):
-        if m==0: wake = -loadres[:,1]
-        else: wake = loadres[:,1]
-    else: # I am not sure for GdfidL:
-        if m==0:
-            wake = -loadres[:,1]
-        elif m==1:
-            loadres1 = _np.loadtxt(wakepath1, skiprows=headerL)
-            loadres2 = _np.loadtxt(wakepath2, skiprows=headerL)
+            wakepath2 = _jnPth([wdir,'Results-W'+whaxis.upper()+'_AT_XY.0002'])
+            res1 = _np.loadtxt(wakepath1, skiprows=headerL)
+            res2 = _np.loadtxt(wakepath2, skiprows=headerL)
+            spos = res1[:,0]
+            wabs = (res1[:,1] + res2[:,1])/2
+        else:
+            shiftpath = _jnPth([wdir,'dxdpl','Results-Wq_AT_XY.0001'])
+            wakepath1 = _jnPth([wdir,'d'+whaxis+'dpl','Results-W'+whaxis.upper()+'_AT_XY.0001'])
+            wakepath2 = _jnPth([wdir,'d'+whaxis+'dpl','Results-W'+whaxis.upper()+'_AT_XY.0002'])
+            wakepath3 = _jnPth([wdir,'d'+whaxis+'dmi','Results-W'+whaxis.upper()+'_AT_XY.0001'])
+            wakepath4 = _jnPth([wdir,'d'+whaxis+'dmi','Results-W'+whaxis.upper()+'_AT_XY.0002'])
+            res1 = _np.loadtxt(wakepath1, skiprows=headerL)
+            res2 = _np.loadtxt(wakepath2, skiprows=headerL)
+            res3 = _np.loadtxt(wakepath3, skiprows=headerL)
+            res4 = _np.loadtxt(wakepath4, skiprows=headerL)
+            spos = loadres1[:,0]
+            wabs1 = (res1[:,1] + res2[:,1])/2
+            wabs2 = (res3[:,1] + res4[:,1])/2
+            wabs = (wabs1 - wabs2)/2
             if cpfile:
                 _sh.cp(wakepath1, tardir)
                 _sh.cp(wakepath2, tardir)
+                _sh.cp(wakepath3, tardir)
+                _sh.cp(wakepath4, tardir)
 
-            spos = loadres1[:,0]
-            wabs = (loadres1[:,1]+loadres2[:,1])/2
+        # obtaining shift value
+        with open(shiftpath,'r') as fi:
+            for _ in range(0,3):
+                loadres5 = fi.readline()
+        if cpfile: _sh.cp(shiftpath, tardir)
 
-            if not sym:
-                loadres3 = _np.loadtxt(wakepath3, skiprows=headerL)
-                loadres4 = _np.loadtxt(wakepath4, skiprows=headerL)
-                if cpfile:
-                    _sh.cp(wakepath3, tardir)
-                    _sh.cp(wakepath4, tardir)
+        coord = textscan(loadres5,' %% subtitle= "W_l (x,y)= ( %f, %f ) [m]"')
 
-                wabs2 = (loadres3[:,1]+loadres4[:,1])/2
-                wabs = (wabs - wabs2)/2
+        if whaxis.startswith('x'):
+            shift = coord[1]
+        elif whaxis.startswith('y'):
+            shift = coord[2]
+        wake = wabs/shift
 
-            # obtaining shift value
-            with open(shiftpath,'r') as fi:
-                for _ in range(0,3):
-                    loadres5 = fi.readline()
-            if cpfile: _sh.cp(shiftpath, tardir)
+    elif m==2:
+        wakepath1 = _jnPth([wdir,'Results-W'+whaxis.upper()+'_AT_XY.0001'])
+        if not sym:
+            wakepath2 = _jnPth([wdir,'Results-W'+whaxis.upper()+'_AT_XY.0002'])
+        loadres1 = _np.loadtxt(wakepath1, skiprows=headerL)
+        if cpfile: _sh.cp(wakepath1, tardir)
 
-            coord = textscan(loadres5,' %% subtitle= "W_l (x,y)= ( %f, %f ) [m]"')
+        spos = loadres1[:,0]
+        wabs = loadres1[:,1]
 
-            if whaxis.startswith('x'):
-                shift = coord[1]
-            elif whaxis.startswith('y'):
-                shift = coord[2]
+        if ~sym:
+            loadres2 = _np.loadtxt(wakepath2, skiprows=headerL)
+            if cpfile: _sh.cp(wakepath2, tardir)
+            w2 = loadres2[:,1]
+            wabs = (wabs - w2)/2
 
+        #obtaining offset value
+        with open(wakepath1,'r') as fi:
+            for _ in range(0,3):
+                loadres5 = fi.readline()
+        if cpfile: _sh.cp(wakepath1, tardir)
 
-            wake = wabs/shift
-        elif m==2:
-            loadres1 = _np.loadtxt(wakepath1, skiprows=headerL)
-            if cpfile: _sh.cp(wakepath1, tardir)
+        if whaxis.startswith('x'):
+            coord = textscan(loadres5,' %% subtitle= "integral d/dx W(z) dz, (x,y)=( %f, %f )"')
+            shift = coord[1]
+        elif whaxis.startswith('y'):
+            coord = textscan(loadres5,' %% subtitle= "integral d/dy W(z) dz, (x,y)=( %f, %f )"')
+            shift = coord[2]
+        wake = -wabs/shift
 
-            spos = loadres1[:,0]
-            wabs = loadres1[:,1]
+    return spos, wake
 
-            if ~sym:
-                loadres2 = _np.loadtxt(wakepath2, skiprows=headerL)
-                if cpfile: _sh.cp(wakepath2, tardir)
+def _load_data_CST(simpar):
 
-                w2 = loadres2[:,1]
-                wabs = (wabs - w2)/2
+    m      = simpar.m
+    whaxis = simpar.whichaxis
+    wdir   = simpar.wakepath
+    tardir = simpar.targetdir
+    headerL = 2
+    if wdir.startswith(tardir): cpfile = False
+    else: cpfile = True
 
-            #obtaining offset value
-            with open(wakepath1,'r') as fi:
-                for _ in range(0,3):
-                    loadres5 = fi.readline()
-            if cpfile: _sh.cp(wakepath1, tardir)
+    wakepath = _jnPth([wdir,'wake.txt'])
+    loadres = _np.loadtxt(wakepath, skiprows=headerL)
+    if cpfile: _sh.cp(wakepath, tardir)
 
-            if whaxis.startswith('x'):
-                coord = textscan(loadres5,' %% subtitle= "integral d/dx W(z) dz, (x,y)=( %f, %f )"')
-                shift = coord[1]
-            elif whaxis.startswith('y'):
-                coord = textscan(loadres5,' %% subtitle= "integral d/dy W(z) dz, (x,y)=( %f, %f )"')
-                shift = coord[2]
-
-            wake = -wabs/shift
-
-
+    spos = loadres[:,0]
+    wake = loadres[:,1]
     # Adjust s-axis (rescale or shift)
+    spos = spos/1000         # Rescaling mm to m
+    if m>0: wake = -wake
 
-    if dsrc.startswith('ACE3P'):
-        spos = spos - nsigmas*globdata.simpar.sigma   # Performs displacement over s axis
-    elif dsrc.startswith('CST'):
-        spos = spos/1000         # Rescaling mm to m
-        if m>0:
-            wake = -wake
-    elif dsrc.startswith('ECHO'):
-        spos = spos/100         # Rescaling cm to m
+    return spos, wake
 
+def _load_data_ECHOz1(simpar):
+
+    m      = simpar.m
+    sym    = simpar.sym
+    whaxis = simpar.whichaxis
+    wdir   = simpar.wakepath
+    tardir = simpar.targetdir
+    headerL = 0
+    if wdir.startswith(tardir): cpfile = False
+    else: cpfile = True
+
+    if m==0:
+        wakepath = _jnPth([wdir,'wake.dat'])
+    elif m > 0:
+        if sym: wakepath = _jnPth([wdir,'wakeT.dat'])
+        else:   wrt = 'symetry error: wrong set'
+    loadres = _np.loadtxt(wakepath, skiprows=headerL)
+    if cpfile: _sh.cp(wakepath, tardir)
+
+    spos = loadres[:,0]
+    # I know this is correct for ECHO (2015/08/27):
+    if m==0: wake = -loadres[:,1]
+    else: wake = loadres[:,1]
+    # Adjust s-axis (rescale or shift)
+    spos = spos/100         # Rescaling cm to m
+
+    return spos, wake
+
+def load_wake(globdata):
+
+    codes = {'ECHOz1': _load_data_ECHOz1,
+             'ECHOz2': _load_data_ECHOz2,
+             'GdfidL': _load_data_GdfidL,
+             'ACE3P' : _load_data_ACE3P,
+             'CST'   : _load_data_CST
+             }
+
+    spos, wake = codes[dsrc](globdata.simpar)
 
     # Assign to Structure:
     globdata.results.W = wake
@@ -522,8 +527,8 @@ def plot_results(globdata, mostra=False, salva = True):
         fname = 'LossFactor'
         _plt.figure(4)
         _plt.plot(sigi * 1e3, kZi * 1e3, 'o',markersize=2,label=r'$K_L^Z$')
-        _plt.plot(sigs * 1e3, kW * 1e3, '*',markersize=5,linewidth=2,color=[1, 0, 0],label=r'$\K_L^W$')
-        _plt.xlabel(r'\sigma [mm]')
+        _plt.plot(sigs * 1e3, kW * 1e3, '*',markersize=5,linewidth=2,color=[1, 0, 0],label=r'$K_L^W$')
+        _plt.xlabel(r'$\sigma$ [mm]')
         _plt.ylabel(r'$K_L$ [mV/pC]')
         _plt.legend(loc='best')
         _plt.grid(True)
