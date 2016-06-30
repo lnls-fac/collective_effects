@@ -7,57 +7,92 @@ import pickle as _pickle
 import numpy as _np
 import matplotlib.pyplot as _plt
 from matplotlib import rc as _rc
+import mathphys.constants.light_speed as c
+from . import colleff as _colleff
+from . import sirius as _sirius
 
 _jnPth = _os.path.sep.join
 
+_si = _sirius.create_ring()
+circumf  = _si.circ       # Ring circumference [m]
+harm_num = _si.harm_num
+
+sigvec   = _np.array([2.65, 5.3, 2.65, 4, 10, 10],dtype=float)*1e-3  # bunch length scenarios
+Ivec     = _np.array([500, 500, 10, 110, 110, 500],dtype=float)*1e-3 # current scenarios
+sigplot  = lambda x:_np.linspace(x,10e-3,num=100)
+codes    = {'ECHOz1': _load_data_ECHOz1,
+            'ECHOz2': _load_data_ECHOz2,
+            'GdfidL': _load_data_GdfidL,
+            'ACE3P' : _load_data_ACE3P,
+            'CST'   : _load_data_CST
+           }
+
+
 class EMSimulData:
-    def __init__(self):
-        self.circumf = 518.396       # Ring circumference [m]
-        self.omega0 = 2*_np.pi*299792458/self.circumf   # Revolution frequency [rad/s]
-        self.sigma = 2.5e-3          # Nominal Bunch Length[m]
-        self.sigmamax = 15e-3        # Maximum Bunch Length of interest[m]
-        self.Iavg = 500e-3           # Beam current [A]
-        self.h    = 864              # Harmonic Number
+    def __init__(self, path=None, code=None, wake_type=None, symmetry=None, bunlen=None, cutoff=None):
+        self.path      = path      # Path where the wake file (from any of the softwares) is
+        self.code      = code      # CST, ACE3P, GdfidL, ECHOz1 ECHOz2, ...
+        self.wake_type = wake_type # DX, DY, QX, QY, LL
+        self.symmetry  = symmetry  # Symmetry of the simulation
+        self.bunlen    = bunlen    # Bunch Length Used in simulation[m]
+        self.cutoff    = cutoff    # multiple of the bunch frequency-spread to calculate impedance
 
-        self.path       = _os.path.abspath('.') # Path where the wake file (from any of the softwares) is
-        self.datasource = ''    # CST, ACE3P, GdfidL, ECHOz1 ECHOz2, ...
-        self.wake_type  = ''    # DX, DY, QX, QY, LL
-        self.symmetry   = False # mirror symmetry for transverse?
-        self.bunlen     = 0e-3  # Bunch Length Used in simulation[m]
-        self.cutoff     = 2     # multiple of the bunch frequency to calculate impedance
-
+        self.sbunch   = _np.array([],dtype=float) # positions where the bunch is defined [m]
+        self.bunch    = _np.array([],dtype=float) # bunch profile used in the simulation [As/m]
         self.s        = _np.array([],dtype=float) # axis: distance from following to drive bunch [m]
-        self.W        = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
+        self.Wll      = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
+        self.Wdx      = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
+        self.Wdy      = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
+        self.Wqx      = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
+        self.Wqy      = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
         self.freq     = _np.array([],dtype=float) # axis: frequency obtained from FFT [GHz]
-        self.Z        = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
-        self.klossW   = _np.array([],dtype=float) # Single-bunch Loss Factor Calculated from Wlong [mV/pC]
-        self.klossZ   = _np.array([],dtype=float) # Single-bunch Loss Factor Calculated from ReZlong [mV/pC]
-        self.sigmak   = _np.array([],dtype=float) # axis: bunch length for kloss|kick integration [mm]
-        self.Ploss    = _np.array([],dtype=float) # Power loss from single-bunch loss factor [W]
-        self.Plossvec = _np.array([],dtype=float) # Power loss vector for different sigmas [W]
+        self.Zll      = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
+        self.Zdx      = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
+        self.Zdy      = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
+        self.Zqx      = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
+        self.Zqy      = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
+        self._klossW  = None;
+        self._kckdxW  = None;
+        self._kckdyW  = None;
+        self._kckqxW  = None;
+        self._kckqyW  = None;
 
-def prepare_struct_for_load(newdir=None, m=0, sigma=5e-4, rootdir=None, code='ECHO'):
+    def klossW(self):
+        if self._klossW: return self._klossW
+        T0, sigs, wake, spos = _si.T0, self.bunlen, self.W, self.s
 
-    if not rootdir: rootdir = _os.path.abspath(_os.curdir)
+        # Calculates klossW
+        rhos  = (1/(sigs*_np.sqrt(2*_np.pi)))*_np.exp(-spos**2/(2*sigs**2))
+        kW    = _np.trapz(wake*rhos, x=spos)
+        self._klossW = kW
+        return kW
 
-    globdata = EMSimulData()
-    globdata.simpar.wakepath = rootdir
+    def kckW(self):
+        if self._klossW: return self._klossW
+        T0, sigs, wake, spos = _si.T0, self.bunlen, self.W, self.s
 
-    if newdir:
-        newdir = _jnPth([rootdir,newdir])
-        if not _os.path.isdir(newdir): _os.mkdir(newdir)
-    else:
-        newdir = rootdir
+        # Calculates klossW
+        rhos  = (1/(sigs*_np.sqrt(2*_np.pi)))*_np.exp(-spos**2/(2*sigs**2))
+        kW    = _np.trapz(wake*rhos, x=spos)
+        self._klossW = kW
+        return kW
 
-    globdata.simpar.targetdir = newdir
-    globdata.simpar.datasource = code
-    globdata.simpar.cutoff = 2
-    globdata.simpar.bunlen = sigma
-    globdata.simpar.m = m
-    globdata.simpar.sym = 1
-    globdata.simpar.whichaxis = 'y'
-    globdata.simpar.units = 1
-    return globdata
+    def PlossW(self, T0=T0, h=harm_num, Iavg=It):
+        kW = self.klossW()
+        Ploss = kW * Iavg**2 * T0 * 1e12 / h
+        return Ploss
+
+    def klossZ(self,sigma=2.65e-3,n=1):
+        si.nbun = n
+        klossZ,_ = si.loss_factor(w = self.freq*2*_np.pi, Zl = self.Zll, sigma=sigma)
+        return klossZ
+
+    def PlossZ(self,sigma=2.65e-3,n=1):
+        ring.nbun = n
+        _,PlossZ,*_ = ring.loss_factor(w = self.freq*2*_np.pi, Zl = self.Zll, sigma=sigma)
+        return PlossZ
+
+
 
 def _load_data_ACE3P(simpar):
 
@@ -226,14 +261,7 @@ def _load_data_ECHOz1(simpar):
 
     return spos, wake
 
-def load_wake(globdata):
-
-    codes = {'ECHOz1': _load_data_ECHOz1,
-             'ECHOz2': _load_data_ECHOz2,
-             'GdfidL': _load_data_GdfidL,
-             'ACE3P' : _load_data_ACE3P,
-             'CST'   : _load_data_CST
-             }
+def load_data(globdata):
 
     spos, wake = codes[dsrc](globdata.simpar)
 
