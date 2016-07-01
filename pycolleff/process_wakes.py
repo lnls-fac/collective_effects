@@ -37,44 +37,56 @@ class EMSimulData:
         self.bunlen    = bunlen    # Bunch Length Used in simulation[m]
         self.cutoff    = cutoff    # multiple of the bunch frequency-spread to calculate impedance
 
-        self.sbunch   = _np.array([],dtype=float) # positions where the bunch is defined [m]
-        self.bunch    = _np.array([],dtype=float) # bunch profile used in the simulation [As/m]
-        self.s        = _np.array([],dtype=float) # axis: distance from following to drive bunch [m]
-        self.Wll      = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
-        self.Wdx      = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
-        self.Wdy      = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
-        self.Wqx      = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
-        self.Wqy      = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
-        self.freq     = _np.array([],dtype=float) # axis: frequency obtained from FFT [GHz]
-        self.Zll      = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
-        self.Zdx      = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
-        self.Zdy      = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
-        self.Zqx      = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
-        self.Zqy      = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
-        self._klossW  = None;
-        self._kckdxW  = None;
-        self._kckdyW  = None;
-        self._kckqxW  = None;
-        self._kckqyW  = None;
+        self.sbun = _np.array([],dtype=float) # positions where the bunch is defined [m]
+        self.bun  = _np.array([],dtype=float) # bunch profile used in the simulation [As/m]
+        self.s    = _np.array([],dtype=float) # axis: distance from following to drive bunch [m]
+        self.Wll  = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
+        self.Wdx  = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
+        self.Wdy  = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
+        self.Wqx  = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
+        self.Wqy  = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/pC or V/pC/m]
+        self.freq = _np.array([],dtype=float) # axis: frequency obtained from FFT [GHz]
+        self.Zll  = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
+        self.Zdx  = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
+        self.Zdy  = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
+        self.Zqx  = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
+        self.Zqy  = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
+        self._klossW  = None
+        self._kckdxW  = None
+        self._kckdyW  = None
+        self._kckqxW  = None
+        self._kckqyW  = None
+
+    def _kfromW(self,wake):
+        T0, sigs, spos = _si.T0, self.bunlen, self.s
+        rhos  = (1/(sigs*_np.sqrt(2*_np.pi)))*_np.exp(-spos**2/(2*sigs**2))
+        kW    = _np.trapz(wake*rhos, x=spos)
+        return kW
 
     def klossW(self):
         if self._klossW: return self._klossW
-        T0, sigs, wake, spos = _si.T0, self.bunlen, self.W, self.s
-
-        # Calculates klossW
-        rhos  = (1/(sigs*_np.sqrt(2*_np.pi)))*_np.exp(-spos**2/(2*sigs**2))
-        kW    = _np.trapz(wake*rhos, x=spos)
+        kW = self._kfromW(self.Wll)
         self._klossW = kW
         return kW
-
-    def kckW(self):
-        if self._klossW: return self._klossW
-        T0, sigs, wake, spos = _si.T0, self.bunlen, self.W, self.s
-
-        # Calculates klossW
-        rhos  = (1/(sigs*_np.sqrt(2*_np.pi)))*_np.exp(-spos**2/(2*sigs**2))
-        kW    = _np.trapz(wake*rhos, x=spos)
-        self._klossW = kW
+    def kckdxW(self):
+        if self._kckdxW: return self._kckdxW
+        kW = self._kfromW(self.Wdx)
+        self._kckdxW = kW
+        return kW
+    def kckdyW(self):
+        if self._kckdyW: return self._kckdyW
+        kW = self._kfromW(self.Wdy)
+        self._kckdyW = kW
+        return kW
+    def kckqxW(self):
+        if self._kckqxW: return self._kckqxW
+        kW = self._kfromW(self.Wqx)
+        self._kckqxW = kW
+        return kW
+    def kckqyW(self):
+        if self._kckqyW: return self._kckqyW
+        kW = self._kfromW(self.Wqy)
+        self._kckqyW = kW
         return kW
 
     def PlossW(self, T0=T0, h=harm_num, Iavg=It):
@@ -93,9 +105,8 @@ class EMSimulData:
         return PlossZ
 
 
-
 def _load_data_ACE3P(simpar):
-
+    raise NotImplementedError('This function was not tested yet.')
     m       = simpar.m
     sym     = simpar.sym
     whaxis  = simpar.whichaxis
@@ -120,7 +131,30 @@ def _load_data_ACE3P(simpar):
 
     return spos, wake
 
-def _load_data_GdfidL(globdata):
+
+def _load_data_CST(simpar):
+    raise NotImplementedError('This function was not tested yet.')
+    m      = simpar.m
+    whaxis = simpar.whichaxis
+    wdir   = simpar.wakepath
+    tardir = simpar.targetdir
+    headerL = 2
+    if wdir.startswith(tardir): cpfile = False
+    else: cpfile = True
+
+    wakepath = _jnPth([wdir,'wake.txt'])
+    loadres = _np.loadtxt(wakepath, skiprows=headerL)
+    if cpfile: _sh.cp(wakepath, tardir)
+
+    spos = loadres[:,0]
+    wake = loadres[:,1]
+    # Adjust s-axis (rescale or shift)
+    spos = spos/1000         # Rescaling mm to m
+    if m>0: wake = -wake
+
+    return spos, wake
+
+def _load_data_GdfidL(SimulData):
 
     m      = simpar.m
     sym    = simpar.sym
@@ -130,6 +164,19 @@ def _load_data_GdfidL(globdata):
     headerL = 11
     if wdir.startswith(tardir): cpfile = False
     else: cpfile = True
+
+
+    with open('Results-Wq_AT_XY.0001') as f:
+        data = f.read()
+    data = [line for line in data.splitlines() if not line.startswith((' #',' %',' $'))]
+
+    spos,Wake = np.loadtxt(data,unpack=True)
+    a = np.arg'min(np.diff(spos))
+
+    sbun = spos[a+1:]
+    bun  = Wake[a+1:]
+    wake = wake[:a+1]
+    spos = spos[:a+1]
 
 
     if m==0:
@@ -211,27 +258,6 @@ def _load_data_GdfidL(globdata):
 
     return spos, wake
 
-def _load_data_CST(simpar):
-
-    m      = simpar.m
-    whaxis = simpar.whichaxis
-    wdir   = simpar.wakepath
-    tardir = simpar.targetdir
-    headerL = 2
-    if wdir.startswith(tardir): cpfile = False
-    else: cpfile = True
-
-    wakepath = _jnPth([wdir,'wake.txt'])
-    loadres = _np.loadtxt(wakepath, skiprows=headerL)
-    if cpfile: _sh.cp(wakepath, tardir)
-
-    spos = loadres[:,0]
-    wake = loadres[:,1]
-    # Adjust s-axis (rescale or shift)
-    spos = spos/1000         # Rescaling mm to m
-    if m>0: wake = -wake
-
-    return spos, wake
 
 def _load_data_ECHOz1(simpar):
 
