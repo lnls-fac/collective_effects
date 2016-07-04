@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os as _os
+import re as _re
 import sh as _sh
 import gzip as _gzip
 import pickle as _pickle
@@ -20,20 +21,24 @@ harm_num = _si.harm_num
 sigvec   = _np.array([2.65, 5.3, 2.65, 4, 10, 10],dtype=float)*1e-3  # bunch length scenarios
 Ivec     = _np.array([500, 500, 10, 110, 110, 500],dtype=float)*1e-3 # current scenarios
 sigplot  = lambda x:_np.linspace(x,10e-3,num=100)
-codes    = {'ECHOz1': _load_data_ECHOz1,
-            'ECHOz2': _load_data_ECHOz2,
-            'GdfidL': _load_data_GdfidL,
-            'ACE3P' : _load_data_ACE3P,
-            'CST'   : _load_data_CST
+CODES    = {'echoz1': _load_data_ECHOz1,
+            'echoz2': _load_data_ECHOz2,
+            'Gdfidl': _load_data_GdfidL,
+            'ace3p' : _load_data_ACE3P,
+            'cst'   : _load_data_CST
            }
-
+_ANALYSIS_TYPES = {'dx', # horizontal impedance
+                   'dy', # vertical impedance
+                   'db', # horizontal and vertical impedance
+                   'll'  # longitudinal and transverse quadrupolar impedances
+                   }
 
 class EMSimulData:
-    def __init__(self, path=None, code=None, wake_type=None, symmetry=None, bunlen=None, cutoff=None):
+    def __init__(self, path=None, code=None, anal_pl=None, symmetry=None, bunlen=None, cutoff=None):
         self.path      = path      # Path where the wake file (from any of the softwares) is
         self.code      = code      # CST, ACE3P, GdfidL, ECHOz1 ECHOz2, ...
-        self.wake_type = wake_type # DX, DY, QX, QY, LL
-        self.symmetry  = symmetry  # Symmetry of the simulation
+        self.anal_pl   = anal_pl   # dx, dy, db, ll
+        self.symmetry  = symmetry  # Symmetry of the geometry: magxz, magyz, magxzyz, cyllindric,
         self.bunlen    = bunlen    # Bunch Length Used in simulation[m]
         self.cutoff    = cutoff    # multiple of the bunch frequency-spread to calculate impedance
 
@@ -154,29 +159,40 @@ def _load_data_CST(simpar):
 
     return spos, wake
 
-def _load_data_GdfidL(SimulData):
-
-    m      = simpar.m
-    sym    = simpar.sym
-    whaxis = simpar.whichaxis
-    wdir   = simpar.wakepath
-    tardir = simpar.targetdir
+def _load_data_GdfidL(SimulData,silent=True):
+    CHARGE = 1E-12 # I am assuming the charge used in simulation was 1e-12 As
     headerL = 11
-    if wdir.startswith(tardir): cpfile = False
-    else: cpfile = True
+    path     = SimulData.path
+    anal_pl  = SimulData.anal_pl
+    symmetry = SimulData.symmetry
 
+    # list all the files that match the
+    f_regexp = re.compile("\w*W[YXq]{1,2}_AT_XY.[0-9]{4}")
+    f_in_dir = sh.ls().stdout.decode()
+    f_match = f_regexp.findall(f_in_dir)
 
-    with open('Results-Wq_AT_XY.0001') as f:
-        data = f.read()
-    data = [line for line in data.splitlines() if not line.startswith((' #',' %',' $'))]
+    if anal_pl == 'll':
+        if not f_match:
+            if not silent: print('No files found for longitudinal analysis.')
+            raise Exception('No files found for longitudinal analisys')
+        for files in f_match:
+            if files.find('Wq_AT_XY'):
+                with open('Results-Wq_AT_XY.0001') as f:
+                    data = f.read()
+                for line in data.splitlines():
+                    if not line.startswith((' #',' %',' $')):
+                        dados.append(line)
+                    else:
+                        info.append(line)
 
-    spos,Wake = np.loadtxt(data,unpack=True)
-    a = np.arg'min(np.diff(spos))
+    spos,wake = np.loadtxt(data,unpack=True)
+    a = np.argmin(np.diff(spos)) + 1
 
-    sbun = spos[a+1:]
-    bun  = Wake[a+1:]
-    wake = wake[:a+1]
-    spos = spos[:a+1]
+    sbun = spos[a:]
+    bun  = wake[a:]
+    wake = wake[:a]
+    spos = spos[:a]
+    bun *= CHARGE/_np.trapz(bun,x=sbun)
 
 
     if m==0:
@@ -287,14 +303,43 @@ def _load_data_ECHOz1(simpar):
 
     return spos, wake
 
-def load_data(globdata):
+def load_data(SimulData,silent = True):
 
-    spos, wake = codes[dsrc](globdata.simpar)
+    path     = SimulData.path
+    code     = SimulData.code
+    anal_pl  = SimulData.anal_pl
+    symmetry = SimulData.symmetry
 
-    # Assign to Structure:
-    globdata.results.W = wake
-    globdata.results.s = spos
-    return globdata
+    if not silent: print('*'*60 + '\nLoading Simulation Data')
+
+    #Split the path to try to guess other parameters:
+    path_split = SET(path.split(os.path.sep))
+
+    # First try to guess the plane of the analysis if it was not supplied:
+    if not anal_pl:
+        if not silent: print('Plane of Analysis not supplied, trying to guess from path: ', end='')
+        anal_pl_guess = list(ANALYSIS_TYPE & path_split)
+        if not anal_pl_guess:
+            if not silent: print('could not be guessed.')
+            raise Exception('Plane of analysis was not supplied and could not be guessed.')
+        else:
+            anal_pl = anal_pl_guess[0]
+            if not silent: print('ok.')
+    if not silent: print('Plane of analysis: {0:s}\n'.format(anal_pl))
+
+    #Now try to guess the code
+    if not code:
+        if not silent: print('Simulation Code not supplied, trying to guess from path: ', end='')
+        code_guess = list(CODES.keys() & path_split)
+        if not code_guess:
+            if not silent: print('could not be guessed.')
+            raise Exception('Simulation Code was not supplied and could not be guessed.')
+        else:
+            code = code_guess[0]
+            if not silent: print('ok.')
+    if not silent: print('Code: {0:s}\n'.format(code))
+
+    CODES[code](SimulData,silent=silent) # changes in SimulData are made implicitly
 
 def calc_impedance(globdata):
     # Extracts Needed Variables
