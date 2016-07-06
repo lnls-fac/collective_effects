@@ -19,7 +19,7 @@ _si = _sirius.create_ring()
 sigvec   = _np.array([2.65, 5.3, 2.65, 4, 10, 10],dtype=float)*1e-3  # bunch length scenarios
 Ivec     = _np.array([500, 500, 10, 110, 110, 500],dtype=float)*1e-3 # current scenarios
 sigplot  = lambda x:_np.linspace(x,10e-3,num=100)
-WAKE_FILENAME_REGEXP = r"\w*W[YXq]{1}_AT_XY.[0-9]{4}"
+WAKE_FILENAME_REGEXP = r"[\w-]+W[YXq]{1}_AT_XY.[0-9]{4}"
 
 ANALYSIS_TYPES = {'dx', # horizontal impedance
                    'dy', # vertical impedance
@@ -142,7 +142,7 @@ def _load_data_GdfidL(SimulData,silent=True):
 
     def _load_dados_info(filename):
         dados, info = [], []
-        with open(filenmane) as fh:
+        with open(filename) as fh:
             data = fh.read()
         for line in data.splitlines():
             if not line.startswith((' #',' %',' $')):
@@ -186,12 +186,12 @@ def _load_data_GdfidL(SimulData,silent=True):
         spos,wake = _np.loadtxt(dados,unpack=True) # dados is a list of strings
         a = _np.argmin(_np.diff(spos)) + 1
         sbun   = spos[a:]
-        bun    = wake[a:]*charge/_np.trapz(bun,x=sbun) * 1e12 # pC
+        bun    = wake[a:]*charge/_np.trapz(wake[a:],x=sbun) * 1e12 # pC
         wake   = -wake[:a]/charge * 1e-12 # V/pC # minus sign because of convention
         spos   = spos[:a]                # m
         bunlen = -sbun[0]/6            # gdfidl uses a bunch with 6-sigma
         if not silent:
-            print('Bunch length of the driving bunch: {0:7.3g} mm'.format(SimulData.bunlen*1e3))
+            print('Bunch length of the driving bunch: {0:7.3g} mm'.format(bunlen*1e3))
         return spos, wake, sbun, bun, bunlen, xd, yd
 
     def _get_transversal_info(path,filelist,pl='qx'):
