@@ -17,19 +17,31 @@ from mathphys.constants import light_speed as c
 from . import colleff as _colleff
 from . import sirius as _sirius
 
-_jnPth = _os.path.sep.join
 
+## Trought the code I am assuming:
+# s positive means particle behind source -->  Wl, Wt = 0 s < 0
+# Wl(s) = -c/Q * int El(ct-s,t) dt
+# Wx(s) = - int_-inf^s dWl/dx ds'
+# Zl =   int exp(i*w*s) Wl(s) ds
+# Zx = i*int exp(i*w*s) Wx(s) ds
+
+_jnPth = _os.path.sep.join
 _si = _sirius.create_ring()
 
 sigvec   = _np.array([2.65, 5.3, 2.65, 4, 10, 10],dtype=float)*1e-3  # bunch length scenarios
 Ivec     = _np.array([500, 500, 10, 110, 110, 500],dtype=float)*1e-3 # current scenarios
 sigplot  = lambda x:_np.linspace(x,10e-3,num=100)
 
+FNAME_ECHOZ1   = r"wake.dat"
+FNAME_ECHOZ2   = r"wake[LT]{1}.dat"
+FNAME_ECHOZR2D = r"(wakeL_([0-9]{2}).txt)" # the older .dat files are not treated
+FNAME_GDFIDL   = r"[\w-]+W[YXq]{1}_AT_XY.[0-9]{4}"
+
 ANALYSIS_TYPES = {'dx', # horizontal impedance
                   'dy', # vertical impedance
                   'db', # both planes are symmetric
                   'll'  # longitudinal and transverse quadrupolar impedances
-                   }
+                  }
 
 class EMSimulData:
     def __init__(self, path=None, code=None, anal_pl=None):
@@ -159,8 +171,6 @@ def _load_data_CST(simpar):
 
 def _load_data_GdfidL(simul_data,silent=False):
 
-    WAKE_FILENAME_REGEXP = r"[\w-]+W[YXq]{1}_AT_XY.[0-9]{4}"
-
     def _load_dados_info(filename):
         dados, info = [], []
         with open(filename) as fh:
@@ -253,7 +263,7 @@ def _load_data_GdfidL(simul_data,silent=False):
 
     # list all the files that match the name pattern for wakefields
     f_in_dir = _sh.ls(path).stdout.decode()
-    f_match = _re.findall(WAKE_FILENAME_REGEXP,f_in_dir)
+    f_match = _re.findall(FNAME_GDFIDL,f_in_dir)
 
     anal_pl_ori = None
     if anal_pl == 'db':
@@ -299,7 +309,7 @@ def _load_data_GdfidL(simul_data,silent=False):
                     raise Exception('Files not found')
                 # list all the files that match the pattern
                 f_in_dir = _sh.ls(ext_path).stdout.decode()
-                f_match = _re.findall(WAKE_FILENAME_REGEXP,f_in_dir)
+                f_match = _re.findall(FNAME_GDFIDL,f_in_dir)
                 if not f_match:
                     if not silent: print('No files found for transverse analysis.')
                     raise Exception('No files found for transverse analisys')
@@ -373,7 +383,7 @@ def _load_data_ECHOz1(simul_data,silent=False):
 
     if anal_pl=='ll':
         if not silent: print('Loading longitudinal Wake file:',end='')
-        fname = _jnPth([path,'wake.dat'])
+        fname = _jnPth([path,FNAME_ECHOZ1])
         if _os.path.isfile(fname):
             if not silent: print('Data found.')
             loadres = _np.loadtxt(fname, skiprows=0)
@@ -484,63 +494,108 @@ def _load_data_ECHOz2(simul_data,silent=False):
 
 def _load_data_ECHOzR(simul_data,silent=False):
 
-    WAKE_FILENAME_REGEXP = r"(wakeL_([0-9]{2}).txt)" # the older .dat files are not treated
+    _load_data_ECHO_rect(simul_data,'echozr',silent)
 
-    def _load_dados_info(fname,mode, bound_cond):
-        with open(fname) as f:
-            f.readline()
-            a = f.readline()
-        mstep, offset, wid, bunlen = _np.fromstring(a[1:],sep='\t')
-        offset = int(offset)
-        dados = _np.loadtxt(fname,skiprows=3)
-        spos  = dados[:,0]*1e-2  # cm to m
-
-        y0 = y = mstep*offset * 1e-2 # cm to m
-        Kxm = _np.pi/wid*mode * 1e2  # 1/cm to 1/m
-        if bound_cond.startswith('elec'): # minus sign is due to convention
-            Wm  = -dados[:,1+offset]/_np.sinh(Kxm * y0)/_np.sinh(Kxm * y) * 1e-2 * 1e12 # cm*V/pC to m*V/C
-        else: # minus sign is due to convention
-            Wm  = -dados[:,1+offset]/_np.cosh(Kxm * y0)/_np.cosh(Kxm * y) * 1e-2 * 1e12 # cm*V/pC to m*V/C
-        return spos, Wm, mstep*1e-2, wid*1e-2, bunlen*1e-2
+def _load_data_ECHO2D(simul_data,silent=False):
 
     path     = simul_data.path
     anal_pl  = simul_data.anal_pl
 
-    anal_pl_ori = None
+    if not silent: print('Trying to find out the geometry type: ',end='')
+
+    if (os.path.isdir(_jnPth([path,'magn'])) or
+        os.path.isdir(_jnPth([path,'elec']))):
+        geo_type = 'rectangular'
+    elif (os.path.isfile(_jnPth([path,'wakeL_00.txt'])) or
+          os.path.isfile(_jnPth([path,'wakeL_01.txt']))):
+        geo_type = 'round'
+    else:
+        if not silent: print('not ok.\n Could not find out the geometry type.')
+        raise Exception('Could not find out the geometry type.')
+    if not silent: print(geo_type)
+
+    if geo_type == 'rectangular':
+        _load_data_ECHO_rect(simul_data,'echo2d',silent)
+    else:
+        f_in_dir = _sh.ls(pname).stdout.decode()
+        f_match = sorted(_re.findall(FNAME_ECHOZR2D,f_in_dir))
+        if not f_match:
+            if not silent: print('Files not found.')
+            raise Exception('Files not found.')
+
+
+
+def _load_data_ECHO_rect(simul_data,code,silent):
+    def _load_dados(fname,mode, bc, code):
+        if code == 'echozr':
+            len_unit, charge_unit, header = 1e-2, 1e-12, 3 # cm to m, pC to C
+            with open(fname) as f:
+                f.readline()
+                a = f.readline()
+            mstep, offset, wid, bunlen = _np.fromstring(a[1:],sep='\t')
+            offset = int(offset)
+            y0 = y = mstep*offset
+        elif code == 'echo2d':
+            len_unit, charge_unit, header = 1, 1, 5
+            with open(fname) as f:
+                f.readline()
+                mstep, offset = _np.fromstring(f.readline(),sep='\t')
+                f.readline()
+                wid, bunlen   = _np.fromstring(f.readline(),sep='\t')
+            offset = int(offset)
+            y0 = y = mstep*offset
+            offset = 0  # has only one column of wake
+        spos, Wm = _np.loadtxt(fname,skiprows=header,usecols=(0,1+offset),unpack=True)
+        mstep *= len_unit
+        wid   *= len_unit
+        bunlen*= len_unit
+        spos  *= len_unit
+        Wm    *= -len_unit/charge_unit # minus sign is due to convention
+
+        Kxm = _np.pi/wid*mode
+        if bc == 'elec': Wm  /= _np.sinh(Kxm*y0)*_np.sinh(Kxm*y)
+        else:            Wm  /= _np.cosh(Kxm*y0)*_np.cosh(Kxm*y)
+        return spos, Wm, mstep, wid, bunlen
+
+
+    path     = simul_data.path
+    anal_pl  = simul_data.anal_pl
+
     if anal_pl == 'db':
-        if not silent: print('Problem: All geometries simulated with ECHOzR does not have symmetry.')
-        raise Exception('Problem: All geometries simulated with ECHOzR does not have symmetry.')
+        if not silent: print('Problem: All rectangular geometries does not have symmetry.')
+        raise Exception('Problem: All rectangular geometries does not have symmetry.')
 
-    if anal_pl == 'll':
-        if not silent: print('Looking for data files in subfolder magn.')
-        bound_cond = 'magnetic'
-    elif anal_pl in {'dx','dy'}:
-        if not silent: print('Looking for data files in subfolder elec.')
-        bound_cond = 'electric'
+    if anal_pl == 'll':          bc = 'magn'
+    elif anal_pl in {'dx','dy'}: bc = 'elec'
 
-    pname = _jnPth([path,bound_cond[:4]])
+    if not silent: print('Looking for data files in subfolder {0:s}.'.format(bc))
+    pname = _jnPth([path,bc])
     if not _os.path.isdir(pname):
         pname = path
-        if not silent:
-            print('Subfolder not found. It would be better to create the subfolder and put the files there...')
-            print('Looking for files in the current folder:')
+        if code == 'echozr':
+            if not silent:
+                print('Subfolder not found. It would be better to'+
+                      ' create the subfolder and put the files there...')
+                print('Looking for files in the current folder:')
+        elif code == 'echo2d':
+            if not silent: print('Files not found. ')
+            raise Exception('Files not found.')
 
     f_in_dir = _sh.ls(pname).stdout.decode()
-    f_match = sorted(_re.findall(WAKE_FILENAME_REGEXP,f_in_dir))
+    f_match = sorted(_re.findall(FNAME_ECHOZR2D,f_in_dir))
     if not f_match:
-        if not silent: print('Files not found. ',end='')
+        if not silent: print('Files not found.')
         raise Exception('Files not found.')
 
-
     if not silent:
-        print('Files found. I am assuming the simulation was performed '+
-              'with {0:s} boundary condition.'.format(bound_cond))
+        print('Files found.\n I am assuming the simulation was performed '+
+              'with {0:s} boundary condition.'.format('electric' if bc == 'elec' else 'magnetic'))
         print('Modes found: ' + ', '.join([m for _,m in f_match]))
         print('Loading data from files')
 
     spos, W, mode, mesh_size, width, bunlen = [], [], [], [], [], []
     for fn, m in f_match:
-        s, Wm, ms, wid, bl = _load_dados_info(_jnPth([pname,fn]),int(m),bound_cond)
+        s, Wm, ms, wid, bl = _load_dados(_jnPth([pname,fn]),int(m),bc,code)
         mode.append(int(m))
         spos.append(s)
         W.append(Wm)
@@ -551,9 +606,9 @@ def _load_data_ECHOzR(simul_data,silent=False):
     cond = False
     for i in range(1,len(mode)):
         cond |= len(spos[i]) != len(spos[0])
-        cond |= not _np.isclose(mesh_size[i], mesh_size[0], rtol=1e-5,atol=0)
-        cond |= not _np.isclose(width[i], width[0], rtol=0,atol=1e-7)
-        cond |= not _np.isclose(bunlen[i], bunlen[0], rtol=1e-5,atol=0)
+        cond |= not _np.isclose(mesh_size[i], mesh_size[0], rtol=1e-5, atol=0)
+        cond |= not _np.isclose(width[i], width[0], rtol=0, atol=1e-7)
+        cond |= not _np.isclose(bunlen[i], bunlen[0], rtol=1e-5, atol=0)
         if cond:
             message = 'Parameters of file {0:s} differ from {1:s}.'.format(f_match[i][0],f_match[0][0])
             if not silent: print(message)
@@ -585,7 +640,7 @@ def _load_data_ECHOzR(simul_data,silent=False):
             if not silent: print('There is none odd mode to calculate Longitudinal Wake.')
         else:
             if not silent: print('Maximum influence of last mode in the final result is: {0:5.2f}%'.format(frac*100))
-            Wll *= 1/width[0]/2
+            Wll *= 2/width[0]
             simul_data.Wll = Wll
 
         if not silent: print('Calculating Quadrupolar Wake from data:')
@@ -601,8 +656,8 @@ def _load_data_ECHOzR(simul_data,silent=False):
             if not silent: print('There is none odd mode to calculate Quadrupolar Wake.')
         else:
             if not silent: print('Maximum influence of last mode in the final result is: {0:5.2f}%'.format(frac*100))
-            Wq *= 1/width[0]/2
-            Wq  = _scy_int.cumtrapz(Wq,x=spos[0],initial=0)
+            Wq *= 2/width[0]
+            Wq  = -_scy_int.cumtrapz(Wq,x=spos[0],initial=0) # minus sign is due to Panofsky-Wenzel
             simul_data.Wqy =  Wq
             simul_data.Wqx = -Wq
 
@@ -619,27 +674,28 @@ def _load_data_ECHOzR(simul_data,silent=False):
             if not silent: print('There is none even mode to calculate Dipolar Horizontal Wake.')
         else:
             if not silent: print('Maximum influence of last mode in the final result is: {0:5.2f}%'.format(frac*100))
-            Wdx *= 1/width[0]/2
-            Wdx  = _scy_int.cumtrapz(Wdx,x=spos[0],initial=0)
-            simul_data.Wdx = -Wdx
+            Wdx *= 2/width[0]
+            Wdx  = -_scy_int.cumtrapz(Wdx,x=spos[0],initial=0) # minus sign is due to Panofsky-Wenzel
+            simul_data.Wdx = Wdx
 
     elif anal_pl in {'dx','dy'}:
-        if not silent: print('Calculating Dipolar Vertical Wake from data:')
-        Wdy, frac =  None, 1
+        pl = 'Vertical' if anal_pl == 'dy' else 'Horizontal'
+        if not silent: print('Calculating Dipolar {0:s} Wake from data:'.format(pl))
+        Wd, frac =  None, 1
         for i in range(len(mode)):
             Kxm = _np.pi/width[0]*mode[i]
             if mode[i] == 1:
-                Wdy = W[i].copy() * Kxm**2
+                Wd = W[i].copy() * Kxm**2
             elif mode[i] % 2:
-                Wdy += W[i] * Kxm**2 #only odd terms
+                Wd += W[i] * Kxm**2 #only odd terms
                 frac = _np.max(_np.abs(W[i]*Kxm**2/Wdy))
-        if Wdy is None:
-            if not silent: print('There is none even mode to calculate Dipolar Vertical Wake.')
+        if Wd is None:
+            if not silent: print('There is none even mode to calculate Dipolar {0:s} Wake.'.format(pl))
         else:
             if not silent: print('Maximum influence of last mode in the final result is: {0:5.2f}%'.format(frac*100))
-            Wdy *= 1/width[0]/2
-            Wdy  = _scy_int.cumtrapz(Wdy,x=spos[0],initial=0)
-            simul_data.Wdy = -Wdy
+            Wd *= 2/width[0]
+            Wd  = -_scy_int.cumtrapz(Wd,x=spos[0],initial=0) # minus sign is due to Panofsky-Wenzel
+            setattr(simul_data,'W'+anal_pl,Wd)
     else:
         if not silent: print('Plane of analysis {0:s} does not match any of the possible options'.format(anal_pl))
         raise Exception('Plane of analysis {0:s} does not match any of the possible options'.format(anal_pl))
@@ -647,6 +703,7 @@ def _load_data_ECHOzR(simul_data,silent=False):
 
 CODES    = {'echoz1': _load_data_ECHOz1,
             'echoz2': _load_data_ECHOz2,
+            'echo2d': _load_data_ECHO2D,
             'echozr': _load_data_ECHOzR,
             'gdfidl': _load_data_GdfidL,
             'ace3p' : _load_data_ACE3P,
@@ -775,7 +832,8 @@ def plot_short_range_wake(simul_data,silent=False,save_figs=False,pth2sv=None,sh
     for pl,tit,yl in zip(pls,titles,ylabels):
         wake = getattr(simul_data,pl)*1e-12 # V/C -> V/pC
         if wake is None or _np.all(wake==0): continue
-        bunchshape = simul_data.bun * (wake.max()/simul_data.bun.max())
+        max_wake = wake[_np.abs(wake).argmax()]
+        bunchshape = simul_data.bun * (max_wake/simul_data.bun.max())
 
         _plt.figure()
         _plt.plot(sbun*1000,bunchshape,'b',linewidth=2,label='Bunch Shape')
