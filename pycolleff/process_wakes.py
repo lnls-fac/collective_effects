@@ -6,6 +6,7 @@ import sh as _sh
 import gzip as _gzip
 import pickle as _pickle
 import numpy as _np
+from scipy import integrate as _scy_int
 import matplotlib.pyplot as _plt
 from matplotlib import rc as _rc
 _rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
@@ -23,7 +24,6 @@ _si = _sirius.create_ring()
 sigvec   = _np.array([2.65, 5.3, 2.65, 4, 10, 10],dtype=float)*1e-3  # bunch length scenarios
 Ivec     = _np.array([500, 500, 10, 110, 110, 500],dtype=float)*1e-3 # current scenarios
 sigplot  = lambda x:_np.linspace(x,10e-3,num=100)
-WAKE_FILENAME_REGEXP = r"[\w-]+W[YXq]{1}_AT_XY.[0-9]{4}"
 
 ANALYSIS_TYPES = {'dx', # horizontal impedance
                   'dy', # vertical impedance
@@ -159,6 +159,8 @@ def _load_data_CST(simpar):
 
 def _load_data_GdfidL(simul_data,silent=False):
 
+    WAKE_FILENAME_REGEXP = r"[\w-]+W[YXq]{1}_AT_XY.[0-9]{4}"
+
     def _load_dados_info(filename):
         dados, info = [], []
         with open(filename) as fh:
@@ -196,13 +198,14 @@ def _load_data_GdfidL(simul_data,silent=False):
             raise Exception('More than one longitudinal wake file found. It is only allowed 1')
         dados, info = _load_dados_info(_jnPth([path,fn[0]]))
         charge = _get_charge(info)
-        if not silent: print('Charge of the driving bunch: {0:5.3g} pC'.format(charge*1e12))
         xd, yd = _get_integration_path(info)
+        spos,wake = _np.loadtxt(dados,unpack=True) # dados is a list of strings
+        if not silent: print('Charge of the driving bunch: {0:5.3g} pC'.format(charge*1e12))
         if pl == 'll' and (abs(xd) > 1e-10 or abs(yd) > 1e-10) and not silent:
             print('Driving particle not in the origin. Are you sure this is what you want?')
         elif pl !='ll' and abs(xd) < 1e-10 and abs(yd) < 1e-10 and not silent:
             print('The driving bunch is too close to origin. Are you sure this is what you want?')
-        spos,wake = _np.loadtxt(dados,unpack=True) # dados is a list of strings
+
         a = _np.argmin(_np.diff(spos)) + 1
         sbun   = spos[a:]
         bun    = wake[a:]*charge/_np.trapz(wake[a:],x=sbun) # C
@@ -210,7 +213,7 @@ def _load_data_GdfidL(simul_data,silent=False):
         spos   = spos[:a]                # m
         bunlen = -sbun[0]/6            # gdfidl uses a bunch with 6-sigma
         if not silent:
-            print('Bunch length of the driving bunch: {0:7.3g} mm'.format(bunlen*1e3))
+            print('Bunch length of the driving bunch: {0:7.4g} mm'.format(bunlen*1e3))
         return spos, wake, sbun, bun, bunlen, xd, yd
 
     def _get_transversal_info(path,filelist,pl='qx'):
@@ -372,25 +375,39 @@ def _load_data_ECHOz1(simul_data,silent=False):
         if not silent: print('Loading longitudinal Wake file:',end='')
         fname = _jnPth([path,'wake.dat'])
         if _os.path.isfile(fname):
+            if not silent: print('Data found.')
             loadres = _np.loadtxt(fname, skiprows=0)
         else:
-            if not silent: print('Not found')
-            Exception('Longitudinal wake file not found')
+            if not silent: print('Not found.')
+            Exception('Longitudinal wake file not found.')
     else:
         if not silent: print('ECHOz1 only calculates longitudinal wake.')
         raise Exception('ECHOz1 only calculates longitudinal wake.')
 
     simul_data.s = loadres[:,0]/100    # Rescaling cm to m
-    # I know this is correct for ECHO (2015/08/27):
-    simul_data.Wll = -loadres[:,1] *1e12      # V/C/m   the minus sign is due to convention
+    simul_data.Wll = -loadres[:,1] * 1e12 # V/C/m   the minus sign is due to convention
 
     # loading driving bunch info
-    loadres = _np.loadtxt(_jnPth([path,'bunch.dat']), skiprows=0)
-    sbun = loadres[:,1] / 100     # m
-    a = _np.argmin(_np.abs(sbun + sbun[0])) # I want the bunch to be symmetric
-    simul_data.sbun = sbun[:a]
-    simul_data.bun  = loadres[:a,2] # C
-    simul_data.bunlen = abs(sbun[0] + sbun[1])/ 2 / 5 # ECHO uses 5 sigma
+    fname = _jnPth([path,'bunch.dat'])
+    if _os.path.isfile(fname):
+        if not silent: print('Loading bunch length from file bunch.dat')
+        loadres = _np.loadtxt(fname, skiprows=0)
+        sbun = loadres[:,0] / 100     # m
+        a = _np.argmin(_np.abs(sbun + sbun[0])) + 1 # I want the bunch to be symmetric
+        simul_data.sbun = sbun[:a]
+        simul_data.bun  = loadres[:a,1] # C
+        simul_data.bunlen = abs(sbun[0]) / 5 # ECHO uses 5 sigma
+    else:
+        if not silent: print('File bunch.dat not found. Loading bunch length from wake.dat')
+        spos = simul_data.s.copy()
+        ds   = spos[1]-spos[0]
+        sbun = _np.hstack([spos[0]-ds,spos])
+        bunlen = abs(sbun[0]) / 5
+        a    = _np.argmin(_np.abs(sbun + sbun[0])) + 1
+        sbun = sbun[:a]
+        simul_data.bunlen = bunlen
+        simul_data.sbun   = sbun
+        simul_data.bun    = _np.exp(-sbun**2/(2*bunlen**2))/(_np.sqrt(2*_np.pi)*bunlen)
     if not silent:
         print('Bunch length of the driving bunch: {0:7.3g} mm'.format(simul_data.bunlen*1e3))
         print('Data Loaded.')
@@ -410,22 +427,23 @@ def _load_data_ECHOz2(simul_data,silent=False):
         if not silent: print('Loading longitudinal Wake file:',end='')
         fname = _jnPth([path,'wakeL.dat'])
         if os.path.isfile(fname):
+            if not silent: print('Data found.')
             loadres = _np.loadtxt(fname, skiprows=0)
         else:
-            if not silent: print('Not found')
-            Exception('Longitudinal wake file not found')
+            if not silent: print('Not found.')
+            Exception('Longitudinal wake file not found.')
         simul_data.s = loadres[:,0]/100    # Rescaling cm to m
-        # I know this is correct for ECHO (2015/08/27):
-        simul_data.Wll = -loadres[:,1] *1e12 # V/C the minus sign is due to convention
+        simul_data.Wll = -loadres[:,1] * 1e12 # V/C the minus sign is due to convention
 
     elif anal_pl in {'dx','dy'}:
         if not silent: print('Loading Transverse Wake file:',end='')
         fname = _jnPth([path,'wakeT.dat'])
         if _os.path.isfile(fname):
+            if not silent: print('Data found.')
             loadres = _np.loadtxt(fname, skiprows=0)
         else:
-            if not silent: print('Not found')
-            Exception('Longitudinal wake file not found')
+            if not silent: print('Not found.')
+            Exception('Transverse wake file not found.')
         simul_data.s = loadres[:,0]/100    # Rescaling cm to m
         setattr(simul_data, 'W'+anal_pl, loadres[:,1] * 1e12) # V/C/m  the minus sign is due to convention
     else:
@@ -433,12 +451,27 @@ def _load_data_ECHOz2(simul_data,silent=False):
         raise Exception('Plane of analysis {0:s} does not match any of the possible options'.format(anal_pl))
 
     # loading driving bunch info
-    loadres = _np.loadtxt(_jnPth([path,'bunch.dat']), skiprows=0)
-    sbun = loadres[:,1] / 100     # m
-    a = _np.argmin(_np.abs(sbun + sbun[0])) # I want the bunch to be symmetric
-    simul_data.sbun = sbun[:a]
-    simul_data.bun  = loadres[:a,2] # C
-    simul_data.bunlen = abs(sbun[0] + sbun[1])/ 2 / 5 # ECHO uses 5 sigma
+    fname = _jnPth([path,'bunch.dat'])
+    if _os.path.isfile(fname):
+        if not silent: print('Loading bunch length from file bunch.dat')
+        loadres = _np.loadtxt(fname, skiprows=0)
+        sbun = loadres[:,1] / 100     # m
+        a = _np.argmin(_np.abs(sbun + sbun[0])) + 1 # I want the bunch to be symmetric
+        simul_data.sbun = sbun[:a]
+        simul_data.bun  = loadres[:a,2] # C
+        simul_data.bunlen = abs(sbun[0]) / 5 # ECHO uses 5 sigma
+    else:
+        if not silent: print('File bunch.dat not found. Loading bunch length from wakeT.dat')
+        spos = simul_data.s.copy()
+        ds   = spos[1]-spos[0]
+        spos += ds/2
+        sbun = _np.hstack([spos[0]-ds,spos])
+        bunlen = abs(sbun[0]) / 5
+        a    = _np.argmin(_np.abs(sbun + sbun[0])) + 1
+        sbun = sbun[:a]
+        simul_data.bunlen = bunlen
+        simul_data.sbun   = sbun
+        simul_data.bun    = _np.exp(-sbun**2/(2*bunlen**2))/(_np.sqrt(2*_np.pi)*bunlen)
     if not silent:
         print('Bunch length of the driving bunch: {0:7.3g} mm'.format(simul_data.bunlen*1e3))
         print('Data Loaded.')
@@ -449,8 +482,172 @@ def _load_data_ECHOz2(simul_data,silent=False):
                     '{0:s} plane to the {1:s} plane'.format(anal_pl[1].upper(),anal_pl_comp[1].upper()))
         setattr(simul_data, 'W'+anal_pl_comp, getattr(simul_data,'W'+anal_pl).copy())
 
+def _load_data_ECHOzR(simul_data,silent=False):
+
+    WAKE_FILENAME_REGEXP = r"(wakeL_([0-9]{2}).txt)" # the older .dat files are not treated
+
+    def _load_dados_info(fname,mode, bound_cond):
+        with open(fname) as f:
+            f.readline()
+            a = f.readline()
+        mstep, offset, wid, bunlen = _np.fromstring(a[1:],sep='\t')
+        offset = int(offset)
+        dados = _np.loadtxt(fname,skiprows=3)
+        spos  = dados[:,0]*1e-2  # cm to m
+
+        y0 = y = mstep*offset * 1e-2 # cm to m
+        Kxm = _np.pi/wid*mode * 1e2  # 1/cm to 1/m
+        if bound_cond.startswith('elec'): # minus sign is due to convention
+            Wm  = -dados[:,1+offset]/_np.sinh(Kxm * y0)/_np.sinh(Kxm * y) * 1e-2 * 1e12 # cm*V/pC to m*V/C
+        else: # minus sign is due to convention
+            Wm  = -dados[:,1+offset]/_np.cosh(Kxm * y0)/_np.cosh(Kxm * y) * 1e-2 * 1e12 # cm*V/pC to m*V/C
+        return spos, Wm, mstep*1e-2, wid*1e-2, bunlen*1e-2
+
+    path     = simul_data.path
+    anal_pl  = simul_data.anal_pl
+
+    anal_pl_ori = None
+    if anal_pl == 'db':
+        if not silent: print('Problem: All geometries simulated with ECHOzR does not have symmetry.')
+        raise Exception('Problem: All geometries simulated with ECHOzR does not have symmetry.')
+
+    if anal_pl == 'll':
+        if not silent: print('Looking for data files in subfolder magn.')
+        bound_cond = 'magnetic'
+    elif anal_pl in {'dx','dy'}:
+        if not silent: print('Looking for data files in subfolder elec.')
+        bound_cond = 'electric'
+
+    pname = _jnPth([path,bound_cond[:4]])
+    if not _os.path.isdir(pname):
+        pname = path
+        if not silent:
+            print('Subfolder not found. It would be better to create the subfolder and put the files there...')
+            print('Looking for files in the current folder:')
+
+    f_in_dir = _sh.ls(pname).stdout.decode()
+    f_match = sorted(_re.findall(WAKE_FILENAME_REGEXP,f_in_dir))
+    if not f_match:
+        if not silent: print('Files not found. ',end='')
+        raise Exception('Files not found.')
+
+
+    if not silent:
+        print('Files found. I am assuming the simulation was performed '+
+              'with {0:s} boundary condition.'.format(bound_cond))
+        print('Modes found: ' + ', '.join([m for _,m in f_match]))
+        print('Loading data from files')
+
+    spos, W, mode, mesh_size, width, bunlen = [], [], [], [], [], []
+    for fn, m in f_match:
+        s, Wm, ms, wid, bl = _load_dados_info(_jnPth([pname,fn]),int(m),bound_cond)
+        mode.append(int(m))
+        spos.append(s)
+        W.append(Wm)
+        mesh_size.append(ms)
+        width.append(wid)
+        bunlen.append(bl)
+
+    cond = False
+    for i in range(1,len(mode)):
+        cond |= len(spos[i]) != len(spos[0])
+        cond |= not _np.isclose(mesh_size[i], mesh_size[0], rtol=1e-5,atol=0)
+        cond |= not _np.isclose(width[i], width[0], rtol=0,atol=1e-7)
+        cond |= not _np.isclose(bunlen[i], bunlen[0], rtol=1e-5,atol=0)
+        if cond:
+            message = 'Parameters of file {0:s} differ from {1:s}.'.format(f_match[i][0],f_match[0][0])
+            if not silent: print(message)
+            raise Exception(message)
+
+
+    simul_data.s = spos[0]
+    simul_data.bunlen = bunlen[0]
+    a = _np.argmin(_np.abs(spos[0] + spos[0][0])) + 1 # I want the bunch to be symmetric
+    sbun = spos[0][:a]
+    simul_data.sbun = sbun
+    simul_data.bun  =_np.exp(-sbun**2/(2*bunlen[0]**2))/(_np.sqrt(2*_np.pi)*bunlen[0])
+    if not silent:
+        print('Bunch length of the driving bunch: {0:7.4g} mm'.format(simul_data.bunlen*1e3))
+        print('Width of the simulated geometry:   {0:7.4g} mm'.format(width[0]*1e3))
+        print('Mesh step used in the simulation:  {0:7.4g} um'.format(mesh_size[0]*1e6))
+        print('All Data Loaded.')
+
+    if anal_pl=='ll':
+        if not silent: print('Calculating longitudinal Wake from data:')
+        Wll, frac =  None, 1
+        for i in range(len(mode)):
+            if mode[i] == 1:
+                Wll = W[i].copy()
+            elif mode[i] % 2:
+                Wll += W[i] #only odd terms
+                frac = _np.max(_np.abs(W[i]/Wll))
+        if Wll is None:
+            if not silent: print('There is none odd mode to calculate Longitudinal Wake.')
+        else:
+            if not silent: print('Maximum influence of last mode in the final result is: {0:5.2f}%'.format(frac*100))
+            Wll *= 1/width[0]/2
+            simul_data.Wll = Wll
+
+        if not silent: print('Calculating Quadrupolar Wake from data:')
+        Wq, frac =  None, 1
+        for i in range(len(mode)):
+            Kxm = _np.pi/width[0]*mode[i]
+            if mode[i] == 1:
+                Wq = W[i].copy() * Kxm**2
+            elif mode[i] % 2:
+                Wq += W[i] * Kxm**2 #only odd terms
+                frac = _np.max(_np.abs(W[i]*Kxm**2/Wq))
+        if Wq is None:
+            if not silent: print('There is none odd mode to calculate Quadrupolar Wake.')
+        else:
+            if not silent: print('Maximum influence of last mode in the final result is: {0:5.2f}%'.format(frac*100))
+            Wq *= 1/width[0]/2
+            Wq  = _scy_int.cumtrapz(Wq,x=spos[0],initial=0)
+            simul_data.Wqy =  Wq
+            simul_data.Wqx = -Wq
+
+        if not silent: print('Calculating Dipolar Horizontal Wake from data:')
+        Wdx, frac =  None, 1
+        for i in range(len(mode)):
+            Kxm = _np.pi/width[0]*mode[i]
+            if mode[i] == 2:
+                Wdx = W[i].copy() * Kxm**2
+            elif not mode[i] % 2:
+                Wdx += W[i] * Kxm**2 #only even terms
+                frac = _np.max(_np.abs(W[i]*Kxm**2/Wdx))
+        if Wdx is None:
+            if not silent: print('There is none even mode to calculate Dipolar Horizontal Wake.')
+        else:
+            if not silent: print('Maximum influence of last mode in the final result is: {0:5.2f}%'.format(frac*100))
+            Wdx *= 1/width[0]/2
+            Wdx  = _scy_int.cumtrapz(Wdx,x=spos[0],initial=0)
+            simul_data.Wdx = -Wdx
+
+    elif anal_pl in {'dx','dy'}:
+        if not silent: print('Calculating Dipolar Vertical Wake from data:')
+        Wdy, frac =  None, 1
+        for i in range(len(mode)):
+            Kxm = _np.pi/width[0]*mode[i]
+            if mode[i] == 1:
+                Wdy = W[i].copy() * Kxm**2
+            elif mode[i] % 2:
+                Wdy += W[i] * Kxm**2 #only odd terms
+                frac = _np.max(_np.abs(W[i]*Kxm**2/Wdy))
+        if Wdy is None:
+            if not silent: print('There is none even mode to calculate Dipolar Vertical Wake.')
+        else:
+            if not silent: print('Maximum influence of last mode in the final result is: {0:5.2f}%'.format(frac*100))
+            Wdy *= 1/width[0]/2
+            Wdy  = _scy_int.cumtrapz(Wdy,x=spos[0],initial=0)
+            simul_data.Wdy = -Wdy
+    else:
+        if not silent: print('Plane of analysis {0:s} does not match any of the possible options'.format(anal_pl))
+        raise Exception('Plane of analysis {0:s} does not match any of the possible options'.format(anal_pl))
+
+
 CODES    = {'echoz1': _load_data_ECHOz1,
             'echoz2': _load_data_ECHOz2,
+            'echozr': _load_data_ECHOzR,
             'gdfidl': _load_data_GdfidL,
             'ace3p' : _load_data_ACE3P,
             'cst'   : _load_data_CST
@@ -553,85 +750,109 @@ def calc_impedance(simul_data, use_win = True, cutoff = 2, silent = False):
 
     if not silent: print('#'*60 + '\n')
 
-
 def predefined_studies(simul_data,silent=False,save_figs=False):
     raise NotImplementedError('Not implemented Yet')
     # First Plot the short range Wake
 
 def plot_short_range_wake(simul_data,silent=False,save_figs=False,pth2sv=None,show=False):
 
-    #% Tick Position # 0: Plot wakepotential
-    #% Short Range
-    #========= Plot bunch shape =========
-    sbun = simul_data.sbun
-    bunchshape = simul_data.bun * (wake.max()/simul_data.bun.max())
+    pls    = ('Wll','Wdx','Wdy','Wqx','Wqy')
+    titles = ('Longitudinal',
+              'Dipolar Horizontal',
+              'Dipolar Vertical',
+              'Quadrupolar Horizontal',
+              'Quadrupolar Vertical',
+             )
+    ylabels= (r'$W_l$ [V/pC]',
+              r'$W_{{D_x}}$ [V/pC/m]',
+              r'$W_{{D_y}}$ [V/pC/m]',
+              r'$W_{{Q_x}}$ [V/pC/m]',
+              r'$W_{{Q_y}}$ [V/pC/m]')
 
-    _plt.figure(1)
-    _plt.plot(sbun*1000,bunchshape,'b',linewidth=2,label='Bunch Shape')
-    _plt.plot(spos*1000,wake,'r',linewidth=2,label='Wakepotential')
-    _plt.grid(True)
-    _plt.xlabel('s [mm]',fontsize=13)
-    fname = 'ShortRange'
-    if m==0:
-        fname += 'LongitWakePot'
-        _plt.title ('Longitudinal Wakepotential ('+dsrc+')',fontsize=13)
-        _plt.ylabel('W [V]',fontsize=13)
-    elif m==1:
-        fname += wplane+'DipWakePot'
-        _plt.title (wplane+' Dipole Wakepotential ('+dsrc+')',fontsize=13)
-        _plt.ylabel(r'$W_{{D_{0:s}}}$ [V/m]'.format(waxis),fontsize=13)
-    elif m==2:
-        fname += wplane+'QuadWakePot'
-        _plt.title (wplane+' Quadrupole Wakepotential ('+dsrc+')',fontsize=13)
-        _plt.ylabel(r'$W_{{Q_{0:s}}}$ [V/m]'.format(waxis),fontsize=13)
-    _plt.xlim([spos[0]*1000, 7000*sigs])
-    _plt.ylim([wake.min()*1.1, wake.max()*1.1])
-    _plt.legend(loc='best')
-    if salva: _plt.savefig(_jnPth((tardir,fname+'.svg')))
+    sbun = simul_data.sbun
+    sigs = simul_data.bunlen
+    spos = simul_data.s
+    for pl,tit,yl in zip(pls,titles,ylabels):
+        wake = getattr(simul_data,pl)*1e-12 # V/C -> V/pC
+        if wake is None or _np.all(wake==0): continue
+        bunchshape = simul_data.bun * (wake.max()/simul_data.bun.max())
+
+        _plt.figure()
+        _plt.plot(sbun*1000,bunchshape,'b',linewidth=2,label='Bunch Shape')
+        _plt.plot(spos*1000,wake,'r',linewidth=2,label='Wake Potential')
+        _plt.grid(True)
+        _plt.xlabel('s [mm]',fontsize=13)
+        fname = pl+'_ShortRange'
+        _plt.title (tit,fontsize=13)
+        _plt.ylabel(yl,fontsize=13)
+        _plt.xlim([spos[0]*1000, 7000*sigs])
+        _plt.ylim([wake.min()*1.1, wake.max()*1.1])
+        _plt.legend(loc='best')
+        if save_figs: _plt.savefig(_jnPth((pth2sv,fname+'.svg')))
+    if show: _plt.show()
 
 def plot_long_range_wake(simul_data,silent=False,save_figs=False,pth2sv=None,show=False):
-    #===== Long Range =====
-    _plt.figure(2)
-    _plt.plot(spos,wake,'r',linewidth=2)
-    _plt.grid(True)
-    _plt.xlabel('s [m]',fontsize=13)
-    fname = 'LongRange'
-    if m==0:
-        fname += 'LongitWakePot'
-        _plt.title ('Longitudinal Wakepotential ('+dsrc+')',fontsize=13)
-        _plt.ylabel('W [V]',fontsize=13)
-    elif m==1:
-        fname += wplane+'DipWakePot'
-        _plt.title (wplane+' Dipole Wakepotential ('+dsrc+')',fontsize=13)
-        _plt.ylabel(r'$W_{{D_{0:s}}}$ [V/m]'.format(waxis),fontsize=13)
-    elif m==2:
-        fname += wplane+'QuadWakePot'
-        _plt.title (wplane+' Quadrupole Wakepotential ('+dsrc+')',fontsize=13)
-        _plt.ylabel(r'$W_{{Q_{0:s}}}$ [V/m]'.format(waxis),fontsize=13)
-    if salva: _plt.savefig(_jnPth((tardir,fname+'.svg')))
+
+    pls    = ('Wll','Wdx','Wdy','Wqx','Wqy')
+    titles = ('Longitudinal',
+              'Dipolar Horizontal',
+              'Dipolar Vertical',
+              'Quadrupolar Horizontal',
+              'Quadrupolar Vertical',
+             )
+    ylabels= (r'$W_l$ [V/pC]',
+              r'$W_{{D_x}}$ [V/pC/m]',
+              r'$W_{{D_y}}$ [V/pC/m]',
+              r'$W_{{Q_x}}$ [V/pC/m]',
+              r'$W_{{Q_y}}$ [V/pC/m]')
+
+    spos = simul_data.s
+    for pl,tit,yl in zip(pls,titles,ylabels):
+        wake = getattr(simul_data,pl)*1e-12 # V/C -> V/pC
+        if wake is None or _np.all(wake==0): continue
+
+        _plt.figure()
+        _plt.plot(spos*1000,wake,'r',linewidth=2)
+        _plt.grid(True)
+        _plt.xlabel('s [mm]',fontsize=13)
+        _plt.title (tit,fontsize=13)
+        _plt.ylabel(yl,fontsize=13)
+        _plt.ylim([wake.min()*1.1, wake.max()*1.1])
+        fname = pl+'_LongRange'
+        if save_figs: _plt.savefig(_jnPth((pth2sv,fname+'.svg')))
+    if show: _plt.show()
 
 def plot_impedances(simul_data,silent=False,save_figs=False,pth2sv=None,show=False):
-    #=========== Plot Impedance ==========================
-    _plt.figure(3)
-    _plt.plot(f/1e9,rez,'r',linewidth=2,label='Re')
-    _plt.plot(f/1e9,imz,'b--',linewidth=2,label='Im')
-    _plt.xlabel('Frequency [GHz]',fontsize=13)
-    if m==0:
-        fname = 'ImpLongit'
-        _plt.title('Longitudinal Impedance ('+dsrc+')',fontsize=13)
-        _plt.ylabel(r'$Z_{||}$ [$\Omega$]',fontsize=13)
-    elif m==1:
-        fname = 'ImpDip'+wplane
-        _plt.title (wplane+' Dipole Impedance ('+dsrc+')',fontsize=13)
-        _plt.ylabel(r'$Z_{{D_{0:s}}}$ [k$\Omega$/m]'.format(waxis),fontsize=13)
-    elif m==2:
-        fname = 'ImpQuad'+wplane
-        _plt.title (wplane+' Quadrupole Impedance ('+dsrc+')',fontsize=13)
-        _plt.ylabel(r'$Z_{{Q_{0:s}}}$ [k$\Omega$/m]'.format(waxis),fontsize=13)
-    _plt.grid(True)
-    _plt.legend (loc='best')
-    _plt.xlim(_np.array(f[[0,-1]],dtype=float)/1e9)
-    if salva: _plt.savefig(_jnPth((tardir,fname+'.svg')))
+
+    pls    = ('Zll','Zdx','Zdy','Zqx','Zqy')
+    titles = ('Longitudinal',
+              'Dipolar Horizontal',
+              'Dipolar Vertical',
+              'Quadrupolar Horizontal',
+              'Quadrupolar Vertical',
+             )
+    ylabels= (r'$Z_l$ [$\Omega$]',
+              r'$Z_{{D_x}}$ [$\Omega$/m]',
+              r'$Z_{{D_y}}$ [$\Omega$/m]',
+              r'$Z_{{Q_x}}$ [$\Omega$/m]',
+              r'$Z_{{Q_y}}$ [$\Omega$/m]')
+
+    freq = simul_data.freq
+    for pl,tit,yl in zip(pls,titles,ylabels):
+        Z = getattr(simul_data,pl)
+        if Z is None or _np.all(Z==0): continue
+
+        _plt.figure()
+        _plt.plot(freq/1e9,Z.real,'r',linewidth=2,label='Re')
+        _plt.plot(freq/1e9,Z.imag,'b--',linewidth=2,label='Im')
+        _plt.xlabel('Frequency [GHz]',fontsize=13)
+        _plt.grid(True)
+        _plt.title (tit,fontsize=13)
+        _plt.ylabel(yl,fontsize=13)
+        _plt.legend (loc='best')
+        _plt.xlim(_np.array(freq[[0,-1]],dtype=float)/1e9)
+        if save_figs: _plt.savefig(_jnPth((pth2sv,pl+'.svg')))
+    if show: _plt.show()
 
 def calc_plot_losskick_factors(simul_data,silent=False,save_figs=False,pth2sv=None,show=False):
     # Extracts and Initialize Needed Variables:
