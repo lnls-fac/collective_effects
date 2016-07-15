@@ -28,10 +28,6 @@ from . import sirius as _sirius
 _jnPth = _os.path.sep.join
 _si = _sirius.create_ring()
 
-sigvec   = _np.array([2.65, 5.3, 2.65, 4, 10, 10],dtype=float)*1e-3  # bunch length scenarios
-Ivec     = _np.array([500, 500, 10, 110, 110, 500],dtype=float)*1e-3 # current scenarios
-sigplot  = lambda x:_np.linspace(x,10e-3,num=100)
-
 FNAME_ECHOZ1   = r"wake.dat"
 FNAME_ECHOZ2   = r"wake[LT]{1}.dat"
 FNAME_ECHOZR2D = r"(wakeL_([0-9]{2}).txt)" # the older .dat files are not treated
@@ -42,6 +38,26 @@ ANALYSIS_TYPES = {'dx', # horizontal impedance
                   'db', # both planes are symmetric
                   'll'  # longitudinal and transverse quadrupolar impedances
                   }
+
+PLANES  = ('ll','dx','dy','qx','qy')
+TITLES  = {'ll':'Longitudinal',
+           'dx':'Dipolar Horizontal',
+           'dy':'Dipolar Vertical',
+           'qx':'Quadrupolar Horizontal',
+           'qy':'Quadrupolar Vertical',
+          }
+WAKE_YLABELS= {'ll':r'$W_l$ [V/pC]',
+               'dx':r'$W_{{D_x}}$ [V/pC/m]',
+               'dy':r'$W_{{D_y}}$ [V/pC/m]',
+               'qx':r'$W_{{Q_x}}$ [V/pC/m]',
+               'qy':r'$W_{{Q_y}}$ [V/pC/m]'
+              }
+IMPS_YLABELS= {'ll':r'$Z_l$ [$\Omega$]',
+               'dx':r'$Z_{{D_x}}$ [$\Omega$/m]',
+               'dy':r'$Z_{{D_y}}$ [$\Omega$/m]',
+               'qx':r'$Z_{{Q_x}}$ [$\Omega$/m]',
+               'qy':r'$Z_{{Q_y}}$ [$\Omega$/m]'
+              }
 
 class EMSimulData:
     def __init__(self, path=None, code=None, anal_pl=None):
@@ -70,62 +86,40 @@ class EMSimulData:
         self._kckqxW  = None
         self._kckqyW  = None
 
-    def _kfromW(self,wake):
-        T0, sigs, spos = _si.T0, self.bunlen, self.s
-        rhos  = (1/(sigs*_np.sqrt(2*_np.pi)))*_np.exp(-spos**2/(2*sigs**2))
-        kW    = _np.trapz(wake*rhos, x=spos)
-        return kW
-
     def klossW(self):
         if self._klossW: return self._klossW
-        kW = self._kfromW(self.Wll)
+        T0, sigs, spos = _si.T0, self.bunlen, self.s
+        wake = self.Wll
+        if wake is None or _np.all(wake==0): return None
+        rhos  = (1/(sigs*_np.sqrt(2*_np.pi)))*_np.exp(-spos**2/(2*sigs**2))
+        kW    = _np.trapz(wake*rhos, x=spos)
         self._klossW = kW
         return kW
-    def kckdxW(self):
-        if self._kckdxW: return self._kckdxW
-        kW = self._kfromW(self.Wdx)
-        self._kckdxW = kW
-        return kW
-    def kckdyW(self):
-        if self._kckdyW: return self._kckdyW
-        kW = self._kfromW(self.Wdy)
-        self._kckdyW = kW
-        return kW
-    def kckqxW(self):
-        if self._kckqxW: return self._kckqxW
-        kW = self._kfromW(self.Wqx)
-        self._kckqxW = kW
-        return kW
-    def kckqyW(self):
-        if self._kckqyW: return self._kckqyW
-        kW = self._kfromW(self.Wqy)
-        self._kckqyW = kW
-        return kW
-    def klossZ(self,sigma=2.65e-3,n=1):
-        _si.nbun = n
-        klossZ,_ = _si.loss_factor(w = self.freq*2*_np.pi, Zl = self.Zll, sigma=sigma)
-        return klossZ
-    def kckdxZ(self,sigma=2.65e-3,n=1):
-        _si.nbun = n
-        kckZ,_ = _si.kick_factor(w = self.freq*2*_np.pi, Z = self.Zdx, sigma=sigma)
-        return kckZ
-    def kckdyZ(self,sigma=2.65e-3,n=1):
-        _si.nbun = n
-        kckZ,_ = _si.kick_factor(w = self.freq*2*_np.pi, Z = self.Zdy, sigma=sigma)
-        return kckZ
-    def kckqxZ(self,sigma=2.65e-3,n=1):
-        _si.nbun = n
-        kckZ,_ = _si.kick_factor(w = self.freq*2*_np.pi, Z = self.Zqx, sigma=sigma)
-        return kckZ
-    def kckqyZ(self,sigma=2.65e-3,n=1):
-        _si.nbun = n
-        kckZ,_ = _si.kick_factor(w = self.freq*2*_np.pi, Z = self.Zqy, sigma=sigma)
-        return kckZ
-
     def PlossW(self, T0=_si.T0, h=_si.harm_num, Iavg=500e-3):
         kW = self.klossW()
         Ploss = kW * Iavg**2 * T0 * 1e12 / h
         return Ploss
+    def kick_factorW(self,pl='dy'):
+        kick = getattr(self,'_kck'+pl+'W')
+        if kick: return kick
+        T0, sigs, spos = _si.T0, self.bunlen, self.s
+        wake = getattr(self,'W'+pl)
+        if wake is None or _np.all(wake==0): return None
+        rhos  = (1/(sigs*_np.sqrt(2*_np.pi)))*_np.exp(-spos**2/(2*sigs**2))
+        kW    = _np.trapz(wake*rhos, x=spos)
+        setattr(self,'_kck'+pl+'W', kW)
+        return kW
+
+    def klossZ(self,sigma=2.65e-3,n=1):
+        _si.nbun = n
+        klossZ,*_ = _si.loss_factor(w = self.freq*2*_np.pi, Zl = self.Zll, sigma=sigma)
+        return klossZ
+    def kick_factorZ(self,pl='dy',sigma=2.65e-3,n=1):
+        _si.nbun = n
+        Z = getattr(self,'Z'+pl)
+        if Z is None or _np.all(Z==0): return None
+        kckZ,*_ = _si.kick_factor(w = self.freq*2*_np.pi, Z = Z, sigma=sigma)
+        return kckZ
     def PlossZ(self,sigma=2.65e-3,n=1):
         _si.nbun = n
         _,PlossZ,*_ = _si.loss_factor(w = self.freq*2*_np.pi, Zl = self.Zll, sigma=sigma)
@@ -492,39 +486,6 @@ def _load_data_ECHOz2(simul_data,silent=False):
                     '{0:s} plane to the {1:s} plane'.format(anal_pl[1].upper(),anal_pl_comp[1].upper()))
         setattr(simul_data, 'W'+anal_pl_comp, getattr(simul_data,'W'+anal_pl).copy())
 
-def _load_data_ECHOzR(simul_data,silent=False):
-
-    _load_data_ECHO_rect(simul_data,'echozr',silent)
-
-def _load_data_ECHO2D(simul_data,silent=False):
-
-    path     = simul_data.path
-    anal_pl  = simul_data.anal_pl
-
-    if not silent: print('Trying to find out the geometry type: ',end='')
-
-    if (os.path.isdir(_jnPth([path,'magn'])) or
-        os.path.isdir(_jnPth([path,'elec']))):
-        geo_type = 'rectangular'
-    elif (os.path.isfile(_jnPth([path,'wakeL_00.txt'])) or
-          os.path.isfile(_jnPth([path,'wakeL_01.txt']))):
-        geo_type = 'round'
-    else:
-        if not silent: print('not ok.\n Could not find out the geometry type.')
-        raise Exception('Could not find out the geometry type.')
-    if not silent: print(geo_type)
-
-    if geo_type == 'rectangular':
-        _load_data_ECHO_rect(simul_data,'echo2d',silent)
-    else:
-        f_in_dir = _sh.ls(pname).stdout.decode()
-        f_match = sorted(_re.findall(FNAME_ECHOZR2D,f_in_dir))
-        if not f_match:
-            if not silent: print('Files not found.')
-            raise Exception('Files not found.')
-
-
-
 def _load_data_ECHO_rect(simul_data,code,silent):
     def _load_dados(fname,mode, bc, code):
         if code == 'echozr':
@@ -700,6 +661,92 @@ def _load_data_ECHO_rect(simul_data,code,silent):
         if not silent: print('Plane of analysis {0:s} does not match any of the possible options'.format(anal_pl))
         raise Exception('Plane of analysis {0:s} does not match any of the possible options'.format(anal_pl))
 
+def _load_data_ECHOzR(simul_data,silent=False):
+    _load_data_ECHO_rect(simul_data,'echozr',silent)
+
+def _load_data_ECHO2D(simul_data,silent=False):
+
+    path     = simul_data.path
+    anal_pl  = simul_data.anal_pl
+
+    if not silent: print('Trying to find out the geometry type: ',end='')
+
+    if (os.path.isdir(_jnPth([path,'magn'])) or
+        os.path.isdir(_jnPth([path,'elec']))):
+        geo_type = 'rectangular'
+    elif (os.path.isfile(_jnPth([path,'wakeL_00.txt'])) or
+          os.path.isfile(_jnPth([path,'wakeL_01.txt']))):
+        geo_type = 'round'
+    else:
+        if not silent: print('not ok.\n Could not find out the geometry type.')
+        raise Exception('Could not find out the geometry type.')
+    if not silent: print(geo_type)
+
+    if geo_type == 'rectangular':
+        _load_data_ECHO_rect(simul_data,'echo2d',silent)
+    else:
+        anal_pl_ori = None
+        if anal_pl == 'db':
+            anal_pl_ori = 'db'
+            anal_pl     = 'dy'
+            if not silent: print('Even though there is symmetry, I am loading data to the Y plane.')
+
+        if anal_pl=='ll':
+            if not silent: print('Loading longitudinal Wake file:',end='')
+            fname = _jnPth([path,'wakeL_00.dat'])
+            if os.path.isfile(fname):
+                if not silent: print('Data found.')
+                with open(fname) as f:
+                    f.readline()
+                    mstep, offset = _np.fromstring(f.readline(),sep='\t')
+                    f.readline()
+                    _, bunlen   = _np.fromstring(f.readline(),sep='\t')
+                spos, Wm = _np.loadtxt(fname,skiprows=5,unpack=True)
+                simul_data.s = spos
+                simul_data.Wll = -Wm # V/C the minus sign is due to convention
+            else:
+                if not silent: print('Not found.')
+                Exception('Longitudinal wake file not found.')
+
+
+        elif anal_pl in {'dx','dy'}:
+            if not silent: print('Loading Transverse Wake file:',end='')
+            fname = _jnPth([path,'wakeL_01.dat'])
+            if _os.path.isfile(fname):
+                if not silent: print('Data found.')
+                with open(fname) as f:
+                    f.readline()
+                    mstep, offset = _np.fromstring(f.readline(),sep='\t')
+                    f.readline()
+                    _, bunlen   = _np.fromstring(f.readline(),sep='\t')
+                y0 = mstep*(offset+0.5) # transverse wakes are calculated in the middle of the mesh
+                spos, Wm = _np.loadtxt(fname,skiprows=5,unpack=True) # m and V/C/m^2
+                simul_data.s = spos
+                Wdm = -scy_int.cumtrapz(-Wm/y0^2,x=spos,initial=0) # V/C/m the minus sign is due to convention
+                setattr(simul_data, 'W'+anal_pl, Wdm)
+            else:
+                if not silent: print('File not found.')
+                Exception('Transverse wake file not found.')
+        else:
+            if not silent: print('Plane of analysis {0:s} does not match any of the possible options'.format(anal_pl))
+            raise Exception('Plane of analysis {0:s} does not match any of the possible options'.format(anal_pl))
+
+        if anal_pl_ori:
+            anal_pl_comp = 'dx' if anal_pl == 'dy' else 'dy'
+            if not silent: print('There is symmetry. Copying the data from the '+
+                        '{0:s} plane to the {1:s} plane'.format(anal_pl[1].upper(),anal_pl_comp[1].upper()))
+            setattr(simul_data, 'W'+anal_pl_comp, getattr(simul_data,'W'+anal_pl).copy())
+
+        a    = _np.argmin(_np.abs(spos + spos[0])) + 1
+        sbun = spos[:a]
+        simul_data.bunlen = bunlen
+        simul_data.sbun   = sbun
+        simul_data.bun    = _np.exp(-sbun**2/(2*bunlen**2))/(_np.sqrt(2*_np.pi)*bunlen)
+        if not silent:
+            print('Bunch length of the driving bunch: {0:7.3g} mm'.format(simul_data.bunlen*1e3))
+            print('Mesh size used in the simulation:  {0:7.4g} um'.format(mstep*1e6))
+            print('Data Loaded.')
+
 
 CODES    = {'echoz1': _load_data_ECHOz1,
             'echoz2': _load_data_ECHOz2,
@@ -721,30 +768,90 @@ def load_raw_data(simul_data=None,silent = False):
     #Split the path to try to guess other parameters:
     path_split = set(path.lower().split(_os.path.sep))
 
-    # First try to guess the plane of the analysis if it was not supplied:
-    if not anal_pl:
-        if not silent: print('Plane of Analysis not supplied, trying to guess from path: ', end='')
-        anal_pl_guess = list(ANALYSIS_TYPES & path_split)
-        if not anal_pl_guess:
-            if not silent: print('could not be guessed.')
-            raise Exception('Plane of analysis was not supplied and could not be guessed.')
-        else:
-            anal_pl = anal_pl_guess[0]
-    if not silent: print(anal_pl)
-    simul_data.anal_pl = anal_pl
-
-
     #Now try to guess the code
     if not code:
         if not silent: print('Simulation Code not supplied, trying to guess from path: ', end='')
         code_guess = list(CODES.keys() & path_split)
         if not code_guess:
             if not silent: print('could not be guessed.')
-            raise Exception('Simulation Code was not supplied and could not be guessed.')
+            if not silent: print('Trying to guess from files in folder: ', end='')
+            f_mat = None
+            f_in_dir = _sh.ls(path).stdout.decode()
+            if len(_re.findall(FNAME_GDFIDL,f_in_dir)):
+                code = 'gdfidl'
+            elif len(_re.findall(FNAME_ECHOZ1,f_in_dir)):
+                code = 'echoz1'
+            elif len(_re.findall(FNAME_ECHOZ2,f_in_dir)):
+                code = 'echoz2'
+            elif len(_re.findall(FNAME_ECHOZR2D,f_in_dir)):
+                fol = path
+                f_mat = _re.findall(FNAME_ECHOZR2D,f_in_dir)
+            elif _os.path.isdir(_jnPth([path,'elec'])):
+                fol = _jnPth([path,'elec'])
+                f_in_fol = _sh.ls(fol).stdout.decode()
+                f_mat = _re.findall(FNAME_ECHOZR2D,f_in_fol)
+            elif _os.path.isdir(_jnPth([path,'magn'])):
+                fol = _jnPth([path,'magn'])
+                f_in_fol = _sh.ls(fol).stdout.decode()
+                f_mat = _re.findall(FNAME_ECHOZR2D,f_in_fol)
+            else:
+                raise Exception('Simulation Code was not supplied and could not be guessed.')
+            if f_mat and _os.path.isfile(_jnPth([fol,f_mat[0]])):
+                with open(_jnPth([fol,f_mat[0]])) as f:
+                    code = 'echozr' if f.readline().find('[cm]')> 0 else 'echo2d'
+            else:
+                raise Exception('Simulation Code was not supplied and could not be guessed.')
         else:
             code = code_guess[0]
     if not silent: print(code)
     simul_data.code = code
+
+    # First try to guess the plane of the analysis if it was not supplied:
+    if not anal_pl:
+        if not silent: print('Plane of Analysis not supplied, trying to guess from path: ', end='')
+        anal_pl_guess = list(ANALYSIS_TYPES & path_split)
+        if not anal_pl_guess:
+            if not silent: print('could not be guessed.')
+            if not silent: print('Trying to guess from files in folder and code: ', end='')
+            if  code == 'echoz1':
+                anal_pl = 'll'
+            elif code == 'echoz2':
+                anal_pl = 'dy' if _os.path.isfile('wakeT.dat') else 'll'
+            elif code == 'gdfidl':
+                f_mat = _re.findall(r"[\w-]+W([YXq]{2})_AT_XY.[0-9]{4}",f_in_dir)
+                if len(f_mat) > 0:
+                    anal_pl = 'd'+f_mat[0][0].lower()
+                else:
+                    anal_pl = 'll'
+            elif code == 'echozr':
+                if _os.path.isdir(_jnPth([path,'magn'])):
+                    anal_pl = 'll'
+                elif _os.path.isdir(_jnPth([path,'elec'])):
+                    anal_pl = 'dy'
+                elif _os.path.isfile('wakeL_01.txt'):
+                    w = _np.loadtxt('wakeL_01.txt',skiprows=3,usecols=(1),unpack=True)
+                    if _np.all(w==0):
+                        anal_pl = 'dy'
+                    else:
+                        anal_pl = 'll'
+                else:
+                    raise Exception('Plane of analysis was not supplied and could not be guessed.')
+            elif code == 'echo2d':
+                if _os.path.isdir(_jnPth([path,'magn'])):
+                    anal_pl = 'll'
+                elif _os.path.isdir(_jnPth([path,'elec'])):
+                    anal_pl = 'dy'
+                elif _os.path.isfile('wakeL_00.txt'):
+                    anal_pl = 'll'
+                else:
+                    anal_pl = 'dy'
+            else:
+                raise Exception('Plane of analysis was not supplied and could not be guessed.')
+        else:
+            anal_pl = anal_pl_guess[0]
+    if not silent: print(anal_pl)
+    simul_data.anal_pl = anal_pl
+
 
     CODES[code](simul_data,silent=silent) # changes in simul_data are made implicitly
 
@@ -807,97 +914,55 @@ def calc_impedance(simul_data, use_win = True, cutoff = 2, silent = False):
 
     if not silent: print('#'*60 + '\n')
 
-def predefined_studies(simul_data,silent=False,save_figs=False):
-    raise NotImplementedError('Not implemented Yet')
-    # First Plot the short range Wake
-
-def plot_short_range_wake(simul_data,silent=False,save_figs=False,pth2sv=None,show=False):
-
-    pls    = ('Wll','Wdx','Wdy','Wqx','Wqy')
-    titles = ('Longitudinal',
-              'Dipolar Horizontal',
-              'Dipolar Vertical',
-              'Quadrupolar Horizontal',
-              'Quadrupolar Vertical',
-             )
-    ylabels= (r'$W_l$ [V/pC]',
-              r'$W_{{D_x}}$ [V/pC/m]',
-              r'$W_{{D_y}}$ [V/pC/m]',
-              r'$W_{{Q_x}}$ [V/pC/m]',
-              r'$W_{{Q_y}}$ [V/pC/m]')
+def plot_wakes(simul_data,save_figs=False,pth2sv=None,show=False,pls=None):
 
     sbun = simul_data.sbun
     sigs = simul_data.bunlen
     spos = simul_data.s
-    for pl,tit,yl in zip(pls,titles,ylabels):
-        wake = getattr(simul_data,pl)*1e-12 # V/C -> V/pC
+    if pls is None: pls = PLANES
+    for pl in pls:
+        wake = getattr(simul_data,'W'+pl)*1e-12 # V/C -> V/pC
         if wake is None or _np.all(wake==0): continue
         max_wake = wake[_np.abs(wake).argmax()]
         bunchshape = simul_data.bun * (max_wake/simul_data.bun.max())
 
-        _plt.figure()
-        _plt.plot(sbun*1000,bunchshape,'b',linewidth=2,label='Bunch Shape')
-        _plt.plot(spos*1000,wake,'r',linewidth=2,label='Wake Potential')
-        _plt.grid(True)
-        _plt.xlabel('s [mm]',fontsize=13)
-        fname = pl+'_ShortRange'
-        _plt.title (tit,fontsize=13)
-        _plt.ylabel(yl,fontsize=13)
-        _plt.xlim([spos[0]*1000, 7000*sigs])
-        _plt.ylim([wake.min()*1.1, wake.max()*1.1])
-        _plt.legend(loc='best')
-        if save_figs: _plt.savefig(_jnPth((pth2sv,fname+'.svg')))
+        f,axs = _plt.subplots(nrows=1, ncols=2, sharey=True, figsize=(14,6))
+        ax = axs[0]
+        b = ax.get_position()
+        b.x0 = 0.05
+        b.x1 = 0.45
+        ax.set_position(b)
+        ax.plot(sbun*1000,bunchshape,'b',linewidth=2,label='Bunch Shape')
+        ax.plot(spos*1000,wake,'r',linewidth=2,label='Wake Potential')
+        ax.grid(True)
+        ax.set_ylabel(WAKE_YLABELS[pl],fontsize=13)
+        ax.set_xlim([spos[0]*1000, 8000*sigs])
+        ax.set_ylim([wake.min()*1.1, wake.max()*1.1])
+        ax.legend(loc='best')
+
+        ax = axs[1]
+        b = ax.get_position()
+        b.x0 = 0.45
+        b.x1 = 0.95
+        ax.set_position(b)
+        ax.plot(spos*1000,wake,'r',linewidth=2)
+        ax.grid(True)
+        tit = ax.set_title (TITLES[pl],fontsize=13)
+        tit.set_x(0.1)
+        xl  = ax.set_xlabel('s [mm]',fontsize=13)
+        xl.set_x(0.1)
+        ax.set_xlim([8000*sigs,spos[-1]*1000])
+        ax.set_ylim([wake.min()*1.1, wake.max()*1.1])
+
+        if save_figs: f.savefig(_jnPth((pth2sv,pl+'.svg')))
     if show: _plt.show()
 
-def plot_long_range_wake(simul_data,silent=False,save_figs=False,pth2sv=None,show=False):
-
-    pls    = ('Wll','Wdx','Wdy','Wqx','Wqy')
-    titles = ('Longitudinal',
-              'Dipolar Horizontal',
-              'Dipolar Vertical',
-              'Quadrupolar Horizontal',
-              'Quadrupolar Vertical',
-             )
-    ylabels= (r'$W_l$ [V/pC]',
-              r'$W_{{D_x}}$ [V/pC/m]',
-              r'$W_{{D_y}}$ [V/pC/m]',
-              r'$W_{{Q_x}}$ [V/pC/m]',
-              r'$W_{{Q_y}}$ [V/pC/m]')
-
-    spos = simul_data.s
-    for pl,tit,yl in zip(pls,titles,ylabels):
-        wake = getattr(simul_data,pl)*1e-12 # V/C -> V/pC
-        if wake is None or _np.all(wake==0): continue
-
-        _plt.figure()
-        _plt.plot(spos*1000,wake,'r',linewidth=2)
-        _plt.grid(True)
-        _plt.xlabel('s [mm]',fontsize=13)
-        _plt.title (tit,fontsize=13)
-        _plt.ylabel(yl,fontsize=13)
-        _plt.ylim([wake.min()*1.1, wake.max()*1.1])
-        fname = pl+'_LongRange'
-        if save_figs: _plt.savefig(_jnPth((pth2sv,fname+'.svg')))
-    if show: _plt.show()
-
-def plot_impedances(simul_data,silent=False,save_figs=False,pth2sv=None,show=False):
-
-    pls    = ('Zll','Zdx','Zdy','Zqx','Zqy')
-    titles = ('Longitudinal',
-              'Dipolar Horizontal',
-              'Dipolar Vertical',
-              'Quadrupolar Horizontal',
-              'Quadrupolar Vertical',
-             )
-    ylabels= (r'$Z_l$ [$\Omega$]',
-              r'$Z_{{D_x}}$ [$\Omega$/m]',
-              r'$Z_{{D_y}}$ [$\Omega$/m]',
-              r'$Z_{{Q_x}}$ [$\Omega$/m]',
-              r'$Z_{{Q_y}}$ [$\Omega$/m]')
+def plot_impedances(simul_data,save_figs=False,pth2sv=None,show=False,pls=None):
 
     freq = simul_data.freq
-    for pl,tit,yl in zip(pls,titles,ylabels):
-        Z = getattr(simul_data,pl)
+    if pls is None: pls = PLANES
+    for pl in pls:
+        Z = getattr(simul_data,'Z'+pl)
         if Z is None or _np.all(Z==0): continue
 
         _plt.figure()
@@ -905,116 +970,93 @@ def plot_impedances(simul_data,silent=False,save_figs=False,pth2sv=None,show=Fal
         _plt.plot(freq/1e9,Z.imag,'b--',linewidth=2,label='Im')
         _plt.xlabel('Frequency [GHz]',fontsize=13)
         _plt.grid(True)
-        _plt.title (tit,fontsize=13)
-        _plt.ylabel(yl,fontsize=13)
+        _plt.title (TITLES[pl],fontsize=13)
+        _plt.ylabel(IMPS_YLABELS[pl],fontsize=13)
         _plt.legend (loc='best')
-        _plt.xlim(_np.array(freq[[0,-1]],dtype=float)/1e9)
+        _plt.xlim(freq[[0,-1]]/1e9)
         if save_figs: _plt.savefig(_jnPth((pth2sv,pl+'.svg')))
     if show: _plt.show()
 
-def calc_plot_losskick_factors(simul_data,silent=False,save_figs=False,pth2sv=None,show=False):
+def plot_losskick_factors(simul_data,silent=False,save_figs=False,pth2sv=None,show=False,pls=None):
     # Extracts and Initialize Needed Variables:
-    h    = globdata.ringpar.h
-    T0   = 2*_np.pi/globdata.ringpar.omega0
-    Iavg = globdata.ringpar.Iavg
-    sigs = globdata.simpar.bunlen
-
-    wake  = globdata.results.W
-    saxis = globdata.results.s
-    freq  = globdata.results.freq
-    ReZ   = globdata.results.ReZlong
-    # Extracts and Initialize Needed Variables:
-    sigs  = globdata.simpar.bunlen
-    wake  = globdata.results.W
-    saxis = globdata.results.s
-    freq  = globdata.results.freq
-    ImZ   = globdata.results.ImZt
-
-    sigmasq = sigs**2
-    w   = (freq*2*_np.pi)
-    k   = w/c
-    ksq = k**2
-
-    # Calculates klossZ vs. sigma:
-    sigmax = globdata.ringpar.sigmamax
-    sigmin = globdata.simpar.bunlen
-    sigi   = _np.linspace(sigmin,sigmax,num=100)
+    _si.nom_cur = 500e-3
+    sigvec = _np.array([2.65, 5, 8, 10, 15],dtype=float)*1e-3  # bunch length scenarios
+    Ivec   = _np.linspace(10e-3,_si.nom_cur,num=50) # current scenarios
 
 
-    kZi = _np.zeros(sigi.shape[0])
-    for i in range(sigi.shape[0]):
-        rhok   = _np.exp(-ksq*sigi[i]**2)
-        kZi[i] = _np.trapz(ReZ*rhok, x=k) * c / (2*_np.pi) * 1e-12
-    kZ = kZi[0]
+    bunlen = simul_data.bunlen
+    sigi   = _np.linspace(bunlen,18e-3,num=50)
+    fill_pat = _np.array([1,864,864/2,864/4],dtype=int)
+    if pls is None: pls = PLANES
+    pls2 = []
+    for pl in pls:
+        W = getattr(simul_data,'W'+pl)
+        if W is None or _np.all(W==0): continue
+        Z = getattr(simul_data,'Z'+pl)
+        if Z is None or _np.all(Z==0): continue
+        pls2.append(pl)
 
-    sigvec = _np.array([2.65, 5.3, 2.65, 4, 10, 10],dtype=float)*1e-3  # bunch length scenarios
-    Ivec   = _np.array([500, 500, 10, 110, 110, 500],dtype=float)*1e-3 # current scenarios
+    for pl in pls2:
+        if pl == 'll':
+            f,axs = _plt.subplots(nrows=1, ncols=2, figsize=(12,6),gridspec_kw=dict(left=0.08,right=0.97))
+            ax = axs[0]
+            fname = 'loss_factor'
+            for i in range(fill_pat.shape[0]):
+                kZi = _np.zeros(sigi.shape[0])
+                for j in range(sigi.shape[0]):
+                    kZi[j] = simul_data.klossZ(sigma=sigi[j],n=fill_pat[i]) * 1e-12 #V/pC
+                ax.semilogy(sigi * 1e3, kZi * 1e3, 'o',markersize=4,label=r'$n = {0:03d}$'.format(fill_pat[i]))
+                if not i: kZ = kZi[0]
+            # Calculates klossW
+            kW    = simul_data.klossW() * 1e-12
+            # Print loss factor calculated in both ways
+            ax.semilogy(bunlen * 1e3, kW * 1e3, '*',markersize=7,color=[1, 0, 0],label=r'$K_L^W$')
+            ax.set_title('Loss Factor for $n$ equally spaced bunches.')
+            ax.set_xlabel(r'$\sigma$ [mm]')
+            ax.set_ylabel(r'$K_L$ [mV/pC]')
+            ax.legend(loc='best')
+            ax.grid(True)
+            ax.annotate(r'$K_L^W = {0:5.2f}$ mV/pC'.format(kW*1e3),xy=(bunlen*1.1e3, kW*1e3),fontsize=12)
 
-    kZvec = _np.zeros(sigvec.shape[0])
-    for i in range(sigvec.shape[0]):
-        rhok     = _np.exp(-ksq*sigvec[i]**2)
-        kZvec[i] = _np.trapz(ReZ*rhok, x=k) * c / (2*_np.pi) * 1e-12
-    Plossvec = kZvec * Ivec**2 * T0 * 1e12 / h
-
-    # Calculates klossW
-    ss    = saxis**2
-    rhos  = (1/(sigs*_np.sqrt(2*_np.pi)))*_np.exp(-ss/(2*sigs**2))
-    kW    = _np.trapz(wake*rhos, x=saxis)
-    Ploss = kW * Iavg**2 * T0 * 1e12 / h
-
-    # Print loss factor calculated in both ways
-
-    print('klossZ = {0:6.5g} mV/pC'.format(kZ*1000))
-    print('klossW = {0:6.5g} mV/pC'.format(kW*1000))
-    print('Ploss  = {0:6.5g} W     (for {1:5.4g} mA avg current)'.format(Ploss,Iavg*1000))
-
-    rhok  = _np.exp(-ksq*sigs**2)
-    kickZ = _np.trapz(ImZ*rhok,x=k) * c / (2*_np.pi) * 1e-12
-
-    kickZi = _np.zeros(sigi.shape[0])
-    for i in range(sigi.shape[0]):
-        rhok = _np.exp(-ksq*sigi[i]**2)
-        kickZi[i] = _np.trapz(ImZ*rhok,x=k) * c / (2*_np.pi) * 1e-12
-
-    # Calculates kickW:
-    ss = saxis**2
-    rhos = (1/(sigs*_np.sqrt(2*_np.pi)))*_np.exp(-ss/(2*sigmasq))
-    kickW = _np.trapz(wake*rhos, x=saxis)
-
-    # Print kick factor calculated in both ways:
-    print('Kick_Z = {0:6.5g} V/pC/m'.format(kickZ))
-    print('Kick_W = {0:6.5g} V/pC/m'.format(kickW))
-
-
-    #===============Plot Loss/Kick Factor vs. Sigma ======================
-    if m==0:
-        fname = 'LossFactor'
-        _plt.figure(4)
-        _plt.plot(sigi * 1e3, kZi * 1e3, 'o',markersize=2,label=r'$K_L^Z$')
-        _plt.plot(sigs * 1e3, kW * 1e3, '*',markersize=5,linewidth=2,color=[1, 0, 0],label=r'$K_L^W$')
-        _plt.xlabel(r'$\sigma$ [mm]')
-        _plt.ylabel(r'$K_L$ [mV/pC]')
-        _plt.legend(loc='best')
-        _plt.grid(True)
-        _plt.annotate(r'$K_L^W = {0:5.2f}$ mV/pC'.format(kW*1e3),xy=(sigs*1.1e3, kW*1e3),fontsize=12)
-    elif m > 0:
-        fname = 'KickFactor'
-        if m==1:
-            subind = 'D'
+            ax = axs[1]
+            kZvec = _np.zeros(sigvec.shape[0])
+            labels = []
+            for i in range(sigvec.shape[0]):
+                kZvec[i] = simul_data.klossZ(sigma=sigvec[i], n=_si.harm_num) #V/C
+                labels.append(r'$\sigma = {0:05.2f}$ mm'.format(sigvec[i]*1e3))
+            Plossvec = kZvec[None,:] * Ivec[:,None]**2 * _si.T0/_si.harm_num
+            ax.semilogy(Ivec*1e3, Plossvec,markersize=4)
+            ax.set_title('Power Loss for ${0:d}$ equally spaced bunches.'.format(_si.harm_num))
+            ax.set_xlabel(r'$I_{{avg}}$ [mA]')
+            ax.set_ylabel(r'Power [W]')
+            ax.legend(labels,loc='best')
+            ax.grid(True)
         else:
-            subind = 'Q'
-        _plt.figure(4)
-        _plt.plot(sigi * 1e3, kickZi, 'o',markersize=2,label=r"$\kappa_{0:s}^Z$".format(waxis))
-        _plt.plot(sigs * 1e3, kickW, '*',markersize=5,linewidth=2,color=[1, 0, 0],label=r"$\kappa_{0:s}^W$".format(waxis))
-        _plt.xlabel(r'$\sigma$ [mm]',fontsize=13)
-        _plt.ylabel(r'$\kappa_{0:s}$ [V/pC/m]'.format(waxis),fontsize=13)
-        _plt.legend(loc='best')
-        _plt.grid(True)
-        _plt.annotate(r'$\kappa_{0:s}^W = {1:5.2f}$ V/pC/m'.format(waxis,kickW), xy=(sigs * 1.1e3, kickW), fontsize=13)
-    if salva: _plt.savefig(_jnPth((tardir,fname+'.svg')))
-    if mostra: _plt.show()
+            f  = _plt.figure(figsize=(6,6))
+            ax = _plt.axes()
+            fname = 'Kck'+pl
+            for i in range(fill_pat.shape[0]):
+                kZi = _np.zeros(sigi.shape[0])
+                for j in range(sigi.shape[0]):
+                    kZi[j] = simul_data.kick_factorZ(pl=pl,sigma=sigi[j],n=fill_pat[i]) * 1e-12 #V/pC/m
+                ax.plot(sigi*1e3, kZi, 'o',markersize=4,label=r'n = {0:03d}'.format(fill_pat[i]))
+                if not i: kickZ = kZi[0]
+            # Calculates kickW:
+            kickW = simul_data.kick_factorW(pl=pl) * 1e-12
+            # Print loss factor calculated in both ways
+            ax.plot(bunlen*1e3, kickW, '*',markersize=7,color=[1, 0, 0],label=r'$K_{{{0:s}_{1:s}}}^W$'.format(pl[0].upper(),pl[1]))
+            ax.set_title('Kick Factor for $n$ equally spaced bunches.')
+            ax.set_xlabel(r'$\sigma$ [mm]',fontsize=13)
+            ax.set_ylabel(r'$K_{{{0:s}_{1:s}}}$ [V/pC/m]'.format(pl[0].upper(),pl[1]),fontsize=13)
+            ax.legend(loc='best')
+            ax.grid(True)
+            stri = r'$K_{{{0:s}_{1:s}}}^W = {2:5.2f}$ V/pC/m'.format(pl[0].upper(),pl[1],kickW)
+            ax.annotate(stri,xy=(bunlen*1.1e3, kickW),fontsize=13)
+        if save_figs: _plt.savefig(_jnPth((tardir,fname+'.svg')))
+    if show: _plt.show()
 
-show_now = _plt.show
+def show_now():
+    _plt.show()
 
 def save_processed_data(simul_data,silent=False,pth2sv=None):
 
@@ -1037,26 +1079,26 @@ def save_processed_data(simul_data,silent=False,pth2sv=None):
         raise Exception('pth2sv must be a string or None')
 
     #Save wakes
-    for par in ['Wll','Wdx','Wdy','Wqx','Wqy']:
-        unit = 'V/C' if par == 'Wll' else 'V/C/m'
-        header = '{0:30s} {1:30s}'.format('s [m]', '{0:s} [{1:s}]'.format(par,unit))
-        fname = _jnPth([pth2sv,par+'.gz'])
-        wake  = getattr(simul_data,par)
+    for par in PLANES:
+        unit = 'V/C' if par == 'll' else 'V/C/m'
+        header = '{0:30s} {1:30s}'.format('s [m]', 'W{0:s} [{1:s}]'.format(par,unit))
+        fname = _jnPth([pth2sv,'W'+par+'.gz'])
+        wake  = getattr(simul_data,'W'+par)
         if wake is None or _np.all(wake == 0): continue
-        if not silent: print('Saving '+ par + ' data to .gz file')
+        if not silent: print('Saving W'+ par + ' data to .gz file')
         _np.savetxt(fname,_np.array([spos,wake]).transpose(),
                     fmt=['%30.16g','%30.16g'], header=header)
 
     #Save Impedances
-    for par in ['Zll','Zdx','Zdy','Zqx','Zqy']:
-        unit = 'Ohm' if par == 'Zll' else 'Ohm/m'
+    for par in PLANES:
+        unit = 'Ohm' if par == 'll' else 'Ohm/m'
         header = '{0:30s} {1:30s} {2:30s}'.format('Frequency [GHz]',
-                                            'Re{0:s} [{1:s}]'.format(par,unit),
-                                            'Im{0:s} [{1:s}]'.format(par,unit))
-        fname = _jnPth([pth2sv,par+'.gz'])
-        Z  = getattr(simul_data,par)
+                                            'ReZ{0:s} [{1:s}]'.format(par,unit),
+                                            'ImZ{0:s} [{1:s}]'.format(par,unit))
+        fname = _jnPth([pth2sv,'Z'+par+'.gz'])
+        Z  = getattr(simul_data,'Z'+par)
         if Z is None or _np.all(Z == 0): continue
-        if not silent: print('Saving '+ par + ' data to .gz file')
+        if not silent: print('Saving Z'+ par + ' data to .gz file')
         _np.savetxt(fname,_np.array([freq*1e9,Z.real,Z.imag]).transpose(),
                     fmt=['%30.16g','%30.16g','%30.16g'], header=header)
 
