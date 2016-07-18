@@ -27,7 +27,7 @@ from . import sirius as _sirius
 
 _jnPth = _os.path.sep.join
 _si = _sirius.create_ring()
-
+DEFAULT_FNAME_SAVE = 'SimulData.pickle'
 FNAME_ECHOZ1   = r"wake.dat"
 FNAME_ECHOZ2   = r"wake[LT]{1}.dat"
 FNAME_ECHOZR2D = r"(wakeL_([0-9]{2}).txt)" # the older .dat files are not treated
@@ -768,21 +768,19 @@ def load_raw_data(simul_data=None,silent = False):
     #Split the path to try to guess other parameters:
     path_split = set(path.lower().split(_os.path.sep))
 
-    #Now try to guess the code
+    #First try to guess the code used in simulation, if not supplied:
     if not code:
         if not silent: print('Simulation Code not supplied, trying to guess from path: ', end='')
         code_guess = list(CODES.keys() & path_split)
-        if not code_guess:
+        if code_guess:    code = code_guess[0]
+        else:
             if not silent: print('could not be guessed.')
             if not silent: print('Trying to guess from files in folder: ', end='')
             f_mat = None
             f_in_dir = _sh.ls(path).stdout.decode()
-            if len(_re.findall(FNAME_GDFIDL,f_in_dir)):
-                code = 'gdfidl'
-            elif len(_re.findall(FNAME_ECHOZ1,f_in_dir)):
-                code = 'echoz1'
-            elif len(_re.findall(FNAME_ECHOZ2,f_in_dir)):
-                code = 'echoz2'
+            if len(_re.findall(FNAME_GDFIDL,f_in_dir)):     code = 'gdfidl'
+            elif len(_re.findall(FNAME_ECHOZ1,f_in_dir)):   code = 'echoz1'
+            elif len(_re.findall(FNAME_ECHOZ2,f_in_dir)):   code = 'echoz2'
             elif len(_re.findall(FNAME_ECHOZR2D,f_in_dir)):
                 fol = path
                 f_mat = _re.findall(FNAME_ECHOZR2D,f_in_dir)
@@ -794,61 +792,42 @@ def load_raw_data(simul_data=None,silent = False):
                 fol = _jnPth([path,'magn'])
                 f_in_fol = _sh.ls(fol).stdout.decode()
                 f_mat = _re.findall(FNAME_ECHOZR2D,f_in_fol)
-            else:
-                raise Exception('Simulation Code was not supplied and could not be guessed.')
+            else:   raise Exception('Simulation Code was not supplied and could not be guessed.')
             if f_mat and _os.path.isfile(_jnPth([fol,f_mat[0]])):
                 with open(_jnPth([fol,f_mat[0]])) as f:
                     code = 'echozr' if f.readline().find('[cm]')> 0 else 'echo2d'
-            else:
-                raise Exception('Simulation Code was not supplied and could not be guessed.')
-        else:
-            code = code_guess[0]
+            else:  raise Exception('Simulation Code was not supplied and could not be guessed.')
     if not silent: print(code)
     simul_data.code = code
 
-    # First try to guess the plane of the analysis if it was not supplied:
+    # Now try to guess the plane of the analysis:
     if not anal_pl:
         if not silent: print('Plane of Analysis not supplied, trying to guess from path: ', end='')
         anal_pl_guess = list(ANALYSIS_TYPES & path_split)
-        if not anal_pl_guess:
+        if anal_pl_guess:    anal_pl = anal_pl_guess[0]
+        else:
             if not silent: print('could not be guessed.')
             if not silent: print('Trying to guess from files in folder and code: ', end='')
-            if  code == 'echoz1':
-                anal_pl = 'll'
-            elif code == 'echoz2':
-                anal_pl = 'dy' if _os.path.isfile('wakeT.dat') else 'll'
+            if  code == 'echoz1':   anal_pl = 'll'
+            elif code == 'echoz2':  anal_pl = 'dy' if _os.path.isfile('wakeT.dat') else 'll'
             elif code == 'gdfidl':
                 f_mat = _re.findall(r"[\w-]+W([YXq]{2})_AT_XY.[0-9]{4}",f_in_dir)
-                if len(f_mat) > 0:
-                    anal_pl = 'd'+f_mat[0][0].lower()
-                else:
-                    anal_pl = 'll'
+                if len(f_mat) > 0:  anal_pl = 'd'+f_mat[0][0].lower()
+                else:               anal_pl = 'll'
             elif code == 'echozr':
-                if _os.path.isdir(_jnPth([path,'magn'])):
-                    anal_pl = 'll'
-                elif _os.path.isdir(_jnPth([path,'elec'])):
-                    anal_pl = 'dy'
+                if _os.path.isdir(_jnPth([path,'magn'])):    anal_pl = 'll'
+                elif _os.path.isdir(_jnPth([path,'elec'])):  anal_pl = 'dy'
                 elif _os.path.isfile('wakeL_01.txt'):
                     w = _np.loadtxt('wakeL_01.txt',skiprows=3,usecols=(1),unpack=True)
-                    if _np.all(w==0):
-                        anal_pl = 'dy'
-                    else:
-                        anal_pl = 'll'
-                else:
-                    raise Exception('Plane of analysis was not supplied and could not be guessed.')
+                    if _np.all(w==0):  anal_pl = 'dy'
+                    else:              anal_pl = 'll'
+                else:  raise Exception('Plane of analysis was not supplied and could not be guessed.')
             elif code == 'echo2d':
-                if _os.path.isdir(_jnPth([path,'magn'])):
-                    anal_pl = 'll'
-                elif _os.path.isdir(_jnPth([path,'elec'])):
-                    anal_pl = 'dy'
-                elif _os.path.isfile('wakeL_00.txt'):
-                    anal_pl = 'll'
-                else:
-                    anal_pl = 'dy'
-            else:
-                raise Exception('Plane of analysis was not supplied and could not be guessed.')
-        else:
-            anal_pl = anal_pl_guess[0]
+                if _os.path.isdir(_jnPth([path,'magn'])):     anal_pl = 'll'
+                elif _os.path.isdir(_jnPth([path,'elec'])):   anal_pl = 'dy'
+                elif _os.path.isfile('wakeL_00.txt'):         anal_pl = 'll'
+                else:                                         anal_pl = 'dy'
+            else:    raise Exception('Plane of analysis was not supplied and could not be guessed.')
     if not silent: print(anal_pl)
     simul_data.anal_pl = anal_pl
 
@@ -929,8 +908,7 @@ def plot_wakes(simul_data,save_figs=False,pth2sv=None,show=False,pls=None):
         f,axs = _plt.subplots(nrows=1, ncols=2, sharey=True, figsize=(14,6))
         ax = axs[0]
         b = ax.get_position()
-        b.x0 = 0.05
-        b.x1 = 0.45
+        b.x0, b.x1 = 0.05, 0.45
         ax.set_position(b)
         ax.plot(sbun*1000,bunchshape,'b',linewidth=2,label='Bunch Shape')
         ax.plot(spos*1000,wake,'r',linewidth=2,label='Wake Potential')
@@ -942,19 +920,18 @@ def plot_wakes(simul_data,save_figs=False,pth2sv=None,show=False,pls=None):
 
         ax = axs[1]
         b = ax.get_position()
-        b.x0 = 0.45
-        b.x1 = 0.95
+        b.x0, b.x1 = 0.45, 0.95
         ax.set_position(b)
         ax.plot(spos*1000,wake,'r',linewidth=2)
         ax.grid(True)
-        tit = ax.set_title (TITLES[pl],fontsize=13)
+        tit = ax.set_title(TITLES[pl],fontsize=13)
         tit.set_x(0.1)
         xl  = ax.set_xlabel('s [mm]',fontsize=13)
         xl.set_x(0.1)
         ax.set_xlim([8000*sigs,spos[-1]*1000])
         ax.set_ylim([wake.min()*1.1, wake.max()*1.1])
 
-        if save_figs: f.savefig(_jnPth((pth2sv,pl+'.svg')))
+        if save_figs: f.savefig(_jnPth((pth2sv,'W'+pl+'.svg')))
     if show: _plt.show()
 
 def plot_impedances(simul_data,save_figs=False,pth2sv=None,show=False,pls=None):
@@ -974,10 +951,10 @@ def plot_impedances(simul_data,save_figs=False,pth2sv=None,show=False,pls=None):
         _plt.ylabel(IMPS_YLABELS[pl],fontsize=13)
         _plt.legend (loc='best')
         _plt.xlim(freq[[0,-1]]/1e9)
-        if save_figs: _plt.savefig(_jnPth((pth2sv,pl+'.svg')))
+        if save_figs: _plt.savefig(_jnPth((pth2sv,'Z'+pl+'.svg')))
     if show: _plt.show()
 
-def plot_losskick_factors(simul_data,silent=False,save_figs=False,pth2sv=None,show=False,pls=None):
+def plot_losskick_factors(simul_data,save_figs=False,pth2sv=None,show=False,pls=None):
     # Extracts and Initialize Needed Variables:
     _si.nom_cur = 500e-3
     sigvec = _np.array([2.65, 5, 8, 10, 15],dtype=float)*1e-3  # bunch length scenarios
@@ -1000,7 +977,7 @@ def plot_losskick_factors(simul_data,silent=False,save_figs=False,pth2sv=None,sh
         if pl == 'll':
             f,axs = _plt.subplots(nrows=1, ncols=2, figsize=(12,6),gridspec_kw=dict(left=0.08,right=0.97))
             ax = axs[0]
-            fname = 'loss_factor'
+            fname = 'Loss_factor'
             for i in range(fill_pat.shape[0]):
                 kZi = _np.zeros(sigi.shape[0])
                 for j in range(sigi.shape[0]):
@@ -1034,7 +1011,7 @@ def plot_losskick_factors(simul_data,silent=False,save_figs=False,pth2sv=None,sh
         else:
             f  = _plt.figure(figsize=(6,6))
             ax = _plt.axes()
-            fname = 'Kck'+pl
+            fname = 'Kck'+pl+'_factor'
             for i in range(fill_pat.shape[0]):
                 kZi = _np.zeros(sigi.shape[0])
                 for j in range(sigi.shape[0]):
@@ -1052,7 +1029,7 @@ def plot_losskick_factors(simul_data,silent=False,save_figs=False,pth2sv=None,sh
             ax.grid(True)
             stri = r'$K_{{{0:s}_{1:s}}}^W = {2:5.2f}$ V/pC/m'.format(pl[0].upper(),pl[1],kickW)
             ax.annotate(stri,xy=(bunlen*1.1e3, kickW),fontsize=13)
-        if save_figs: _plt.savefig(_jnPth((tardir,fname+'.svg')))
+        if save_figs: _plt.savefig(_jnPth((pth2sv,fname+'.svg')))
     if show: _plt.show()
 
 def show_now():
@@ -1103,7 +1080,7 @@ def save_processed_data(simul_data,silent=False,pth2sv=None):
                     fmt=['%30.16g','%30.16g','%30.16g'], header=header)
 
     if not silent: print('Saving the Complete EMSimulData structure to a .pickle file.')
-    with _gzip.open(_jnPth((pth2sv,'SimulData.pickle')), 'wb') as f:
+    with _gzip.open(_jnPth((pth2sv,DEFAULT_FNAME_SAVE)), 'wb') as f:
         _pickle.dump(simul_data,f,_pickle.HIGHEST_PROTOCOL)
 
     if not silent: print('All Data Saved\n' + '#'*60)
@@ -1113,59 +1090,24 @@ def load_processed_data(filename):
         simul_data = _pickle.load(fh)
     return simul_data
 
-def analysis_example():
+def create_make_fig_file(path = None):
+    if path is None: path = os.path.abspath('.')
+    fname = _jnPth([path,'create_figs.py'])
+    analysis = '''#!/usr/bin/env python3
 
-    analysis = '''
-    #!/usr/bin/env python3
+import os
+import pycolleff.process_wakes as ems
 
-    import optparse
-    import os
-    import pycolleff.process_wakes as proc_wake
+opts = dict(save_figs=False,show=False)
+path = os.path.abspath(__file__).rpartition(os.path.sep)[0]
+file_name = os.path.sep.join([path,'{0:s}'])
+simul_data = ems.load_processed_data(file_name)
+ems.plot_wakes(simul_data,**opts)
+ems.plot_impedances(simul_data,**opts)
+ems.plot_losskick_factors(simul_data,**opts)
+ems.show_now()
+'''.format(DEFAULT_FNAME_SAVE)
 
-    def main(pth2sv='analysis',silent = False):
-        simul_data = proc_wake.EMSimulData()
-        proc_wake.load_raw_data(simul_data,silent=False)
-        proc_wake.calc_impedance(simul_data,silent=False)
-        proc_wake.save_processed_data(simul_data,silent=False,pth2sv=pth2sv)
-        return simul_data
-
-    if __name__ == '__main__':
-
-        # configuration of the parser for the arguments
-        parser = optparse.OptionParser()
-        parser.add_option('-p','--noplot',dest='plot',action='store_true',
-                          help="Show results", default=False)
-        parser.add_option('-s','--silent',dest='silent',action='store_true',
-                  help="Print progress", default=False)
-        parser.add_option('-c','--calc',dest='calc',action='store_true',
-                          help="Calculate results", default=False)
-        parser.add_option('--pth2sv',dest='pth2sv',type='str',
-                          help="Path to save the data. Relative to the current folder",
-                          default = 'analysis')
-        (opts, _) = parser.parse_args()
-
-        plot = not opts.plot
-        silent = opts.silent
-        pth2sv = opts.pth2sv
-        file_name = os.path.sep.join([os.path.abspath('.'),
-                                      pth2sv,'SimulData.pickle'])
-
-        if opts.calc:
-            simul_data = main(pth2sv = pth2sv, silent=silent)
-            salva = True
-        else:
-            simul_data = proc_wake.load_processed_data(file_name)
-            salva = False
-
-        proc_wake.plot_short_range_wake(simul_data,silent=silent,
-                                    save_figs=salva,pth2sv=pth2sv,show=False)
-        proc_wake.plot_long_range_wake(simul_data,silent=silent,
-                                    save_figs=salva,pth2sv=pth2sv,show=False)
-        proc_wake.plot_impedances(simul_data,silent=silent,
-                                save_figs=salva,pth2sv=pth2sv,show=False)
-        proc_wake.calc_plot_losskick_factors(simul_data,silent=silent,
-                                    save_figs=salva,pth2sv=pth2sv,show=False)
-        proc.show_now()
-    '''
-    print(analysis)
-    return None
+    with open(fname,'w') as f:
+        f.writelines(analysis)
+    _sh.chmod('+x',fname)
