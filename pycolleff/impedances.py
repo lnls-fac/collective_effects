@@ -11,20 +11,20 @@ _ep0 = _mp.constants.vacuum_permitticity
 _Z0  = _mp.constants.vacuum_impedance
 E0   = _mp.constants.electron_rest_energy * _mp.units.joule_2_eV
 
-_IMPS  = {'Zl','Zdv','Zdh','Zqv','Zqh'}
-_WAKES = {'Wl','Wdv','Wdh','Wqv','Wqh'}
-_TITLE = {'Zl':'Longitudinal Impedance',
-          'Zdv':'Driving Vertical Impedance',
-          'Zdh':'Driving Horizontal Impedance',
-          'Zqv':'Detuning Vertical Impedance',
-          'Zqh':'Detuning Horizontal Impedance'}
-_FACTOR ={'Zl':1, 'Zdv':1e-3, 'Zdh':1e-3, 'Zqv':1e-3, 'Zqh':1e-3,
-          'Wl':1e-3, 'Wdv':1e-6, 'Wdh':1e-6, 'Wqv':1e-6, 'Wqh':1e-6}
-_BETA   ={'Zl' :lambda x:1,
-          'Zdv':lambda x:x.betay,
-          'Zdh':lambda x:x.betax,
-          'Zqv':lambda x:x.betay,
-          'Zqh':lambda x:x.betax}
+_IMPS  = {'Zll','Zdy','Zdx','Zqy','Zqx'}
+_WAKES = {'Wll','Wdy','Wdx','Wqy','Wqx'}
+_TITLE = {'Zll':'Longitudinal Impedance',
+          'Zdy':'Driving Vertical Impedance',
+          'Zdx':'Driving Horizontal Impedance',
+          'Zqy':'Detuning Vertical Impedance',
+          'Zqx':'Detuning Horizontal Impedance'}
+_FACTOR ={'Zll':1, 'Zdy':1e-3, 'Zdx':1e-3, 'Zqy':1e-3, 'Zqx':1e-3,
+          'Wll':1e-3, 'Wdy':1e-6, 'Wdx':1e-6, 'Wqy':1e-6, 'Wqx':1e-6}
+_BETA   ={'Zll' :lambda x:1,
+          'Zdy':lambda x:x.betay,
+          'Zdx':lambda x:x.betax,
+          'Zqy':lambda x:x.betay,
+          'Zqx':lambda x:x.betax}
 
 def _plotlog(x, y, color=None, label=None, ax=None,linewidth=1.5):
     if ax is None: ax = _plt.gca()
@@ -55,30 +55,30 @@ def _prepare_props(props):
 class Element:
 
     _YLABEL ={'Zl' :r'$Z_l [\Omega]$',
-              'Zdv':r'$Z_y^d [k\Omega/m]$',
-              'Zdh':r'$Z_x^d [k\Omega/m]$',
-              'Zqv':r'$Z_y^q [k\Omega/m]$',
-              'Zqh':r'$Z_x^q [k\Omega/m]$'}
+              'Zdy':r'$Z_y^D [k\Omega/m]$',
+              'Zdx':r'$Z_x^D [k\Omega/m]$',
+              'Zqy':r'$Z_y^Q [k\Omega/m]$',
+              'Zqx':r'$Z_x^Q [k\Omega/m]$'}
 
     def __init__(self,name=None, path=None, betax=None,betay=None,quantity=None):
         self.name     = name or 'element'
         if path is not None: path = _os.path.abspath(path)
-        self.path     = path or _os.path.abspath(_os.path.curdir)
+        self.path     = path or _os.path.abspath('.')
         self.quantity = quantity or 0 # this field shall only be used in Budget
         self.betax    = betax or 0.0  # this field shall only be used in Budget
         self.betay    = betay or 0.0  # this field shall only be used in Budget
         self.w        = _np.array([],dtype=float)
-        self.Zl       = _np.array([],dtype=complex)
-        self.Zdv      = _np.array([],dtype=complex)
-        self.Zdh      = _np.array([],dtype=complex)
-        self.Zqv      = _np.array([],dtype=complex)
-        self.Zqh      = _np.array([],dtype=complex)
-        self.z        = _np.array([],dtype=float)
-        self.Wl       = _np.array([],dtype=float)
-        self.Wdv      = _np.array([],dtype=float)
-        self.Wdh      = _np.array([],dtype=float)
-        self.Wqv      = _np.array([],dtype=float)
-        self.Wqh      = _np.array([],dtype=float)
+        self.Zll      = _np.array([],dtype=complex)
+        self.Zdy      = _np.array([],dtype=complex)
+        self.Zdx      = _np.array([],dtype=complex)
+        self.Zqy      = _np.array([],dtype=complex)
+        self.Zqx      = _np.array([],dtype=complex)
+        self.s        = _np.array([],dtype=float)
+        self.Wll      = _np.array([],dtype=float)
+        self.Wdy      = _np.array([],dtype=float)
+        self.Wdx      = _np.array([],dtype=float)
+        self.Wqy      = _np.array([],dtype=float)
+        self.Wqx      = _np.array([],dtype=float)
 
     def save(self):
         name = self.name.replace(' ','_').lower()
@@ -116,11 +116,11 @@ class Element:
 
 class Budget(list):
 
-    _YLABEL ={'Zl' :r'$Z_l [\Omega]$',
-              'Zdv':r'$\beta_yZ_y^d [k\Omega]$',
-              'Zdh':r'$\beta_xZ_x^d [k\Omega]$',
-              'Zqv':r'$\beta_yZ_y^q [k\Omega]$',
-              'Zqh':r'$\beta_xZ_x^q [k\Omega]$'}
+    _YLABEL ={'Zll':r'$Z_l [\Omega]$',
+              'Zdy':r'$\beta_yZ_y^D [k\Omega]$',
+              'Zdx':r'$\beta_xZ_x^D [k\Omega]$',
+              'Zqy':r'$\beta_yZ_y^Q [k\Omega]$',
+              'Zqx':r'$\beta_xZ_x^Q [k\Omega]$'}
 
     def __init__(self, lista=None, name=None, path = None):
         lista = lista or []
@@ -129,7 +129,7 @@ class Budget(list):
         super().__init__(lista)
         self.name = name or 'Budget'
         if path is not None: path = _os.path.abspath(path)
-        self.path = path or _os.path.abspath(_os.path.curdir)
+        self.path = path or _os.path.abspath('.')
 
     def __setitem__(self,k,v):
         assert isinstance(v,Element)
@@ -142,7 +142,7 @@ class Budget(list):
             raise AttributeError('Attribute '+name+' is read only.')
 
     def __getattr__(self,name):
-        if name not in _IMPS | _WAKES | {'w','z'}:
+        if name not in _IMPS | _WAKES | {'w','s'}:
             return [getattr(x,name) for x in self]
 
         w = _np.unique(_np.concatenate([getattr(x,'w') for x in self]))
@@ -156,14 +156,14 @@ class Budget(list):
                 temp +=    _np.interp(w,el.w,attr.real,left=0.0,right=0.0)*el.quantity*_BETA[name](el)
             return temp
 
-        z = _np.unique(_np.concatenate([getattr(x,'z') for x in self]))
-        if name == 'z': return z
+        s = _np.unique(_np.concatenate([getattr(x,'s') for x in self]))
+        if name == 's': return s
         if name in _WAKES:
-            temp = _np.zeros(z.shape,dtype=float)
+            temp = _np.zeros(s.shape,dtype=float)
             for el in self:
                 attr = getattr(el,name)
                 if attr is None or len(attr) == 0: continue
-                temp += _np.interp(z,el.z,attr,left=0.0,right=0.0)*el.quantity*_BETA[name](el)
+                temp += _np.interp(s,el.s,attr,left=0.0,right=0.0)*el.quantity*_BETA[name](el)
             return temp
         raise AttributeError("'"+self.__class__.__name__+ "' object has no attribute '"+name+"'" )
 
@@ -177,7 +177,7 @@ class Budget(list):
 
     def budget2element(self,name=None,path=None):
         ele = Element(name=name,path=path)
-        for prop in _IMPS | _WAKES | {'w','z'}:
+        for prop in _IMPS | _WAKES | {'w','s'}:
             Imp2 = getattr(self,prop)
             if not _np.isclose(Imp2,0).all():
                 setattr(ele,prop,Imp2.copy())
@@ -561,6 +561,19 @@ def kicker_tsutsui_model(w, epr, mur, a, b, d, L, n):
     Zh = Zh.sum(0)
 
     return Zl.conj(), Zh.conj(), Zv.conj() # impedance convention
+
+def yokoya_factors(plane='ll'):
+    if plane == 'll':
+        return 1
+    elif plane == 'dy':
+        return _np.pi**2/12
+    elif plane in {'qy','dx'}:
+        return _np.pi**2/24
+    elif plane == 'qx':
+        return -_np.pi**2/24
+    else:
+        raise Exception("Plane not identified. Possible options: 'll','dy','dx','qy','qx' ")
+
 
 def taper(w,R1,R2,L1,L2):
     '''

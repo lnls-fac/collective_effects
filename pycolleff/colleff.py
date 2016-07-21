@@ -160,7 +160,7 @@ class Ring:
 
         return Kick_f, Tush, Zt_eff
 
-    def _prepare_input_impedance(self, budget,element,w,Z,imp='Zl'):
+    def _prepare_input_impedance(self, budget,element,w,Z,imp='Zll'):
         if budget is not None:
             return budget.w, getattr(budget,imp)
         elif element is not None:

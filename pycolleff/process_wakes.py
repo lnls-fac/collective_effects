@@ -383,7 +383,7 @@ def _load_data_ECHOz1(simul_data,silent=False):
             loadres = _np.loadtxt(fname, skiprows=0)
         else:
             if not silent: print('Not found.')
-            Exception('Longitudinal wake file not found.')
+            raise Exception('Longitudinal wake file not found.')
     else:
         if not silent: print('ECHOz1 only calculates longitudinal wake.')
         raise Exception('ECHOz1 only calculates longitudinal wake.')
@@ -392,28 +392,17 @@ def _load_data_ECHOz1(simul_data,silent=False):
     simul_data.Wll = -loadres[:,1] * 1e12 # V/C/m   the minus sign is due to convention
 
     # loading driving bunch info
-    fname = _jnPth([path,'bunch.dat'])
-    if _os.path.isfile(fname):
-        if not silent: print('Loading bunch length from file bunch.dat')
-        loadres = _np.loadtxt(fname, skiprows=0)
-        sbun = loadres[:,0] / 100     # m
-        a = _np.argmin(_np.abs(sbun + sbun[0])) + 1 # I want the bunch to be symmetric
-        simul_data.sbun = sbun[:a]
-        simul_data.bun  = loadres[:a,1] # C
-        simul_data.bunlen = abs(sbun[0]) / 5 # ECHO uses 5 sigma
-    else:
-        if not silent: print('File bunch.dat not found. Loading bunch length from wake.dat')
-        spos = simul_data.s.copy()
-        ds   = spos[1]-spos[0]
-        sbun = _np.hstack([spos[0]-ds,spos])
-        bunlen = abs(sbun[0]) / 5
-        a    = _np.argmin(_np.abs(sbun + sbun[0])) + 1
-        sbun = sbun[:a]
-        simul_data.bunlen = bunlen
-        simul_data.sbun   = sbun
-        simul_data.bun    = _np.exp(-sbun**2/(2*bunlen**2))/(_np.sqrt(2*_np.pi)*bunlen)
+    if not silent: print('Loading bunch length from wake.dat')
+    sbun = simul_data.s.copy()
+    ds   = sbun[1]-sbun[0]
+    bunlen = abs(sbun[0]-ds/2) / 5
+    a    = _np.argmin(_np.abs(sbun + sbun[0])) + 1
+    sbun = sbun[:a]
+    simul_data.bunlen = bunlen
+    simul_data.sbun   = sbun
+    simul_data.bun    = _np.exp(-sbun**2/(2*bunlen**2))/(_np.sqrt(2*_np.pi)*bunlen)
     if not silent:
-        print('Bunch length of the driving bunch: {0:7.3g} mm'.format(simul_data.bunlen*1e3))
+        print('Bunch length of the driving bunch: {0:7.3g} mm'.format(bunlen*1e3))
         print('Data Loaded.')
 
 def _load_data_ECHOz2(simul_data,silent=False):
@@ -432,50 +421,50 @@ def _load_data_ECHOz2(simul_data,silent=False):
         fname = _jnPth([path,'wakeL.dat'])
         if os.path.isfile(fname):
             if not silent: print('Data found.')
-            loadres = _np.loadtxt(fname, skiprows=0)
+            spos,wl = _np.loadtxt(fname, skiprows=0,usecols=(0,1),unpack=True)
         else:
             if not silent: print('Not found.')
             Exception('Longitudinal wake file not found.')
-        simul_data.s = loadres[:,0]/100    # Rescaling cm to m
-        simul_data.Wll = -loadres[:,1] * 1e12 # V/C the minus sign is due to convention
+        simul_data.s = spos/100    # Rescaling cm to m
+        simul_data.Wll = -wl * 1e12 # V/C the minus sign is due to convention
 
     elif anal_pl in {'dx','dy'}:
-        if not silent: print('Loading Transverse Wake file:',end='')
-        fname = _jnPth([path,'wakeT.dat'])
+        fname = _jnPth([path,'wakeL.dat'])
         if _os.path.isfile(fname):
+            if not silent: print('Calculating Transverse wake from longitudinal wake file:',end='')
             if not silent: print('Data found.')
-            loadres = _np.loadtxt(fname, skiprows=0)
+            spos,wl = _np.loadtxt(fname, skiprows=0,usecols=(0,1),unpack=True)
+            simul_data.s = spos/100    # Rescaling cm to m
+            wt = -_scy_int.cumtrapz(-wl,x=spos/100,initial=0) # one minus sign due to convention and the other due to Panofsky-Wenzel
+            setattr(simul_data, 'W'+anal_pl, wt * 1e12) # V/C/m
         else:
-            if not silent: print('Not found.')
-            Exception('Transverse wake file not found.')
-        simul_data.s = loadres[:,0]/100    # Rescaling cm to m
-        setattr(simul_data, 'W'+anal_pl, loadres[:,1] * 1e12) # V/C/m  the minus sign is due to convention
+            if not silent: print('File not found.\nLoading transverse wake from transverse wake file.:',end='')
+            fname = _jnPth([path,'wakeT.dat'])
+            if _os.path.isfile(fname):
+                if not silent: print('Data found.\nDepending on the ECHOz2 program version this may lead to inacurate results.')
+                spos,wt = _np.loadtxt(fname, skiprows=0,usecols=(0,1),unpack=True)
+            else:
+                if not silent: print('Not found.')
+                Exception('Transverse wake file not found.')
+            simul_data.s = spos/100    # Rescaling cm to m
+            # there is an error in the integration of echoz2. It is needed to subtract
+            # the first value to correct and offset
+            # wt = -_scy_int.cumtrapz(-wl,x=spos/100,initial=0)
+            setattr(simul_data, 'W'+anal_pl, (wt-wt[0]) * 1e12) # V/C/m  the minus sign is due to convention
     else:
         if not silent: print('Plane of analysis {0:s} does not match any of the possible options'.format(anal_pl))
         raise Exception('Plane of analysis {0:s} does not match any of the possible options'.format(anal_pl))
 
     # loading driving bunch info
-    fname = _jnPth([path,'bunch.dat'])
-    if _os.path.isfile(fname):
-        if not silent: print('Loading bunch length from file bunch.dat')
-        loadres = _np.loadtxt(fname, skiprows=0)
-        sbun = loadres[:,1] / 100     # m
-        a = _np.argmin(_np.abs(sbun + sbun[0])) + 1 # I want the bunch to be symmetric
-        simul_data.sbun = sbun[:a]
-        simul_data.bun  = loadres[:a,2] # C
-        simul_data.bunlen = abs(sbun[0]) / 5 # ECHO uses 5 sigma
-    else:
-        if not silent: print('File bunch.dat not found. Loading bunch length from wakeT.dat')
-        spos = simul_data.s.copy()
-        ds   = spos[1]-spos[0]
-        spos += ds/2
-        sbun = _np.hstack([spos[0]-ds,spos])
-        bunlen = abs(sbun[0]) / 5
-        a    = _np.argmin(_np.abs(sbun + sbun[0])) + 1
-        sbun = sbun[:a]
-        simul_data.bunlen = bunlen
-        simul_data.sbun   = sbun
-        simul_data.bun    = _np.exp(-sbun**2/(2*bunlen**2))/(_np.sqrt(2*_np.pi)*bunlen)
+    if not silent: print('Loading bunch length from wake file')
+    sbun = simul_data.s.copy()
+    ds = sbun[1]-sbun[0]
+    bunlen = abs(sbun[0] -ds/2) / 5
+    a    = _np.argmin(_np.abs(sbun + sbun[0])) + 1
+    sbun = sbun[:a]
+    simul_data.bunlen = bunlen
+    simul_data.sbun   = sbun
+    simul_data.bun    = _np.exp(-sbun**2/(2*bunlen**2))/(_np.sqrt(2*_np.pi)*bunlen)
     if not silent:
         print('Bunch length of the driving bunch: {0:7.3g} mm'.format(simul_data.bunlen*1e3))
         print('Data Loaded.')
@@ -495,7 +484,7 @@ def _load_data_ECHO_rect(simul_data,code,silent):
                 a = f.readline()
             mstep, offset, wid, bunlen = _np.fromstring(a[1:],sep='\t')
             offset = int(offset)
-            y0 = y = mstep*offset
+            y0 = y = mstep*offset / 100
         elif code == 'echo2d':
             len_unit, charge_unit, header = 1, 1, 5
             with open(fname) as f:
@@ -649,7 +638,7 @@ def _load_data_ECHO_rect(simul_data,code,silent):
                 Wd = W[i].copy() * Kxm**2
             elif mode[i] % 2:
                 Wd += W[i] * Kxm**2 #only odd terms
-                frac = _np.max(_np.abs(W[i]*Kxm**2/Wdy))
+                frac = _np.max(_np.abs(W[i]*Kxm**2/Wd))
         if Wd is None:
             if not silent: print('There is none even mode to calculate Dipolar {0:s} Wake.'.format(pl))
         else:
@@ -793,10 +782,11 @@ def load_raw_data(simul_data=None,silent = False):
                 f_in_fol = _sh.ls(fol).stdout.decode()
                 f_mat = _re.findall(FNAME_ECHOZR2D,f_in_fol)
             else:   raise Exception('Simulation Code was not supplied and could not be guessed.')
-            if f_mat and _os.path.isfile(_jnPth([fol,f_mat[0]])):
-                with open(_jnPth([fol,f_mat[0]])) as f:
-                    code = 'echozr' if f.readline().find('[cm]')> 0 else 'echo2d'
-            else:  raise Exception('Simulation Code was not supplied and could not be guessed.')
+            if f_mat is not None:
+                if _os.path.isfile(_jnPth([fol,f_mat[0][0]])):
+                    with open(_jnPth([fol,f_mat[0][0]])) as f:
+                        code = 'echozr' if f.readline().find('[cm]')> 0 else 'echo2d'
+                else:  raise Exception('Simulation Code was not supplied and could not be guessed.')
     if not silent: print(code)
     simul_data.code = code
 
@@ -818,7 +808,7 @@ def load_raw_data(simul_data=None,silent = False):
                 if _os.path.isdir(_jnPth([path,'magn'])):    anal_pl = 'll'
                 elif _os.path.isdir(_jnPth([path,'elec'])):  anal_pl = 'dy'
                 elif _os.path.isfile('wakeL_01.txt'):
-                    w = _np.loadtxt('wakeL_01.txt',skiprows=3,usecols=(1),unpack=True)
+                    w = _np.loadtxt('wakeL_01.txt',skiprows=3,usecols=(1,),unpack=True)
                     if _np.all(w==0):  anal_pl = 'dy'
                     else:              anal_pl = 'll'
                 else:  raise Exception('Plane of analysis was not supplied and could not be guessed.')
@@ -846,7 +836,7 @@ def calc_impedance(simul_data, use_win = True, cutoff = 2, silent = False):
         freq = _np.fft.fftshift(freq) # to the center of the spectrum
         # Longitudinal position shift to match center of the bunch with zero z:
         w     = 2*_np.pi*freq
-        VHat *= _np.exp(-1j*w*spos[0]/c)
+        VHat *= _np.exp(-1j*w*(spos[0])/c)
         # find the maximum useable frequency
         wmax  = cutoff/sigt
         indcs = _np.abs(w) <= wmax
@@ -872,7 +862,7 @@ def calc_impedance(simul_data, use_win = True, cutoff = 2, silent = False):
 
     for pl in ['ll','dx','dy','qx','qy']:
         if not silent: print('Performing FFT on W{0:s}: '.format(pl),end='')
-        Wpl = getattr(simul_data,'W'+pl)
+        Wpl = getattr(simul_data,'W'+pl).copy()
         if Wpl is None or _np.all(Wpl == 0):
             if not silent: print('No Data found.')
             continue
@@ -1076,7 +1066,7 @@ def save_processed_data(simul_data,silent=False,pth2sv=None):
         Z  = getattr(simul_data,'Z'+par)
         if Z is None or _np.all(Z == 0): continue
         if not silent: print('Saving Z'+ par + ' data to .gz file')
-        _np.savetxt(fname,_np.array([freq*1e9,Z.real,Z.imag]).transpose(),
+        _np.savetxt(fname,_np.array([freq/1e9,Z.real,Z.imag]).transpose(),
                     fmt=['%30.16g','%30.16g','%30.16g'], header=header)
 
     if not silent: print('Saving the Complete EMSimulData structure to a .pickle file.')
@@ -1093,21 +1083,17 @@ def load_processed_data(filename):
 def create_make_fig_file(path = None):
     if path is None: path = os.path.abspath('.')
     fname = _jnPth([path,'create_figs.py'])
-    analysis = '''#!/usr/bin/env python3
-
-import os
-import pycolleff.process_wakes as ems
-
-opts = dict(save_figs=False,show=False)
-path = os.path.abspath(__file__).rpartition(os.path.sep)[0]
-file_name = os.path.sep.join([path,'{0:s}'])
-simul_data = ems.load_processed_data(file_name)
-ems.plot_wakes(simul_data,**opts)
-ems.plot_impedances(simul_data,**opts)
-ems.plot_losskick_factors(simul_data,**opts)
-ems.show_now()
-'''.format(DEFAULT_FNAME_SAVE)
-
+    analysis  = '#!/usr/bin/env python3\n\n'
+    analysis += 'import os\n'
+    analysis += 'import pycolleff.process_wakes as ems\n\n'
+    analysis += 'opts = dict(save_figs=False,show=False)\n'
+    analysis += 'path = os.path.abspath(__file__).rpartition(os.path.sep)[0]\n'
+    analysis += "file_name = os.path.sep.join([path,'{0:s}'])\n".format(DEFAULT_FNAME_SAVE)
+    analysis += 'simul_data = ems.load_processed_data(file_name)\n'
+    analysis += 'ems.plot_wakes(simul_data,**opts)\n'
+    analysis += 'ems.plot_impedances(simul_data,**opts)\n'
+    analysis += 'ems.plot_losskick_factors(simul_data,**opts)\n'
+    analysis += 'ems.show_now()\n'
     with open(fname,'w') as f:
         f.writelines(analysis)
     _sh.chmod('+x',fname)
