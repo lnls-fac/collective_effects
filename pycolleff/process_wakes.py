@@ -14,6 +14,7 @@ _rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
 #_rc('font',**{'family':'serif','serif':['Palatino']})
 _rc('text', usetex=True)
 from mathphys.constants import light_speed as c
+from pyaccel import naff as _naff
 from . import colleff as _colleff
 from . import sirius as _sirius
 
@@ -60,26 +61,24 @@ IMPS_YLABELS= {'ll':r'$Z_l$ [$\Omega$]',
               }
 
 class EMSimulData:
-    def __init__(self, path=None, code=None, anal_pl=None):
-        self.path      = path or _os.path.abspath('.')  # Path to the wake files
+    def __init__(self, code=None):
         self.code      = code      # CST, ACE3P, GdfidL, ECHOz1 ECHOz2, ...
-        self.anal_pl   = anal_pl   # dx, dy, db, ll
 
         self.bunlen = 0.0                     # Bunch Length Used in simulation[m]
         self.sbun = _np.array([],dtype=float) # positions where the bunch is defined [m]
         self.bun  = _np.array([],dtype=float) # bunch profile used in the simulation [As/m]
         self.s    = _np.array([],dtype=float) # axis: distance from following to drive bunch [m]
-        self.Wll  = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/C or V/C/m]
-        self.Wdx  = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/C or V/C/m]
-        self.Wdy  = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/C or V/C/m]
-        self.Wqx  = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/C or V/C/m]
-        self.Wqy  = _np.array([],dtype=float) # Longitudinal or Transverse Wakepotential [V/C or V/C/m]
+        self.Wll  = _np.array([],dtype=float) # Longitudinal Wakepotential [V/C]
+        self.Wdx  = _np.array([],dtype=float) # Dipolar Horizontal Wakepotential [V/C/m]
+        self.Wdy  = _np.array([],dtype=float) # Dipolar Vertical Wakepotential [V/C/m]
+        self.Wqx  = _np.array([],dtype=float) # Quadrupolar Horizontal Wakepotential [V/C/m]
+        self.Wqy  = _np.array([],dtype=float) # Quadrupolar Vertical Wakepotential [V/C/m]
         self.freq = _np.array([],dtype=float) # axis: frequency obtained from FFT [GHz]
-        self.Zll  = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
-        self.Zdx  = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
-        self.Zdy  = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
-        self.Zqx  = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
-        self.Zqy  = _np.array([],dtype=complex) # Imaginary Part of Longitudinal Impedance [Ohm]
+        self.Zll  = _np.array([],dtype=complex) # Longitudinal Impedance [Ohm]
+        self.Zdx  = _np.array([],dtype=complex) # Dipolar Horizontal Impedance [Ohm]
+        self.Zdy  = _np.array([],dtype=complex) # Dipolar Vertical Impedance [Ohm]
+        self.Zqx  = _np.array([],dtype=complex) # Quadrupolar Horizontal Impedance [Ohm]
+        self.Zqy  = _np.array([],dtype=complex) # Quadrupolar Vertical Impedance [Ohm]
         self._klossW  = None
         self._kckdxW  = None
         self._kckdyW  = None
@@ -163,7 +162,7 @@ def _load_data_CST(simpar):
 
     return spos, wake
 
-def _load_data_GdfidL(simul_data,silent=False):
+def _load_data_GdfidL(simul_data,path,anal_pl,silent=False):
 
     def _load_dados_info(filename):
         dados, info = [], []
@@ -251,9 +250,6 @@ def _load_data_GdfidL(simul_data,silent=False):
         else:
             print()
         return wake
-
-    path     = simul_data.path
-    anal_pl  = simul_data.anal_pl
 
     # list all the files that match the name pattern for wakefields
     f_in_dir = _sh.ls(path).stdout.decode()
@@ -370,10 +366,7 @@ def _load_data_GdfidL(simul_data,silent=False):
                     '{0:s} plane to the {1:s} plane'.format(anal_pl[1].upper(),anal_pl_comp[1].upper()))
         setattr(simul_data, 'W'+anal_pl_comp, getattr(simul_data,'W'+anal_pl).copy())
 
-def _load_data_ECHOz1(simul_data,silent=False):
-
-    path     = simul_data.path
-    anal_pl  = simul_data.anal_pl
+def _load_data_ECHOz1(simul_data,path,anal_pl,silent=False):
 
     if anal_pl=='ll':
         if not silent: print('Loading longitudinal Wake file:',end='')
@@ -405,10 +398,7 @@ def _load_data_ECHOz1(simul_data,silent=False):
         print('Bunch length of the driving bunch: {0:7.3g} mm'.format(bunlen*1e3))
         print('Data Loaded.')
 
-def _load_data_ECHOz2(simul_data,silent=False):
-
-    path     = simul_data.path
-    anal_pl  = simul_data.anal_pl
+def _load_data_ECHOz2(simul_data,path,anal_pl,silent=False):
 
     anal_pl_ori = None
     if anal_pl == 'db':
@@ -475,7 +465,7 @@ def _load_data_ECHOz2(simul_data,silent=False):
                     '{0:s} plane to the {1:s} plane'.format(anal_pl[1].upper(),anal_pl_comp[1].upper()))
         setattr(simul_data, 'W'+anal_pl_comp, getattr(simul_data,'W'+anal_pl).copy())
 
-def _load_data_ECHO_rect(simul_data,code,silent):
+def _load_data_ECHO_rect(simul_data,code,path,anal_pl,silent):
     def _load_dados(fname,mode, bc, code):
         if code == 'echozr':
             len_unit, charge_unit, header = 1e-2, 1e-12, 3 # cm to m, pC to C
@@ -507,9 +497,6 @@ def _load_data_ECHO_rect(simul_data,code,silent):
         else:            Wm  /= _np.cosh(Kxm*y0)*_np.cosh(Kxm*y)
         return spos, Wm, mstep, wid, bunlen
 
-
-    path     = simul_data.path
-    anal_pl  = simul_data.anal_pl
 
     if anal_pl == 'db':
         if not silent: print('Problem: All rectangular geometries does not have symmetry.')
@@ -650,13 +637,10 @@ def _load_data_ECHO_rect(simul_data,code,silent):
         if not silent: print('Plane of analysis {0:s} does not match any of the possible options'.format(anal_pl))
         raise Exception('Plane of analysis {0:s} does not match any of the possible options'.format(anal_pl))
 
-def _load_data_ECHOzR(simul_data,silent=False):
-    _load_data_ECHO_rect(simul_data,'echozr',silent)
+def _load_data_ECHOzR(simul_data,path,anal_pl,silent=False):
+    _load_data_ECHO_rect(simul_data,'echozr',path,anal_pl,silent)
 
-def _load_data_ECHO2D(simul_data,silent=False):
-
-    path     = simul_data.path
-    anal_pl  = simul_data.anal_pl
+def _load_data_ECHO2D(simul_data,path,anal_pl,silent=False):
 
     if not silent: print('Trying to find out the geometry type: ',end='')
 
@@ -746,11 +730,11 @@ CODES    = {'echoz1': _load_data_ECHOz1,
             'cst'   : _load_data_CST
            }
 
-def load_raw_data(simul_data=None,silent = False):
+def load_raw_data(simul_data=None, code=None, path=None, anal_pl=None, silent=False):
     if not simul_data: simul_data = EMSimulData()
-    path     = simul_data.path
-    code     = simul_data.code
-    anal_pl  = simul_data.anal_pl
+
+    if path is None: path = _os.path.abspath('.')
+
 
     if not silent: print('#'*60 + '\nLoading Simulation Data')
 
@@ -758,7 +742,7 @@ def load_raw_data(simul_data=None,silent = False):
     path_split = set(path.lower().split(_os.path.sep))
 
     #First try to guess the code used in simulation, if not supplied:
-    if not code:
+    if code is None:
         if not silent: print('Simulation Code not supplied, trying to guess from path: ', end='')
         code_guess = list(CODES.keys() & path_split)
         if code_guess:    code = code_guess[0]
@@ -791,7 +775,7 @@ def load_raw_data(simul_data=None,silent = False):
     simul_data.code = code
 
     # Now try to guess the plane of the analysis:
-    if not anal_pl:
+    if anal_pl is None:
         if not silent: print('Plane of Analysis not supplied, trying to guess from path: ', end='')
         anal_pl_guess = list(ANALYSIS_TYPES & path_split)
         if anal_pl_guess:    anal_pl = anal_pl_guess[0]
@@ -819,10 +803,9 @@ def load_raw_data(simul_data=None,silent = False):
                 else:                                         anal_pl = 'dy'
             else:    raise Exception('Plane of analysis was not supplied and could not be guessed.')
     if not silent: print(anal_pl)
-    simul_data.anal_pl = anal_pl
 
 
-    CODES[code](simul_data,silent=silent) # changes in simul_data are made implicitly
+    CODES[code](simul_data,silent=silent,path=path,anal_pl=anal_pl) # changes in simul_data are made implicitly
 
     print('#'*60+'\n')
 
@@ -860,7 +843,7 @@ def calc_impedance(simul_data, use_win = True, cutoff = 2, silent = False):
 
     if not silent: print('Cutoff frequency w = {0:d}/sigmat'.format(cutoff))
 
-    for pl in ['ll','dx','dy','qx','qy']:
+    for pl in PLANES:
         if not silent: print('Performing FFT on W{0:s}: '.format(pl),end='')
         Wpl = getattr(simul_data,'W'+pl).copy()
         if Wpl is None or _np.all(Wpl == 0):
@@ -882,6 +865,61 @@ def calc_impedance(simul_data, use_win = True, cutoff = 2, silent = False):
         if not silent: print('Impedance Calculated.')
 
     if not silent: print('#'*60 + '\n')
+
+
+def calc_impedance_naff(simul_data, pl='ll', s_min = None, win = 1, nr_ff = 20):
+
+    if pl not in PLANES:
+        raise Exception('Value of variable pl not accepted. Must be one of these: '+', '.join(PLANES))
+
+    # Extracts Needed Variables
+    sigt    = simul_data.bunlen / c  # bunch time-length
+    spos    = simul_data.s.copy()
+    W    = getattr(simul_data,'W' + pl).copy()
+
+    if W is None or not len(W) or _np.all(W == 0):
+        raise Exception('No Data found.')
+
+    if s_min is None: s_min = spos[0]
+
+    inds = spos >= s_min
+    spos = spos[inds]
+    W    = W[inds]
+    dt   = (spos[1]-spos[0])/c
+    leng = len(W) + 1 - (len(W)%6)
+    spos = spos[-leng:]
+    W    = W[-leng:]
+    if win == 1/2:
+        W  *= _np.hanning(2*spos.shape[0])[spos.shape[0]:]
+        tu,a = _naff.naff_general(W,use_win=0, is_real=False, nr_ff=nr_ff)
+    elif isinstance(win,int):
+        tu,a = _naff.naff_general(W,use_win=win, is_real=False, nr_ff=nr_ff)
+    else:
+        raise Exception('Win must be 1/2 for half-hanning window or an integer for other windows(0 --> no window).')
+
+    freq = tu/dt
+    w    = 2*_np.pi*freq
+    # Longitudinal position shift to match center of the bunch with zero z:
+    a   *= _np.exp(-1j*w*(spos[0])/c)
+    # Deconvolve the Transform with a gaussian bunch:
+    a   /= _np.exp(-(w*sigt)**2/2)
+
+    # Must multiply by the vector length due to difference in the meaning of the
+    # amplitune in the NAFF transform and the fourier transform
+    Z    = a*dt*leng
+
+    if pl =='ll':
+        # I have to take the conjugate of the fft because:
+        #fftt == \int exp(-i*2pi*f*t/n) G(t) dt
+        #while impedance, according to Chao and Ng, is given by:
+        #Z == \int exp(i*2pi*f*t/n) G(t) dt
+        Z = Z.conj()
+    else:
+        #the Transverse impedance, according to Chao and Ng, is given by:
+        #Z == i\int exp(i*2pi*f*t/n) G(t) dt
+        Z = 1j*Z.conj()
+
+    return freq, Z, leng
 
 def plot_wakes(simul_data,save_figs=False,pth2sv=None,show=False,pls=None):
 
@@ -1028,16 +1066,14 @@ def show_now():
 def save_processed_data(simul_data,silent=False,pth2sv=None):
 
     if not silent: print('#'*60 + '\nSaving Processed data:')
-    path = simul_data.path
     spos = simul_data.s
     freq = simul_data.freq
 
     if pth2sv is None:
         if not silent: print('Saving in the same folder of the raw data')
-        pth2sv = path
+        pth2sv = os.path.abspath('.')
     elif type(pth2sv) is str:
         if not silent: print('Saving to subfolder: ' + pth2sv)
-        pth2sv = _jnPth([path,pth2sv])
         if not _os.path.isdir(pth2sv):
             if not silent: print('Folder does not exist. Creating it...')
             _os.mkdir(pth2sv)
