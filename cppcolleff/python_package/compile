@@ -1,0 +1,14 @@
+#!/bin/bash
+#
+# Auxiliary script for compiling the trackcpp Python SWIG module on Mac.
+#
+# Set PYTHONROOT to Python installation directory. For a MacPorts installation,
+# it could be something like
+#
+#   PYTHONROOT=/opt/local/Library/Frameworks/Python.framework/Versions/3.4
+
+CXX=clang++
+INC="-I.. -I$PYTHONROOT/Headers"
+LIBS="-L$PYTHONROOT/lib -lpython3.4 -lgsl -lcblas"
+
+make CXX=$CXX INC="$INC" LIBS="$LIBS" -j all
