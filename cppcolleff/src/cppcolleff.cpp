@@ -2,9 +2,9 @@
 #include <cppcolleff/cppcolleff.h>
 
 void do_tracking(
-    Ring_t& ring,
-    Wake_t& wake,
-    Feedback_t& fb,
+    const Ring_t& ring,
+    const Wake_t& wake,
+    const Feedback_t& fb,
     Bunch_t& bun,
     Results_t& results)
 {

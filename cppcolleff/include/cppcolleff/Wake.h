@@ -11,7 +11,7 @@ struct WakePl
     my_Dvector  s, W;
     my_Dvector wr, Rs, Q;
     WakePl(): general(false), resonator(false) {};
-    // ~WakePl() = default;
+    ~WakePl() = default;
 };
 
 struct Wake_t
@@ -19,7 +19,7 @@ struct Wake_t
     WakePl Wd, Wq, Wl;
     Wake_t() {};
     // ~Wake_t() = default;
-    my_Dvector apply_kicks(Bunch_t& bun, const double stren);
+    my_Dvector apply_kicks(Bunch_t& bun, const double stren) const;
 };
 
 #endif

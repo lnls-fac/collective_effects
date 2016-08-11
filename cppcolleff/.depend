@@ -1,8 +1,0 @@
-build/essentials.o: src/essentials.cpp
-build/Bunch.o: src/Bunch.cpp
-build/Ring.o: src/Ring.cpp
-build/Wake.o: src/Wake.cpp
-build/Results.o: src/Results.cpp
-build/Feedback.o: src/Feedback.cpp
-build/cppcolleff.o: src/cppcolleff.cpp
-build/exec.o: src/exec.cpp

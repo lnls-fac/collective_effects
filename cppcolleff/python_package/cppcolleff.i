@@ -26,10 +26,6 @@
 #include <cppcolleff/cppcolleff.h>
 %}
 
-%include "std_string.i"
-%include "std_vector.i"
-%include "stl.i"
-
 %include "../include/cppcolleff/essentials.h"
 %include "../include/cppcolleff/Bunch.h"
 %include "../include/cppcolleff/Ring.h"

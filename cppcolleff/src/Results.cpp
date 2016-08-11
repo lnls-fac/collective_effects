@@ -5,32 +5,32 @@ void Results_t::calc_stats(const long turn, const Bunch_t& bun)
 {
     double n = get_p(turn);
     //calculate the average and std values;
-    for (int p=0;p<=bun.num_part;p++){
-        xx_ave[n] += bun.xx[p];
-        xl_ave[n] += bun.xl[p];
-        de_ave[n] += bun.de[p];
-        ss_ave[n] += bun.ss[p];
-        xx_std[n] += bun.xx[p] * bun.xx[p];
-        xl_std[n] += bun.xl[p] * bun.xl[p];
-        de_std[n] += bun.de[p] * bun.de[p];
-        ss_std[n] += bun.ss[p] * bun.ss[p];
+    for (auto p=bun.particles.cbegin();p!=bun.particles.cend();++p){
+        ave[n].xx += p->xx;
+        ave[n].xl += p->xl;
+        ave[n].de += p->de;
+        ave[n].ss += p->ss;
+        std[n].xx += p->xx * p->xx;
+        std[n].xl += p->xl * p->xl;
+        std[n].de += p->de * p->de;
+        std[n].ss += p->ss * p->ss;
     }
-    xx_ave[n] /= bun.num_part;
-    xl_ave[n] /= bun.num_part;
-    de_ave[n] /= bun.num_part;
-    ss_ave[n] /= bun.num_part;
-    xx_std[n] /= bun.num_part;
-    xl_std[n] /= bun.num_part;
-    de_std[n] /= bun.num_part;
-    ss_std[n] /= bun.num_part;
-    xx_std[n] -= xx_ave[n] * xx_ave[n];
-    xl_std[n] -= xl_ave[n] * xl_ave[n];
-    de_std[n] -= de_ave[n] * de_ave[n];
-    ss_std[n] -= ss_ave[n] * ss_ave[n];
-    xx_std[n] = sqrt(xx_std[n]);
-    xl_std[n] = sqrt(xl_std[n]);
-    de_std[n] = sqrt(de_std[n]);
-    ss_std[n] = sqrt(ss_std[n]);
+    ave[n].xx /= bun.num_part;
+    ave[n].xl /= bun.num_part;
+    ave[n].de /= bun.num_part;
+    ave[n].ss /= bun.num_part;
+    std[n].xx /= bun.num_part;
+    std[n].xl /= bun.num_part;
+    std[n].de /= bun.num_part;
+    std[n].ss /= bun.num_part;
+    std[n].xx -= ave[n].xx * ave[n].xx;
+    std[n].xl -= ave[n].xl * ave[n].xl;
+    std[n].de -= ave[n].de * ave[n].de;
+    std[n].ss -= ave[n].ss * ave[n].ss;
+    std[n].xx = sqrt(std[n].xx);
+    std[n].xl = sqrt(std[n].xl);
+    std[n].de = sqrt(std[n].de);
+    std[n].ss = sqrt(std[n].ss);
 }
 
 void Results_t::set_FBkick(const long turn, const double& kik)

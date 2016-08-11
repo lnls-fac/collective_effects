@@ -1,7 +1,7 @@
 
 #include <cppcolleff/Wake.h>
 
-my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren)
+my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren) const
 {
     my_Dvector Wkick (2,0.0);
 

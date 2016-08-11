@@ -1,6 +1,6 @@
 #include <cppcolleff/Feedback.h>
 
-double Feedback_t::apply_kick(const my_Dvector& xx_ave, const long turn, Bunch_t& bun)
+double Feedback_t::apply_kick(const my_Dvector& xx_ave, const long turn, Bunch_t& bun) const
 {
     double kick = 0.0;
     if (track && (turn >= (npoints + delay))) {

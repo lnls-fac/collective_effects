@@ -1,9 +1,10 @@
 
 #### COMPILATION OPTIONS ####
-C = gcc
-CXX = g++
-MACHINE = -m64
-OPT_FLAG = -O3
+C         = gcc
+CXX       = g++
+SWIG      = swig3.0
+MACHINE   = -m64
+OPT_FLAG  = -O3
 SOURCES_I =     cppcolleff.i
 WRAPPEROBJS =   cppcolleff_wrap.o
 CPPCOLLEFFLIB = ../build/libcppcolleff.a
@@ -16,7 +17,6 @@ INC = -I/usr/include/python3.4 -I../include
 PYTHON = python3
 SETUPARGS =
 
-
 .NOTPARALLEL:
 
 all: cppcolleff/_cppcolleff.so
@@ -25,7 +25,7 @@ cppcolleff/_cppcolleff.so: $(CPPCOLLEFFLIB) $(OBJECTS)
 	$(CXX) -shared -Wl,--whole-archive $(CPPCOLLEFFLIB) -Wl,--no-whole-archive $(OBJECTS) $(LIBS) -o cppcolleff/_cppcolleff.so
 
 cppcolleff_wrap.cxx: $(SOURCES_I)
-	swig -c++ -python $(INC) cppcolleff.i && cp -f cppcolleff.py cppcolleff
+	$(SWIG) -c++ -python $(INC) cppcolleff.i && cp -f cppcolleff.py cppcolleff
 
 install: all
 	$(PYTHON) setup.py install $(SETUPARGS)
@@ -35,8 +35,6 @@ develop: all
 
 clean:
 	-rm -rf *.o cppcolleff/*.so *_wrap.cxx cppcolleff/__pycache__ cppcolleff/cppcolleff.py build dist cppcolleff.egg-info
-
-
 
 %.o: %.cpp
 	$(CXX) -c $(CPPFLAGS) $(INC) $< -o $@

@@ -17,7 +17,8 @@ class Ring_t{
         betax(1.0), alphax(0.0), etax(0.0), etaxl(0.0), gammax(1.0),
         tunex(0.0), chromx(0.0), tunex_shift(0.0),
         circum(0.0), mom_comp(0.0), T0(0.0), energy(0.0) {};
-    void track_one_turn(Bunch_t& bun);
+    ~Ring_t() = default;
+    void track_one_turn(Bunch_t& bun) const;
 };
 
 #endif
