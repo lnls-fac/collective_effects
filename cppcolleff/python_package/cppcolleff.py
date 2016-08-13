@@ -71,10 +71,6 @@ except AttributeError:
 
 TWOPI = _cppcolleff.TWOPI
 light_speed = _cppcolleff.light_speed
-
-def interpola(*args):
-  return _cppcolleff.interpola(*args)
-interpola = _cppcolleff.interpola
 class Particle_t(_object):
     __swig_setmethods__ = {}
     __setattr__ = lambda self, name, value: _swig_setattr(self, Particle_t, name, value)
@@ -102,6 +98,10 @@ class Particle_t(_object):
 Particle_t_swigregister = _cppcolleff.Particle_t_swigregister
 Particle_t_swigregister(Particle_t)
 
+
+def interpola(*args):
+  return _cppcolleff.interpola(*args)
+interpola = _cppcolleff.interpola
 class Bunch_t(_object):
     __swig_setmethods__ = {}
     __setattr__ = lambda self, name, value: _swig_setattr(self, Bunch_t, name, value)
@@ -195,30 +195,12 @@ class Results_t(_object):
     __swig_setmethods__["nturns"] = _cppcolleff.Results_t_nturns_set
     __swig_getmethods__["nturns"] = _cppcolleff.Results_t_nturns_get
     if _newclass:nturns = _swig_property(_cppcolleff.Results_t_nturns_get, _cppcolleff.Results_t_nturns_set)
-    __swig_setmethods__["xx_ave"] = _cppcolleff.Results_t_xx_ave_set
-    __swig_getmethods__["xx_ave"] = _cppcolleff.Results_t_xx_ave_get
-    if _newclass:xx_ave = _swig_property(_cppcolleff.Results_t_xx_ave_get, _cppcolleff.Results_t_xx_ave_set)
-    __swig_setmethods__["xx_std"] = _cppcolleff.Results_t_xx_std_set
-    __swig_getmethods__["xx_std"] = _cppcolleff.Results_t_xx_std_get
-    if _newclass:xx_std = _swig_property(_cppcolleff.Results_t_xx_std_get, _cppcolleff.Results_t_xx_std_set)
-    __swig_setmethods__["xl_ave"] = _cppcolleff.Results_t_xl_ave_set
-    __swig_getmethods__["xl_ave"] = _cppcolleff.Results_t_xl_ave_get
-    if _newclass:xl_ave = _swig_property(_cppcolleff.Results_t_xl_ave_get, _cppcolleff.Results_t_xl_ave_set)
-    __swig_setmethods__["xl_std"] = _cppcolleff.Results_t_xl_std_set
-    __swig_getmethods__["xl_std"] = _cppcolleff.Results_t_xl_std_get
-    if _newclass:xl_std = _swig_property(_cppcolleff.Results_t_xl_std_get, _cppcolleff.Results_t_xl_std_set)
-    __swig_setmethods__["de_ave"] = _cppcolleff.Results_t_de_ave_set
-    __swig_getmethods__["de_ave"] = _cppcolleff.Results_t_de_ave_get
-    if _newclass:de_ave = _swig_property(_cppcolleff.Results_t_de_ave_get, _cppcolleff.Results_t_de_ave_set)
-    __swig_setmethods__["de_std"] = _cppcolleff.Results_t_de_std_set
-    __swig_getmethods__["de_std"] = _cppcolleff.Results_t_de_std_get
-    if _newclass:de_std = _swig_property(_cppcolleff.Results_t_de_std_get, _cppcolleff.Results_t_de_std_set)
-    __swig_setmethods__["ss_ave"] = _cppcolleff.Results_t_ss_ave_set
-    __swig_getmethods__["ss_ave"] = _cppcolleff.Results_t_ss_ave_get
-    if _newclass:ss_ave = _swig_property(_cppcolleff.Results_t_ss_ave_get, _cppcolleff.Results_t_ss_ave_set)
-    __swig_setmethods__["ss_std"] = _cppcolleff.Results_t_ss_std_set
-    __swig_getmethods__["ss_std"] = _cppcolleff.Results_t_ss_std_get
-    if _newclass:ss_std = _swig_property(_cppcolleff.Results_t_ss_std_get, _cppcolleff.Results_t_ss_std_set)
+    __swig_setmethods__["ave"] = _cppcolleff.Results_t_ave_set
+    __swig_getmethods__["ave"] = _cppcolleff.Results_t_ave_get
+    if _newclass:ave = _swig_property(_cppcolleff.Results_t_ave_get, _cppcolleff.Results_t_ave_set)
+    __swig_setmethods__["std"] = _cppcolleff.Results_t_std_set
+    __swig_getmethods__["std"] = _cppcolleff.Results_t_std_get
+    if _newclass:std = _swig_property(_cppcolleff.Results_t_std_get, _cppcolleff.Results_t_std_set)
     __swig_setmethods__["Wlkick"] = _cppcolleff.Results_t_Wlkick_set
     __swig_getmethods__["Wlkick"] = _cppcolleff.Results_t_Wlkick_get
     if _newclass:Wlkick = _swig_property(_cppcolleff.Results_t_Wlkick_get, _cppcolleff.Results_t_Wlkick_set)

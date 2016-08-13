@@ -1,36 +1,43 @@
 
 #include <cppcolleff/Bunch.h>
 
-
-static bool sort_increasing_ss(const Particle_t& first, const Particle_t& second)
+inline bool sort_increasing_ss(const Particle_t& first, const Particle_t& second)
 {
 	if (first.ss < second.ss) return true;
 	else return false;
 }
-void Bunch_t::sort() {std::sort(particles.begin(),particles.end(),sort_increasing_ss);}
+void Bunch_t::general_sort() {std::sort(particles.begin(),particles.end(),sort_increasing_ss);}
 
-// void Bunch_t::sort()
-// {
-// 	for (long i=1; i < xx.size(); i++){
-// 		double atualxx=xx[i]; double atualxl=xl[i]; double atualde=de[i]; double atualss=ss[i];
-//         long j = i - 1;
-// 		while ((j>=0) && (atualss < ss[j])){
-// 			ss[j+1]=ss[j];   xx[j+1]=xx[j];    xl[j+1]=xl[j];    de[j+1]=de[j];
-//             --j;
-// 		}
-// 		ss[j+1] = atualss;    xx[j+1] = atualxx;    xl[j+1] = atualxl;    de[j+1] = atualde;
-// 	}
-// }
+void Bunch_t::insertion_sort()
+{
+	for (auto p=1;p<particles.size();++p)
+		for(auto p2 = p-1; p2>=0;--p2)
+			 if (particles[p2+1].ss < particles[p2].ss) {swap(particles[p2+1],particles[p2]);}else break;
+}
+
+void Bunch_t::selection_sort()
+{
+	for (auto p=0;p<particles.size()-1;++p)
+		for(auto p2 = p+1; p2<particles.size();++p2)
+			 if (particles[p2].ss < particles[p].ss) {swap(particles[p2],particles[p]); break;}
+}
+
+void Bunch_t::sort(){
+	if (is_sorted) {insertion_sort();}
+	else {general_sort();}
+	is_sorted = true;
+}
 
 void Bunch_t::generate_bunch()
 {
 	default_random_engine generator(19880419);
-  	normal_distribution<double> distribution(0.0,1.0);
+  	normal_distribution<double> distribution(0.0,1.0e-3);
 
-	for (auto p=particles.begin();p!=particles.end();++p){
-		(*p).xx = distribution(generator);
-		(*p).xl = distribution(generator);
-		(*p).de = distribution(generator);
-		(*p).ss = distribution(generator);
+	for (auto& p:particles){
+		p.xx = distribution(generator);
+		p.xl = distribution(generator);
+		p.de = distribution(generator);
+		p.ss = distribution(generator);
 	}
+	is_sorted = false;
 }

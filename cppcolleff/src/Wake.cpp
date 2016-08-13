@@ -9,7 +9,7 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren) const
     if (Wd.general || Wq.general || Wl.general){
         for (int pw=0;pw<bun.num_part;pw++){ // Begin from the particle ahead
             for (int ps=pw;ps>=0;ps--){ // loop over all particles ahead of it.
-                double ds = bun.ss[pw] - bun.ss[ps];
+                double ds = bun.ss[pw] - bun.particles[ps].ss;
                 if (Wl.general) {
                     double kick = interpola(Wl.s,Wl.W,ds) * stren;
                     Wkick[0]   += kick;
@@ -34,13 +34,13 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren) const
             double wrl = Wl.wr[r] * Ql / Wl.Q[r];
             complex<double> cpl_wr = complex<double> (Wl.wr[r]/(2*Wl.Q[r]), wrl);
             complex<double> W_pot = (0.0,0.0);
-            for (int p=0;p<bun.num_part;p++){
-                complex<double> kik = W_pot * exp( bun.ss[p]*cpl_wr) * stren;
-                W_pot +=                      exp(-bun.ss[p]*cpl_wr);
+            for (auto p:bun.particles){
+                complex<double> kik = W_pot * exp( p.ss*cpl_wr) * stren;
+                W_pot +=                      exp(-p.ss*cpl_wr);
 
                 double kick = - Wl.wr[r]*Wl.Rs[r]/Wl.Q[r] * (1/2 + kik.real() + 1*kik.imag()/(2*Ql));
                 Wkick[0]  += kick;
-                bun.de[p] += kick;
+                p.de += kick;
             }
         }
     }
@@ -50,13 +50,13 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren) const
             double wrl = Wd.wr[r] * Ql / Wd.Q[r];
             complex<double> cpl_wr (Wd.wr[r]/(2*Wd.Q[r]), wrl);
             complex<double> W_pot (0.0,0.0);
-            for (int p=0;p<bun.num_part;p++){
-                complex<double> kik = W_pot * bun.xx[p] * exp( bun.ss[p]*cpl_wr) * stren;
-                W_pot +=                                  exp(-bun.ss[p]*cpl_wr);
+            for (auto p:bun.particles){
+                complex<double> kik = W_pot * p.xx * exp( p.ss*cpl_wr) * stren;
+                W_pot +=                             exp(-p.ss*cpl_wr);
 
                 double kick = - Wd.wr[r] * Wd.Rs[r] / Ql * kik.imag();
-                Wkick[1]  += kick;
-                bun.xl[p] += kick;
+                Wkick[1] += kick;
+                p.xl     += kick;
             }
         }
     }
@@ -66,13 +66,13 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren) const
             double wrl = Wq.wr[r] * Ql / Wq.Q[r];
             complex<double> cpl_wr (Wq.wr[r]/(2*Wq.Q[r]), wrl);
             complex<double> W_pot (0.0,0.0);
-            for (int p=0;p<bun.num_part;p++){
-                complex<double> kik = W_pot * exp( bun.ss[p]*cpl_wr) * stren;
-                W_pot +=                      exp(-bun.ss[p]*cpl_wr);
+            for (auto p:bun.particles){
+                complex<double> kik = W_pot * exp( p.ss*cpl_wr) * stren;
+                W_pot +=                      exp(-p.ss*cpl_wr);
 
-                double kick = bun.xx[p] * (-Wq.wr[r] * Wq.Rs[r] / Ql * kik.imag());
-                Wkick[1]  += kick;
-                bun.xl[p] += kick;
+                double kick = p.xx * (-Wq.wr[r] * Wq.Rs[r] / Ql * kik.imag());
+                Wkick[1] += kick;
+                p.xl     += kick;
             }
         }
     }

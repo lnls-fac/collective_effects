@@ -1,12 +1,15 @@
 #ifndef _BUNCH_H
 #define _BUNCH_H
 
-#include <list>
-#include <random>
-#include <algorithm>
+#include <random>  //std::generator and some distributions
+#include <algorithm> //std::sort
+#include <utility> //std::swap
 #include <cppcolleff/essentials.h>
 
-struct Bunch_t {
+class Bunch_t {
+  private:
+    bool is_sorted;
+  public:
     long num_part;
     double Ib;  // bunch current;
     my_PartVector particles;
@@ -14,6 +17,9 @@ struct Bunch_t {
     ~Bunch_t() = default;
 
     void generate_bunch();
+    void general_sort();
+    void insertion_sort();
+    void selection_sort();
     void sort();
 };
 

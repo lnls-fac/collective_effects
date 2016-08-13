@@ -42,11 +42,11 @@ ARFLAGS     = rcs
 DFLAGS      = -DVERSION=$(VERSION)
 LIBSOURCES_CPP = essentials.cpp \
 				 Bunch.cpp \
-				#  Ring.cpp \
-				#  Wake.cpp \
-				#  Results.cpp \
-				#  Feedback.cpp \
-				#  cppcolleff.cpp
+				 Ring.cpp \
+				 Wake.cpp \
+				 Results.cpp \
+				 Feedback.cpp \
+				 cppcolleff.cpp
 BINSOURCES_CPP = exec.cpp
 
 AUXFILES  = VERSION

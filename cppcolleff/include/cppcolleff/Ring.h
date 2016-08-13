@@ -1,7 +1,7 @@
 #ifndef _RING_H
 #define _RING_H
 
-#include <cmath>
+#include <cmath> // std::sin std::cos
 #include <cppcolleff/essentials.h>
 #include <cppcolleff/Bunch.h>
 
@@ -9,7 +9,8 @@ class Ring_t{
   public:
     double betax, alphax, etax, etaxl, gammax, // optical functions
            tunex, chromx, tunex_shift,         // tune related parameters
-           circum, mom_comp, T0, energy;       // general ring parameters
+           circum, mom_comp, T0, energy,       // general ring parameters
+           emitx, espread, bunlen;             // equilibrium parameters
     my_Dvector cav_s, cav_V;                   // cavity parameters
 
     //const double gammax = (1 + alphax*alphax) / betax;
