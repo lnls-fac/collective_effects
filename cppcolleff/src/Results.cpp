@@ -1,6 +1,6 @@
 #include <cppcolleff/Results.h>
 
-void dump_bunch_to_file(const Bunch_t& bun, char filename) const
+void Results_t::dump_bunch_to_file(const Bunch_t& bun, const char* filename) const
 {
     FILE* fp = fopen(filename,"w");
     fprintf(fp,"#%20s %20s %20s %20s\n","xx [m]", "xl [m]", "de", "ss [m]");
@@ -11,11 +11,11 @@ void dump_bunch_to_file(const Bunch_t& bun, char filename) const
     fclose(fp);
 }
 
-double Results_t::calc_stats(const long turn, const Bunch_t& bun)
+double Results_t::calc_stats(const Bunch_t& bun, const long turn)
 {
-    if this_turn(turn) { // this_turn is a private method of class Results_t
-        ave.push_back(Particle_t (0.0));     rave = ave.back();
-        std.push_back(Particle_t (0.0));     rstd = std.back();
+    if (this_turn(turn)) { // this_turn is a private method of class Results_t
+        ave.push_back(Particle_t (0.0));     auto& rave = ave.back();
+        std.push_back(Particle_t (0.0));     auto& rstd = std.back();
         for (const auto& p:bun.particles){
             rave.xx += p.xx;
             rave.xl += p.xl;
@@ -40,8 +40,9 @@ double Results_t::calc_stats(const long turn, const Bunch_t& bun)
         rstd.ss = sqrt(rstd.ss - rave.ss * rave.ss);
 
 
-        if to_file {
-            sprintf(char filename[50],"turn%07l.txt",turn);
+        if (to_file) {
+            char filename[50];
+            sprintf(filename,"turn%07lu.txt",turn);
             dump_bunch_to_file(bun, filename);
         }
 
@@ -53,13 +54,13 @@ double Results_t::calc_stats(const long turn, const Bunch_t& bun)
     }
 }
 
-void Results_t::set_FBkick(const long turn, const double& kik)
+void Results_t::register_FBkick(const long turn, const double& kik)
 {
-    if (FB && this_turn(turn)) {FBkick[get_p(turn)] = kik;}
+    if (FB && this_turn(turn)) {FBkick.push_back(kik);}
 }
 
-void Results_t::set_Wkicks(const long turn, const my_Dvector& kik)
+void Results_t::register_Wkicks(const long turn, const my_Dvector& kik)
 {
-    if (Wl && this_turn(turn)) {Wlkick[get_p(turn)] = kik[0];}
-    if (Wd && this_turn(turn)) {Wdkick[get_p(turn)] = kik[1];}
+    if (Wl && this_turn(turn)) {Wlkick.push_back(kik[0]);}
+    if (Wd && this_turn(turn)) {Wdkick.push_back(kik[1]);}
 }

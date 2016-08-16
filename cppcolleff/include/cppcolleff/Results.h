@@ -8,6 +8,7 @@
 #include <cppcolleff/Bunch.h>
 
 class Results_t {
+  private:
     long every, nturns;
     bool FB, Wd, Wl;
     bool this_turn(const long n) const
@@ -17,12 +18,12 @@ class Results_t {
     }
     void reserve_memory()
     {
-        long np = nt/every + 2;
+        long np = nturns/every + 2;
         ave.reserve(np);
         std.reserve(np);
-        if (FB) FBKick.reserve(np); else FBKick.reserve(0);
-        if (Wd) WdKick.reserve(np); else WdKick.reserve(0);
-        if (Wl) WlKick.reserve(np); else WlKick.reserve(0);
+        if (FB) FBkick.reserve(np); else FBkick.reserve(0);
+        if (Wd) Wdkick.reserve(np); else Wdkick.reserve(0);
+        if (Wl) Wlkick.reserve(np); else Wlkick.reserve(0);
     }
   public:
     bool to_file;
@@ -57,10 +58,10 @@ class Results_t {
     void set_nturns(const long nt){nturns = nt;   reserve_memory();}
 
     long get_nturns() const {return nturns;}
-    double calc_stats(const long turn, const Bunch_t& bun);
+    double calc_stats(const Bunch_t& bun, const long turn);
     void register_Wkicks(const long turn, const my_Dvector& kik);
     void register_FBkick(const long turn, const double& kik);
-    void dump_bunch_to_file(const Bunch_t& bun, string& filename) const;
+    void dump_bunch_to_file(const Bunch_t& bun, const char* filename) const;
 };
 
 

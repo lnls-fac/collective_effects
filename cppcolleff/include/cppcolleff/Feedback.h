@@ -7,14 +7,15 @@
 #include <cppcolleff/Bunch.h>
 
 class Feedback_t {
-private:
+  private:
     deque<double> xx_ave;
+  public:
     bool track;
     unsigned int npoints, delay;
     double phase, freq, gain, satur, bpmbeta, kikbeta;
     Feedback_t(): track(false) {};
     ~Feedback_t() = default;
-    double apply_kick(const double xx_mean, Bunch_t& bun) const;
+    double apply_kick(Bunch_t& bun, const double xx_mean, const double betax);
 };
 
 #endif

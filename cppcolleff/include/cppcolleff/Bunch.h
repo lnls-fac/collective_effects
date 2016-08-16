@@ -7,13 +7,13 @@
 #include <cppcolleff/essentials.h>
 
 class Bunch_t {
-  private:
-    bool is_sorted;
   public:
+    bool is_sorted;
     long num_part;
     double Ib;  // bunch current;
     my_PartVector particles;
     Bunch_t (const long part): num_part(part), particles(part,0.0) {};
+    Bunch_t (const long part,const double I): num_part(part), particles(part,0.0), Ib(I) {};
     ~Bunch_t() = default;
 
     void generate_bunch();

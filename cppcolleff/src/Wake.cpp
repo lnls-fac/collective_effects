@@ -1,44 +1,46 @@
 
 #include <cppcolleff/Wake.h>
 
-my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren) const
+my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren, const double betax) const
 {
     my_Dvector Wkick (2,0.0);
 
     //pw --> witness particle   ps --> source particle
     if (Wd.general || Wq.general || Wl.general){
-        for (int pw=0;pw<bun.num_part;pw++){ // Begin from the particle ahead
-            for (int ps=pw;ps>=0;ps--){ // loop over all particles ahead of it.
-                double ds = bun.ss[pw] - bun.particles[ps].ss;
+        for (auto pw=bun.particles.begin();pw!=bun.particles.end();++pw){ // Begin from the particle ahead
+            for (auto ps=pw;ps!=bun.particles.begin()-1;--ps){ // loop over all particles ahead of it.
+                double ds = pw->ss - ps->ss;
                 if (Wl.general) {
                     double kick = interpola(Wl.s,Wl.W,ds) * stren;
                     Wkick[0]   += kick;
-                    bun.de[pw] += kick;
+                    pw->de += kick;
                 }
                 if (Wd.general) {
-                    double kick = bun.xx[ps]*interpola(Wd.s,Wd.W,ds) * stren;
+                    double kick = ps->xx*interpola(Wd.s,Wd.W,ds) * stren / betax;
                     Wkick[1]   += kick;
-                    bun.xl[pw] += kick;
+                    pw->xl += kick;
                 }
                 if (Wq.general) {
-                    double kick = bun.xx[pw]*interpola(Wq.s,Wq.W,ds) * stren;
+                    double kick = pw->xx*interpola(Wq.s,Wq.W,ds) * stren / betax;
                     Wkick[1]   += kick;
-                    bun.xl[pw] += kick;
+                    pw->xl += kick;
                 }
             }
         }
     }
     if (Wl.resonator){
         for (int r=0; r<Wl.wr.size(); r++){
-            double Ql  = sqrt(Wl.Q[r]*Wl.Q[r] - 1/4);
-            double wrl = Wl.wr[r] * Ql / Wl.Q[r];
-            complex<double> cpl_wr = complex<double> (Wl.wr[r]/(2*Wl.Q[r]), wrl);
-            complex<double> W_pot = (0.0,0.0);
-            for (auto p:bun.particles){
-                complex<double> kik = W_pot * exp( p.ss*cpl_wr) * stren;
-                W_pot +=                      exp(-p.ss*cpl_wr);
+            double kr  = Wl.wr[r] / light_speed;
+            double Ql  = sqrt(Wl.Q[r] * Wl.Q[r] - 1/4);
+            double Amp = Wl.wr[r] * Wl.Rs[r] / Wl.Q[r] * stren;
+            double krl = kr * Ql / Wl.Q[r];
+            complex<double> cpl_kr (kr/(2*Wl.Q[r]), krl);
+            complex<double> W_pot (0.0,0.0);
+            for (auto& p:bun.particles){
+                complex<double> kik = W_pot * exp( p.ss*cpl_kr);
+                W_pot +=                      exp(-p.ss*cpl_kr);
 
-                double kick = - Wl.wr[r]*Wl.Rs[r]/Wl.Q[r] * (1/2 + kik.real() + 1*kik.imag()/(2*Ql));
+                double kick = - Amp * (1/2 + kik.real() + 1*kik.imag()/(2*Ql));
                 Wkick[0]  += kick;
                 p.de += kick;
             }
@@ -46,15 +48,17 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren) const
     }
     if (Wd.resonator){
         for (int r=0; r<Wd.wr.size(); r++){
+            double kr = Wd.wr[r] / light_speed;
             double Ql  = sqrt(Wd.Q[r]*Wd.Q[r] - 1/4);
-            double wrl = Wd.wr[r] * Ql / Wd.Q[r];
-            complex<double> cpl_wr (Wd.wr[r]/(2*Wd.Q[r]), wrl);
+            double Amp = Wd.wr[r] * Wd.Rs[r] / Ql  * stren / betax;
+            double krl = kr * Ql / Wd.Q[r];
+            complex<double> cpl_kr (kr/(2*Wd.Q[r]), krl);
             complex<double> W_pot (0.0,0.0);
-            for (auto p:bun.particles){
-                complex<double> kik = W_pot * p.xx * exp( p.ss*cpl_wr) * stren;
-                W_pot +=                             exp(-p.ss*cpl_wr);
+            for (auto& p:bun.particles){
+                complex<double> kik = W_pot * p.xx * exp( p.ss*cpl_kr);
+                W_pot +=                             exp(-p.ss*cpl_kr);
 
-                double kick = - Wd.wr[r] * Wd.Rs[r] / Ql * kik.imag();
+                double kick = -Amp * kik.imag();
                 Wkick[1] += kick;
                 p.xl     += kick;
             }
@@ -62,15 +66,17 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren) const
     }
     if (Wq.resonator){
         for (int r=0; r<Wq.wr.size(); r++){
+            double kr = Wq.wr[r] / light_speed;
             double Ql  = sqrt(Wq.Q[r]*Wq.Q[r] - 1/4);
-            double wrl = Wq.wr[r] * Ql / Wq.Q[r];
-            complex<double> cpl_wr (Wq.wr[r]/(2*Wq.Q[r]), wrl);
+            double Amp = Wq.wr[r] * Wq.Rs[r] / Ql  * stren / betax;
+            double krl = kr * Ql / Wq.Q[r];
+            complex<double> cpl_kr (kr/(2*Wq.Q[r]), krl);
             complex<double> W_pot (0.0,0.0);
-            for (auto p:bun.particles){
-                complex<double> kik = W_pot * exp( p.ss*cpl_wr) * stren;
-                W_pot +=                      exp(-p.ss*cpl_wr);
+            for (auto& p:bun.particles){
+                complex<double> kik = W_pot * exp( p.ss*cpl_kr);
+                W_pot +=                      exp(-p.ss*cpl_kr);
 
-                double kick = p.xx * (-Wq.wr[r] * Wq.Rs[r] / Ql * kik.imag());
+                double kick = p.xx * (-Amp * kik.imag());
                 Wkick[1] += kick;
                 p.xl     += kick;
             }

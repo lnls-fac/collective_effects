@@ -28,6 +28,7 @@ if __name__ == '__main__':
 
     plot = not opts.plot
     silent = opts.silent
+    pth2sv = opts.pth2sv
 
     if opts.calc:
         simul_data = main(pth2sv, silent=silent)

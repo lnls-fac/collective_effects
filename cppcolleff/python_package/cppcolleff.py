@@ -108,6 +108,9 @@ class Bunch_t(_object):
     __swig_getmethods__ = {}
     __getattr__ = lambda self, name: _swig_getattr(self, Bunch_t, name)
     __repr__ = _swig_repr
+    __swig_setmethods__["is_sorted"] = _cppcolleff.Bunch_t_is_sorted_set
+    __swig_getmethods__["is_sorted"] = _cppcolleff.Bunch_t_is_sorted_get
+    if _newclass:is_sorted = _swig_property(_cppcolleff.Bunch_t_is_sorted_get, _cppcolleff.Bunch_t_is_sorted_set)
     __swig_setmethods__["num_part"] = _cppcolleff.Bunch_t_num_part_set
     __swig_getmethods__["num_part"] = _cppcolleff.Bunch_t_num_part_get
     if _newclass:num_part = _swig_property(_cppcolleff.Bunch_t_num_part_get, _cppcolleff.Bunch_t_num_part_set)
@@ -124,6 +127,9 @@ class Bunch_t(_object):
     __swig_destroy__ = _cppcolleff.delete_Bunch_t
     __del__ = lambda self : None;
     def generate_bunch(self): return _cppcolleff.Bunch_t_generate_bunch(self)
+    def general_sort(self): return _cppcolleff.Bunch_t_general_sort(self)
+    def insertion_sort(self): return _cppcolleff.Bunch_t_insertion_sort(self)
+    def selection_sort(self): return _cppcolleff.Bunch_t_selection_sort(self)
     def sort(self): return _cppcolleff.Bunch_t_sort(self)
 Bunch_t_swigregister = _cppcolleff.Bunch_t_swigregister
 Bunch_t_swigregister(Bunch_t)
@@ -170,6 +176,15 @@ class Ring_t(_object):
     __swig_setmethods__["energy"] = _cppcolleff.Ring_t_energy_set
     __swig_getmethods__["energy"] = _cppcolleff.Ring_t_energy_get
     if _newclass:energy = _swig_property(_cppcolleff.Ring_t_energy_get, _cppcolleff.Ring_t_energy_set)
+    __swig_setmethods__["emitx"] = _cppcolleff.Ring_t_emitx_set
+    __swig_getmethods__["emitx"] = _cppcolleff.Ring_t_emitx_get
+    if _newclass:emitx = _swig_property(_cppcolleff.Ring_t_emitx_get, _cppcolleff.Ring_t_emitx_set)
+    __swig_setmethods__["espread"] = _cppcolleff.Ring_t_espread_set
+    __swig_getmethods__["espread"] = _cppcolleff.Ring_t_espread_get
+    if _newclass:espread = _swig_property(_cppcolleff.Ring_t_espread_get, _cppcolleff.Ring_t_espread_set)
+    __swig_setmethods__["bunlen"] = _cppcolleff.Ring_t_bunlen_set
+    __swig_getmethods__["bunlen"] = _cppcolleff.Ring_t_bunlen_get
+    if _newclass:bunlen = _swig_property(_cppcolleff.Ring_t_bunlen_get, _cppcolleff.Ring_t_bunlen_set)
     __swig_setmethods__["cav_s"] = _cppcolleff.Ring_t_cav_s_set
     __swig_getmethods__["cav_s"] = _cppcolleff.Ring_t_cav_s_get
     if _newclass:cav_s = _swig_property(_cppcolleff.Ring_t_cav_s_get, _cppcolleff.Ring_t_cav_s_set)
@@ -192,9 +207,9 @@ class Results_t(_object):
     __swig_getmethods__ = {}
     __getattr__ = lambda self, name: _swig_getattr(self, Results_t, name)
     __repr__ = _swig_repr
-    __swig_setmethods__["nturns"] = _cppcolleff.Results_t_nturns_set
-    __swig_getmethods__["nturns"] = _cppcolleff.Results_t_nturns_get
-    if _newclass:nturns = _swig_property(_cppcolleff.Results_t_nturns_get, _cppcolleff.Results_t_nturns_set)
+    __swig_setmethods__["to_file"] = _cppcolleff.Results_t_to_file_set
+    __swig_getmethods__["to_file"] = _cppcolleff.Results_t_to_file_get
+    if _newclass:to_file = _swig_property(_cppcolleff.Results_t_to_file_get, _cppcolleff.Results_t_to_file_set)
     __swig_setmethods__["ave"] = _cppcolleff.Results_t_ave_set
     __swig_getmethods__["ave"] = _cppcolleff.Results_t_ave_get
     if _newclass:ave = _swig_property(_cppcolleff.Results_t_ave_get, _cppcolleff.Results_t_ave_set)
@@ -216,9 +231,16 @@ class Results_t(_object):
         except: self.this = this
     __swig_destroy__ = _cppcolleff.delete_Results_t
     __del__ = lambda self : None;
+    def set_keepFB(self, *args): return _cppcolleff.Results_t_set_keepFB(self, *args)
+    def set_keepWd(self, *args): return _cppcolleff.Results_t_set_keepWd(self, *args)
+    def set_keepWl(self, *args): return _cppcolleff.Results_t_set_keepWl(self, *args)
+    def set_every(self, *args): return _cppcolleff.Results_t_set_every(self, *args)
+    def set_nturns(self, *args): return _cppcolleff.Results_t_set_nturns(self, *args)
+    def get_nturns(self): return _cppcolleff.Results_t_get_nturns(self)
     def calc_stats(self, *args): return _cppcolleff.Results_t_calc_stats(self, *args)
-    def set_Wkicks(self, *args): return _cppcolleff.Results_t_set_Wkicks(self, *args)
-    def set_FBkick(self, *args): return _cppcolleff.Results_t_set_FBkick(self, *args)
+    def register_Wkicks(self, *args): return _cppcolleff.Results_t_register_Wkicks(self, *args)
+    def register_FBkick(self, *args): return _cppcolleff.Results_t_register_FBkick(self, *args)
+    def dump_bunch_to_file(self, *args): return _cppcolleff.Results_t_dump_bunch_to_file(self, *args)
 Results_t_swigregister = _cppcolleff.Results_t_swigregister
 Results_t_swigregister(Results_t)
 
@@ -326,6 +348,10 @@ class Wake_t(_object):
 Wake_t_swigregister = _cppcolleff.Wake_t_swigregister
 Wake_t_swigregister(Wake_t)
 
+
+def generate_bunch(*args):
+  return _cppcolleff.generate_bunch(*args)
+generate_bunch = _cppcolleff.generate_bunch
 
 def do_tracking(*args):
   return _cppcolleff.do_tracking(*args)

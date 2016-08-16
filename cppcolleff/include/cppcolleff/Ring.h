@@ -7,6 +7,7 @@
 
 class Ring_t{
   public:
+    int harm_num;                              // harmonic number
     double betax, alphax, etax, etaxl, gammax, // optical functions
            tunex, chromx, tunex_shift,         // tune related parameters
            circum, mom_comp, T0, energy,       // general ring parameters

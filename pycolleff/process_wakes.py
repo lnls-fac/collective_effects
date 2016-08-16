@@ -474,6 +474,7 @@ def _load_data_ECHO_rect(simul_data,code,path,anal_pl,silent):
                 a = f.readline()
             mstep, offset, wid, bunlen = _np.fromstring(a[1:],sep='\t')
             offset = int(offset)
+            arbitrary_factor = 2 # I don't know why I have to divide the echozr data by 2;
             y0 = y = mstep*offset / 100
         elif code == 'echo2d':
             len_unit, charge_unit, header = 1, 1, 5
@@ -483,6 +484,7 @@ def _load_data_ECHO_rect(simul_data,code,path,anal_pl,silent):
                 f.readline()
                 wid, bunlen   = _np.fromstring(f.readline(),sep='\t')
             offset = int(offset)
+            arbitrary_factor = 1 # But I don't have to do this for the echo2d data.
             y0 = y = mstep*offset
             offset = 0  # has only one column of wake
         spos, Wm = _np.loadtxt(fname,skiprows=header,usecols=(0,1+offset),unpack=True)
@@ -490,7 +492,7 @@ def _load_data_ECHO_rect(simul_data,code,path,anal_pl,silent):
         wid   *= len_unit
         bunlen*= len_unit
         spos  *= len_unit
-        Wm    *= -len_unit/charge_unit # minus sign is due to convention
+        Wm    *= -len_unit/charge_unit / arbitrary_factor  # minus sign is due to convention
 
         Kxm = _np.pi/wid*mode
         if bc == 'elec': Wm  /= _np.sinh(Kxm*y0)*_np.sinh(Kxm*y)
