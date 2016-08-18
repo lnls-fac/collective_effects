@@ -4,6 +4,7 @@
 
 #include <vector>
 #include <iostream>
+#include <cmath>
 using namespace std;
 
 #define TWOPI  6.28318530717959
@@ -22,33 +23,30 @@ typedef vector<Particle_t> my_PartVector;
 
 class Interpola_t {
 private:
-    my_Dvector* xi, yi;
+    my_Dvector xi, yi;
     bool equally_spaced;
+    void check_consistency();
 public:
-    void set_x(const my_Dvector& xref){
-        xi = &xref;
-        equally_spaced = false;
-        double ds0 = xref[1]-xref[0];
-        for (auto i=1;i<xref.size(); ++i){
-            double ds = xref[i]-xref[i-1];
-            if (ds < 0.0) {exit(1);}
-            if (ds != ds0) {return;}
-        }
-        equally_spaced = true;
-    }
-    void set_y(const my_Dvector& yref){yi = &yref;}
-    void set_xy(const my_Dvector& xref, const my_Dvector& yref){set_x(xref); set_y(yref);}
+    //Interpola_t(my_Dvector&& xref, my_Dvector&& yref) {xi = move(xref); yi = move(yref);check_consistency();}
+    Interpola_t(my_Dvector& xref, my_Dvector& yref): xi(move(xref)), yi(move(yref)) {check_consistency();}
+    Interpola_t() = default;
+    ~Interpola_t() = default;
+    void set_x(my_Dvector& xref){xi = move(xref);check_consistency();}
+    void set_y(my_Dvector& yref){yi = move(yref);check_consistency();}
+    void set_xy(my_Dvector& xref, my_Dvector& yref){xi = move(xref); yi = move(yref);check_consistency();}
+    const my_Dvector& ref_to_xi() const {return xi;}
+    const my_Dvector& ref_to_yi() const {return yi;}
 
-    inline double get_y(const double& x)
+    inline double get_y(const double& x) const
     {
-        unsigned long i;
+        if      (x > xi.back())  {return 0.0;}
+        else if (x < xi.front()) {return 0.0;}
 
-        if      (s >= si.back())  {return 0.0;}
-        else if (s <= si.front()) {return 0.0;}
+        long i;
+        if (equally_spaced){i = (long) ((x - xi[0])/(xi[1]-xi[0]));}
+        else {for (i=0;i<xi.size();++i){if (x<xi[i]){break;}}}
 
-        i = (unsigned long) ((s - si[0])/(si[1]-si[0]));
-        // fprintf(stdout," %05lu",i);
-        return (Wi[i+1] - Wi[i]) / (si[i+1] - si[i]) * s;
+        return  yi[i]   +   (yi[i+1]-yi[i]) / (xi[i+1]-xi[i]) * (x-xi[i]);
     }
-}
+};
 #endif

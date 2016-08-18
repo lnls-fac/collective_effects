@@ -98,10 +98,27 @@ class Particle_t(_object):
 Particle_t_swigregister = _cppcolleff.Particle_t_swigregister
 Particle_t_swigregister(Particle_t)
 
+class Interpola_t(_object):
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr(self, Interpola_t, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, Interpola_t, name)
+    __repr__ = _swig_repr
+    def __init__(self, *args): 
+        this = _cppcolleff.new_Interpola_t(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    __swig_destroy__ = _cppcolleff.delete_Interpola_t
+    __del__ = lambda self : None;
+    def set_x(self, *args): return _cppcolleff.Interpola_t_set_x(self, *args)
+    def set_y(self, *args): return _cppcolleff.Interpola_t_set_y(self, *args)
+    def set_xy(self, *args): return _cppcolleff.Interpola_t_set_xy(self, *args)
+    def ref_to_xi(self): return _cppcolleff.Interpola_t_ref_to_xi(self)
+    def ref_to_yi(self): return _cppcolleff.Interpola_t_ref_to_yi(self)
+    def get_y(self, *args): return _cppcolleff.Interpola_t_get_y(self, *args)
+Interpola_t_swigregister = _cppcolleff.Interpola_t_swigregister
+Interpola_t_swigregister(Interpola_t)
 
-def interpola(*args):
-  return _cppcolleff.interpola(*args)
-interpola = _cppcolleff.interpola
 class Bunch_t(_object):
     __swig_setmethods__ = {}
     __setattr__ = lambda self, name, value: _swig_setattr(self, Bunch_t, name, value)
@@ -140,6 +157,9 @@ class Ring_t(_object):
     __swig_getmethods__ = {}
     __getattr__ = lambda self, name: _swig_getattr(self, Ring_t, name)
     __repr__ = _swig_repr
+    __swig_setmethods__["harm_num"] = _cppcolleff.Ring_t_harm_num_set
+    __swig_getmethods__["harm_num"] = _cppcolleff.Ring_t_harm_num_get
+    if _newclass:harm_num = _swig_property(_cppcolleff.Ring_t_harm_num_get, _cppcolleff.Ring_t_harm_num_set)
     __swig_setmethods__["betax"] = _cppcolleff.Ring_t_betax_set
     __swig_getmethods__["betax"] = _cppcolleff.Ring_t_betax_get
     if _newclass:betax = _swig_property(_cppcolleff.Ring_t_betax_get, _cppcolleff.Ring_t_betax_set)
@@ -185,12 +205,9 @@ class Ring_t(_object):
     __swig_setmethods__["bunlen"] = _cppcolleff.Ring_t_bunlen_set
     __swig_getmethods__["bunlen"] = _cppcolleff.Ring_t_bunlen_get
     if _newclass:bunlen = _swig_property(_cppcolleff.Ring_t_bunlen_get, _cppcolleff.Ring_t_bunlen_set)
-    __swig_setmethods__["cav_s"] = _cppcolleff.Ring_t_cav_s_set
-    __swig_getmethods__["cav_s"] = _cppcolleff.Ring_t_cav_s_get
-    if _newclass:cav_s = _swig_property(_cppcolleff.Ring_t_cav_s_get, _cppcolleff.Ring_t_cav_s_set)
-    __swig_setmethods__["cav_V"] = _cppcolleff.Ring_t_cav_V_set
-    __swig_getmethods__["cav_V"] = _cppcolleff.Ring_t_cav_V_get
-    if _newclass:cav_V = _swig_property(_cppcolleff.Ring_t_cav_V_get, _cppcolleff.Ring_t_cav_V_set)
+    __swig_setmethods__["cav"] = _cppcolleff.Ring_t_cav_set
+    __swig_getmethods__["cav"] = _cppcolleff.Ring_t_cav_get
+    if _newclass:cav = _swig_property(_cppcolleff.Ring_t_cav_get, _cppcolleff.Ring_t_cav_set)
     def __init__(self): 
         this = _cppcolleff.new_Ring_t()
         try: self.this.append(this)
@@ -210,6 +227,9 @@ class Results_t(_object):
     __swig_setmethods__["to_file"] = _cppcolleff.Results_t_to_file_set
     __swig_getmethods__["to_file"] = _cppcolleff.Results_t_to_file_get
     if _newclass:to_file = _swig_property(_cppcolleff.Results_t_to_file_get, _cppcolleff.Results_t_to_file_set)
+    __swig_setmethods__["print_screen"] = _cppcolleff.Results_t_print_screen_set
+    __swig_getmethods__["print_screen"] = _cppcolleff.Results_t_print_screen_get
+    if _newclass:print_screen = _swig_property(_cppcolleff.Results_t_print_screen_get, _cppcolleff.Results_t_print_screen_set)
     __swig_setmethods__["ave"] = _cppcolleff.Results_t_ave_set
     __swig_getmethods__["ave"] = _cppcolleff.Results_t_ave_get
     if _newclass:ave = _swig_property(_cppcolleff.Results_t_ave_get, _cppcolleff.Results_t_ave_set)
@@ -299,9 +319,6 @@ class WakePl(_object):
     __swig_setmethods__["resonator"] = _cppcolleff.WakePl_resonator_set
     __swig_getmethods__["resonator"] = _cppcolleff.WakePl_resonator_get
     if _newclass:resonator = _swig_property(_cppcolleff.WakePl_resonator_get, _cppcolleff.WakePl_resonator_set)
-    __swig_setmethods__["s"] = _cppcolleff.WakePl_s_set
-    __swig_getmethods__["s"] = _cppcolleff.WakePl_s_get
-    if _newclass:s = _swig_property(_cppcolleff.WakePl_s_get, _cppcolleff.WakePl_s_set)
     __swig_setmethods__["W"] = _cppcolleff.WakePl_W_set
     __swig_getmethods__["W"] = _cppcolleff.WakePl_W_get
     if _newclass:W = _swig_property(_cppcolleff.WakePl_W_get, _cppcolleff.WakePl_W_set)
@@ -342,9 +359,9 @@ class Wake_t(_object):
         this = _cppcolleff.new_Wake_t()
         try: self.this.append(this)
         except: self.this = this
-    def apply_kicks(self, *args): return _cppcolleff.Wake_t_apply_kicks(self, *args)
     __swig_destroy__ = _cppcolleff.delete_Wake_t
     __del__ = lambda self : None;
+    def apply_kicks(self, *args): return _cppcolleff.Wake_t_apply_kicks(self, *args)
 Wake_t_swigregister = _cppcolleff.Wake_t_swigregister
 Wake_t_swigregister(Wake_t)
 

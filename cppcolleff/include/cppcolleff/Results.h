@@ -9,11 +9,16 @@
 
 class Results_t {
   private:
-    long every, nturns;
+    long every, every_print, nturns;
     bool FB, Wd, Wl;
     bool this_turn(const long n) const
     {
         if ((n % every)==0 || n==nturns) return true;
+        else return false;
+    }
+    bool this_turn_print(const long n) const
+    {
+        if ((n % (every*every_print))==0 || n==nturns) return true;
         else return false;
     }
     void reserve_memory()
@@ -26,26 +31,26 @@ class Results_t {
         if (Wl) Wlkick.reserve(np); else Wlkick.reserve(0);
     }
   public:
-    bool to_file;
+    bool to_file, print_screen;
     my_PartVector ave;
     my_PartVector std;
     my_Dvector Wlkick;
     my_Dvector Wdkick;
     my_Dvector FBkick;
     Results_t (const long nt):
-        nturns(nt), every(1L), to_file(false),
+        nturns(nt), every(1L),every_print(10L), to_file(false), print_screen(true),
         FB(false), Wd(false),Wl(false)
     {
         reserve_memory();
     }
     Results_t (const long nt, const long eve):
-        nturns(nt), every(eve), to_file(false),
+        nturns(nt), every(eve), every_print(10L), to_file(false), print_screen(true),
         FB(false), Wd(false),Wl(false)
     {
         reserve_memory();
     }
     Results_t (const long nt, const long eve, const bool kicks):
-        nturns(nt), every(eve), to_file(false),
+        nturns(nt), every(eve), every_print(10L), to_file(false), print_screen(true),
         FB(kicks), Wd(kicks), Wl(kicks)
     {
         reserve_memory();

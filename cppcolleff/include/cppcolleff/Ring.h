@@ -12,7 +12,7 @@ class Ring_t{
            tunex, chromx, tunex_shift,         // tune related parameters
            circum, mom_comp, T0, energy,       // general ring parameters
            emitx, espread, bunlen;             // equilibrium parameters
-    my_Dvector cav_s, cav_V;                   // cavity parameters
+    Interpola_t cav;                           // cavity parameters
 
     //const double gammax = (1 + alphax*alphax) / betax;
     Ring_t():

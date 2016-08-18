@@ -46,9 +46,26 @@ double Results_t::calc_stats(const Bunch_t& bun, const long turn)
             dump_bunch_to_file(bun, filename);
         }
 
+        if (print_screen) {
+            if (turn == 0) {
+                fprintf(stdout,"%7s %12s %12s   %12s %12s   %12s %12s   %12s %12s \n","turn",
+                        "<xx> [mm]","std(xx) [mm]","<xl> [mm]","std(xl) [mm]",
+                        "<de> [%]","std(de) [%]","<ss> [mm]","std(ss) [mm]"
+                    );
+            }
+            if (this_turn_print(turn)){
+                fprintf(stdout,"%07lu %12.6f %12.6f   %12.6f %12.6f   %12.6f %12.6f   %12.6f %12.6f \n",turn,
+                        1e3*ave.back().xx,1e3*std.back().xx,
+                        1e3*ave.back().xl,1e3*std.back().xl,
+                        1e2*ave.back().de,1e2*std.back().de,
+                        1e3*ave.back().ss,1e3*std.back().ss
+                    );
+            }
+        }
+
         return rave.xx;
     } else {
-        double ave_xx =0;
+        double ave_xx = 0;
         for (const auto& p:bun.particles){ ave_xx += p.xx;}
         return ave_xx/bun.num_part;
     }

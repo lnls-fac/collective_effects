@@ -8,7 +8,7 @@
 struct WakePl
 {
     bool general, resonator;
-    my_Dvector  s, W;
+    Interpola_t  W;
     my_Dvector wr, Rs, Q;
     WakePl(): general(false), resonator(false) {};
     ~WakePl() = default;

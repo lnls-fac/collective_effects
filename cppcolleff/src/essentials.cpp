@@ -1,14 +1,21 @@
 
 #include <cppcolleff/essentials.h>
 
-// double interpola(const my_Dvector& si, const my_Dvector& Wi, const double& s)
-// {
-//     unsigned long i;
-//
-//     if      (s >= si.back())  {return 0.0;}
-//     else if (s <= si.front()) {return 0.0;}
-//
-//     i = (unsigned long) ((s - si[0])/(si[1]-si[0]));
-//     // fprintf(stdout," %05lu",i);
-//     return (Wi[i+1] - Wi[i]) / (si[i+1] - si[i]) * s;
-// }
+void Interpola_t::check_consistency()
+{
+    if (xi.size() != yi.size()){
+        fprintf(stdout,"yi must be the same size as xi.\n");
+        exit(1);
+    }
+
+    equally_spaced = true;
+    double ds0 = xi[1]-xi[0];
+    for (auto i=1;i<xi.size(); ++i){
+        double&& ds = (xi[i] - xi[i-1]);
+        if (ds <= 0.0) {
+            fprintf(stdout,"xi must be strictly increasing.\n");
+            exit(1);
+        }
+        if (abs(ds - ds0) > abs(ds0)*1e-10) {equally_spaced = false;}
+    }
+}
