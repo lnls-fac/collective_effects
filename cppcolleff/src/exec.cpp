@@ -27,8 +27,8 @@ int main()
 {
     typedef std::chrono::high_resolution_clock clock_;
     typedef std::chrono::duration<double, std::ratio<1> > s_;
-    const long num_part = 1000000;
-    const long nturns   = 400;
+    const long num_part = 40000000;
+    const long nturns   = 100;
 
     Ring_t ring;
     ring.energy      = 3e9;
@@ -43,15 +43,14 @@ int main()
     ring.betax       = 19;
     ring.gammax      = 1/ring.betax;
 
-    double phi0 (171.24/180*TWOPI), V0 (3e6);
     my_Dvector ss ;
     my_Dvector V  ;
+    double phi0 (171.24/360*TWOPI), V0 (3e6), krf (TWOPI*ring.harm_num/ring.circum);
+    double U0 (V0*sin(phi0));
     for (long i=-1000; i<=1000; i++){
         double&& s = 1e-3 * 10e-2 * i;
-        // fprintf(stdout,"%f ",s);
         ss.push_back(s);
-        // fprintf(stdout,"%f ",ss.back());
-        V.push_back(V0*sin(phi0 -TWOPI*ring.harm_num/ring.circum * s) - V0*sin(phi0));
+        V.push_back(V0*sin(phi0 + krf*s) - U0);
     }
     ring.cav.set_xy(ss,V);
 
@@ -61,7 +60,7 @@ int main()
 
 
     Wake_t wake;
-    wake.Wl.resonator = true;
+    wake.Wl.resonator = false;
     wake.Wl.wr.push_back(10e9*TWOPI);
     wake.Wl.Rs.push_back(1e2);
     wake.Wl.Q.push_back(1);

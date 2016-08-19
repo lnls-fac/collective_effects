@@ -37,6 +37,19 @@ void generate_bunch(const Ring_t& ring, Bunch_t& bun)
 
     uniform_real_distribution<double> ss_dist(idistr.front(),idistr.back());
     Interpola_t idistr_interpol (idistr, s_distr);
+  #ifdef OPENMP
+    fprintf(stdout,"here\n");
+    my_PartVector& par = bun.particles;
+    #pragma omp parallel for schedule(guided,1)
+    for (int i=0;i<par.size();++i){
+        double&& emitx = emitx_dist(gen);
+        double&& phix  = phix_dist(gen);
+        par[i].de = espread_dist(gen);
+        par[i].ss = idistr_interpol.get_y(ss_dist(gen));
+        par[i].xx =  sqrt(emitx*ring.betax)*cos(phix) + ring.etax*par[i].de;
+        par[i].xl = -sqrt(emitx/ring.betax)*(ring.alphax*cos(phix) + sin(phix)) + ring.etaxl*par[i].de;
+    }
+  #else
 	for (auto& p:bun.particles){
 		double&& emitx = emitx_dist(gen);
 		double&& phix  = phix_dist(gen);
@@ -45,6 +58,7 @@ void generate_bunch(const Ring_t& ring, Bunch_t& bun)
 		p.xx =  sqrt(emitx*ring.betax)*cos(phix) + ring.etax*p.de;
 		p.xl = -sqrt(emitx/ring.betax)*(ring.alphax*cos(phix) + sin(phix)) + ring.etaxl*p.de;
 	}
+  #endif
 	bun.is_sorted = false;
 }
 
@@ -67,7 +81,7 @@ void do_tracking(
 
         // After this sorting, the particles will be ordered from head to tail.
         // It means, from smaller ss to bigger ss.
-        bun.general_sort();
+        // bun.general_sort();
 
         results.register_Wkicks(n, wake.apply_kicks(bun,kick_stren, ring.betax));
         results.register_FBkick(n,   fb.apply_kick(bun, xx_ave,     ring.betax));

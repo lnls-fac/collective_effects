@@ -4,6 +4,7 @@
 #include <cmath> // std::sin std::cos
 #include <cppcolleff/essentials.h>
 #include <cppcolleff/Bunch.h>
+//#include <omp.h>
 
 class Ring_t{
   public:

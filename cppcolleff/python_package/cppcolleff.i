@@ -33,3 +33,12 @@
 %include "../include/cppcolleff/Feedback.h"
 %include "../include/cppcolleff/Wake.h"
 %include "../include/cppcolleff/cppcolleff.h"
+
+
+%include "std_vector.i"
+%include "stl.i"
+
+namespace std {
+    %template(my_Dvector) vector<double>;
+    %template(my_PartVector) vector<Particle_t>;
+}

@@ -4,7 +4,7 @@ C         = gcc
 CXX       = g++
 SWIG      = swig3.0
 MACHINE   = -m64
-OPT_FLAG  = -O3
+OPT_FLAG  = -O3 -fopenmp -DOPENMP
 SOURCES_I =     cppcolleff.i
 WRAPPEROBJS =   cppcolleff_wrap.o
 CPPCOLLEFFLIB = ../build/libcppcolleff.a
@@ -12,7 +12,7 @@ CPPCOLLEFFLIB = ../build/libcppcolleff.a
 OBJECTS = $(WRAPPEROBJS)
 
 CPPFLAGS = -std=c++11 -fPIC $(OPT_FLAG)
-LIBS = -lgsl -lblas -L../build -lcppcolleff
+LIBS = -lgsl -lblas -L../build -lcppcolleff -fopenmp -DOPENMP
 INC = -I/usr/include/python3.4 -I../include
 PYTHON = python3
 SETUPARGS =

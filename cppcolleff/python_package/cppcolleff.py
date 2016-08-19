@@ -373,6 +373,129 @@ generate_bunch = _cppcolleff.generate_bunch
 def do_tracking(*args):
   return _cppcolleff.do_tracking(*args)
 do_tracking = _cppcolleff.do_tracking
+class SwigPyIterator(_object):
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr(self, SwigPyIterator, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, SwigPyIterator, name)
+    def __init__(self, *args, **kwargs): raise AttributeError("No constructor defined - class is abstract")
+    __repr__ = _swig_repr
+    __swig_destroy__ = _cppcolleff.delete_SwigPyIterator
+    __del__ = lambda self : None;
+    def value(self): return _cppcolleff.SwigPyIterator_value(self)
+    def incr(self, n=1): return _cppcolleff.SwigPyIterator_incr(self, n)
+    def decr(self, n=1): return _cppcolleff.SwigPyIterator_decr(self, n)
+    def distance(self, *args): return _cppcolleff.SwigPyIterator_distance(self, *args)
+    def equal(self, *args): return _cppcolleff.SwigPyIterator_equal(self, *args)
+    def copy(self): return _cppcolleff.SwigPyIterator_copy(self)
+    def next(self): return _cppcolleff.SwigPyIterator_next(self)
+    def __next__(self): return _cppcolleff.SwigPyIterator___next__(self)
+    def previous(self): return _cppcolleff.SwigPyIterator_previous(self)
+    def advance(self, *args): return _cppcolleff.SwigPyIterator_advance(self, *args)
+    def __eq__(self, *args): return _cppcolleff.SwigPyIterator___eq__(self, *args)
+    def __ne__(self, *args): return _cppcolleff.SwigPyIterator___ne__(self, *args)
+    def __iadd__(self, *args): return _cppcolleff.SwigPyIterator___iadd__(self, *args)
+    def __isub__(self, *args): return _cppcolleff.SwigPyIterator___isub__(self, *args)
+    def __add__(self, *args): return _cppcolleff.SwigPyIterator___add__(self, *args)
+    def __sub__(self, *args): return _cppcolleff.SwigPyIterator___sub__(self, *args)
+    def __iter__(self): return self
+SwigPyIterator_swigregister = _cppcolleff.SwigPyIterator_swigregister
+SwigPyIterator_swigregister(SwigPyIterator)
+
+class my_Dvector(_object):
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr(self, my_Dvector, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, my_Dvector, name)
+    __repr__ = _swig_repr
+    def iterator(self): return _cppcolleff.my_Dvector_iterator(self)
+    def __iter__(self): return self.iterator()
+    def __nonzero__(self): return _cppcolleff.my_Dvector___nonzero__(self)
+    def __bool__(self): return _cppcolleff.my_Dvector___bool__(self)
+    def __len__(self): return _cppcolleff.my_Dvector___len__(self)
+    def pop(self): return _cppcolleff.my_Dvector_pop(self)
+    def __getslice__(self, *args): return _cppcolleff.my_Dvector___getslice__(self, *args)
+    def __setslice__(self, *args): return _cppcolleff.my_Dvector___setslice__(self, *args)
+    def __delslice__(self, *args): return _cppcolleff.my_Dvector___delslice__(self, *args)
+    def __delitem__(self, *args): return _cppcolleff.my_Dvector___delitem__(self, *args)
+    def __getitem__(self, *args): return _cppcolleff.my_Dvector___getitem__(self, *args)
+    def __setitem__(self, *args): return _cppcolleff.my_Dvector___setitem__(self, *args)
+    def append(self, *args): return _cppcolleff.my_Dvector_append(self, *args)
+    def empty(self): return _cppcolleff.my_Dvector_empty(self)
+    def size(self): return _cppcolleff.my_Dvector_size(self)
+    def clear(self): return _cppcolleff.my_Dvector_clear(self)
+    def swap(self, *args): return _cppcolleff.my_Dvector_swap(self, *args)
+    def get_allocator(self): return _cppcolleff.my_Dvector_get_allocator(self)
+    def begin(self): return _cppcolleff.my_Dvector_begin(self)
+    def end(self): return _cppcolleff.my_Dvector_end(self)
+    def rbegin(self): return _cppcolleff.my_Dvector_rbegin(self)
+    def rend(self): return _cppcolleff.my_Dvector_rend(self)
+    def pop_back(self): return _cppcolleff.my_Dvector_pop_back(self)
+    def erase(self, *args): return _cppcolleff.my_Dvector_erase(self, *args)
+    def __init__(self, *args): 
+        this = _cppcolleff.new_my_Dvector(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    def push_back(self, *args): return _cppcolleff.my_Dvector_push_back(self, *args)
+    def front(self): return _cppcolleff.my_Dvector_front(self)
+    def back(self): return _cppcolleff.my_Dvector_back(self)
+    def assign(self, *args): return _cppcolleff.my_Dvector_assign(self, *args)
+    def resize(self, *args): return _cppcolleff.my_Dvector_resize(self, *args)
+    def insert(self, *args): return _cppcolleff.my_Dvector_insert(self, *args)
+    def reserve(self, *args): return _cppcolleff.my_Dvector_reserve(self, *args)
+    def capacity(self): return _cppcolleff.my_Dvector_capacity(self)
+    __swig_destroy__ = _cppcolleff.delete_my_Dvector
+    __del__ = lambda self : None;
+my_Dvector_swigregister = _cppcolleff.my_Dvector_swigregister
+my_Dvector_swigregister(my_Dvector)
+
+class my_PartVector(_object):
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr(self, my_PartVector, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, my_PartVector, name)
+    __repr__ = _swig_repr
+    def iterator(self): return _cppcolleff.my_PartVector_iterator(self)
+    def __iter__(self): return self.iterator()
+    def __nonzero__(self): return _cppcolleff.my_PartVector___nonzero__(self)
+    def __bool__(self): return _cppcolleff.my_PartVector___bool__(self)
+    def __len__(self): return _cppcolleff.my_PartVector___len__(self)
+    def pop(self): return _cppcolleff.my_PartVector_pop(self)
+    def __getslice__(self, *args): return _cppcolleff.my_PartVector___getslice__(self, *args)
+    def __setslice__(self, *args): return _cppcolleff.my_PartVector___setslice__(self, *args)
+    def __delslice__(self, *args): return _cppcolleff.my_PartVector___delslice__(self, *args)
+    def __delitem__(self, *args): return _cppcolleff.my_PartVector___delitem__(self, *args)
+    def __getitem__(self, *args): return _cppcolleff.my_PartVector___getitem__(self, *args)
+    def __setitem__(self, *args): return _cppcolleff.my_PartVector___setitem__(self, *args)
+    def append(self, *args): return _cppcolleff.my_PartVector_append(self, *args)
+    def empty(self): return _cppcolleff.my_PartVector_empty(self)
+    def size(self): return _cppcolleff.my_PartVector_size(self)
+    def clear(self): return _cppcolleff.my_PartVector_clear(self)
+    def swap(self, *args): return _cppcolleff.my_PartVector_swap(self, *args)
+    def get_allocator(self): return _cppcolleff.my_PartVector_get_allocator(self)
+    def begin(self): return _cppcolleff.my_PartVector_begin(self)
+    def end(self): return _cppcolleff.my_PartVector_end(self)
+    def rbegin(self): return _cppcolleff.my_PartVector_rbegin(self)
+    def rend(self): return _cppcolleff.my_PartVector_rend(self)
+    def pop_back(self): return _cppcolleff.my_PartVector_pop_back(self)
+    def erase(self, *args): return _cppcolleff.my_PartVector_erase(self, *args)
+    def __init__(self, *args): 
+        this = _cppcolleff.new_my_PartVector(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    def push_back(self, *args): return _cppcolleff.my_PartVector_push_back(self, *args)
+    def front(self): return _cppcolleff.my_PartVector_front(self)
+    def back(self): return _cppcolleff.my_PartVector_back(self)
+    def assign(self, *args): return _cppcolleff.my_PartVector_assign(self, *args)
+    def resize(self, *args): return _cppcolleff.my_PartVector_resize(self, *args)
+    def insert(self, *args): return _cppcolleff.my_PartVector_insert(self, *args)
+    def reserve(self, *args): return _cppcolleff.my_PartVector_reserve(self, *args)
+    def capacity(self): return _cppcolleff.my_PartVector_capacity(self)
+    __swig_destroy__ = _cppcolleff.delete_my_PartVector
+    __del__ = lambda self : None;
+my_PartVector_swigregister = _cppcolleff.my_PartVector_swigregister
+my_PartVector_swigregister(my_PartVector)
+
 # This file is compatible with both classic and new-style classes.
 
 

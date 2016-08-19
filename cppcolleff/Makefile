@@ -36,7 +36,7 @@ CC          = gcc
 CXX         = g++
 AR          = ar
 MACHINE     = -m64
-OPT_FLAG    = -O3 -std=c++11 -fPIC
+OPT_FLAG    = -O3 -fopenmp -std=c++11 -fPIC -DOPENMP
 DBG_FLAG    = -O0 -g3 -std=c++11 -fPIC
 ARFLAGS     = rcs
 DFLAGS      = -DVERSION=$(VERSION)
@@ -51,7 +51,7 @@ BINSOURCES_CPP = exec.cpp
 
 AUXFILES  = VERSION
 
-LIBS = -lgsl -lgslcblas -lpthread -lm
+LIBS = -lgsl -lgslcblas -lm -fopenmp
 INC  = -I./include
 BINDEST_DIR = /usr/local/bin
 LIBDEST_DIR = /usr/local/lib
@@ -67,9 +67,9 @@ PYTHON_PACKAGE_DIR = python_package
 $(shell touch $(SRCDIR)/cppcolleff.cpp)
 
 ifeq ($(MAKECMDGOALS),cppcolleff-debug)
-  CFLAGS    = $(MACHINE) $(DBG_FLAG) $(DFLAGS) -pthread
+  CFLAGS    = $(MACHINE) $(DBG_FLAG) $(DFLAGS)
 else
-  CFLAGS    = $(MACHINE) $(OPT_FLAG) $(DFLAGS) -pthread
+  CFLAGS    = $(MACHINE) $(OPT_FLAG) $(DFLAGS)
 endif
 
 LIBOBJECTS  = $(addprefix $(OBJDIR)/, $(LIBSOURCES_CPP:.cpp=.o))
@@ -80,7 +80,7 @@ LDFLAGS    = $(MACHINE)
 ifeq ($(shell hostname), uv100)
     CC          = /progs/users/gcc-4.7.3/bin/gcc
     CXX         = /progs/users/gcc-4.7.3/bin/g++
-    LIBS        = -Wl,-rpath,/progs/users/gcc-4.7.3/lib64 ~/bin/GSL/lib/libgsl.a ~/bin/GSL/lib/libgslcblas.a -lpthread
+    LIBS        = -Wl,-rpath,/progs/users/gcc-4.7.3/lib64 ~/bin/GSL/lib/libgsl.a ~/bin/GSL/lib/libgslcblas.a
     INC         = -I../bin/GSL/include/
 endif
 
