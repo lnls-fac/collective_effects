@@ -49,4 +49,15 @@ public:
         return  yi[i]   +   (yi[i+1]-yi[i]) / (xi[i+1]-xi[i]) * (x-xi[i]);
     }
 };
+
+my_Dvector& get_distribution_from_potential(
+	const my_Dvector& spos,
+	const my_Dvector& V,
+	const double& espread,
+	const double& scale);
+
+Interpola_t& get_integrated_distribution(const my_Dvector& spos, const my_Dvector& distr);
+
+my_Dvector& convolution_same(const my_Dvector& vec1, const my_Dvector vec2);
+
 #endif

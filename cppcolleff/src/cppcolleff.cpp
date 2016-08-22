@@ -1,40 +1,98 @@
 
 #include <cppcolleff/cppcolleff.h>
 
-void generate_bunch(const Ring_t& ring, Bunch_t& bun)
+void generate_bunch(const Ring_t& ring, Bunch_t& bun, Results_t& results)
 {
-	default_random_engine gen(19880419);
-  	normal_distribution<double> espread_dist(0.0,ring.espread);
-	exponential_distribution<double> emitx_dist(1/(2*ring.emitx));
-	uniform_real_distribution<double> phix_dist(0.0,TWOPI);
 
     auto& cav_s = ring.cav.ref_to_xi();
     auto& cav_V = ring.cav.ref_to_yi();
 
-    // First I integrate the potential to get the potential well:
-    my_Dvector pot_well (cav_s.size(),0.0);
-    double min_ipot = pot_well.back();
-    for (int i=cav_s.size()-2;i>=0;--i){
-        pot_well[i] = pot_well [i+1] + (cav_V[i] + cav_V[i+1])*(cav_s[i+1]-cav_s[i])/2;
-        if (pot_well[i] < min_ipot) min_ipot = pot_well[i];
+	double scale (ring.mom_comp * ring.circum * ring.energy);
+    my_Dvector&& distr = get_distribution_from_potential(cav_s,cav_V,ring.espread,scale);
+	Interpola_t&& idistr_interpol = get_integrated_distribution(cav_s, distr);
+
+	default_random_engine gen(19880419);
+	normal_distribution<double> espread_dist(0.0,ring.espread);
+	exponential_distribution<double> emitx_dist(1/(2*ring.emitx));
+	uniform_real_distribution<double> phix_dist(0.0,TWOPI);
+	uniform_real_distribution<double> ss_dist(0.0,1.0);
+  #ifdef OPENMP
+    fprintf(stdout,"here\n");
+    my_PartVector& par = bun.particles;
+    #pragma omp parallel for schedule(guided,1)
+    for (int i=0;i<par.size();++i){
+        double&& emitx = emitx_dist(gen);
+        double&& phix  = phix_dist(gen);
+        par[i].de = espread_dist(gen);
+        par[i].ss = idistr_interpol.get_y(ss_dist(gen));
+        par[i].xx =  sqrt(emitx*ring.betax)*cos(phix) + ring.etax*par[i].de;
+        par[i].xl = -sqrt(emitx/ring.betax)*(ring.alphax*cos(phix) + sin(phix)) + ring.etaxl*par[i].de;
     }
+  #else
+	for (auto& p:bun.particles){
+		double&& emitx = emitx_dist(gen);
+		double&& phix  = phix_dist(gen);
+		p.de = espread_dist(gen);
+		p.ss = idistr_interpol.get_y(ss_dist(gen));
+		p.xx =  sqrt(emitx*ring.betax)*cos(phix) + ring.etax*p.de;
+		p.xl = -sqrt(emitx/ring.betax)*(ring.alphax*cos(phix) + sin(phix)) + ring.etaxl*p.de;
+	}
+  #endif
+	bun.is_sorted = false;
+}
 
-    double&& exp_fact = 1/(ring.mom_comp*ring.circum*ring.energy)/(ring.espread*ring.espread);
+static double get_residue(const my_Dvector& spos, const my_Dvector& distr, const my_Dvector& distr_old)
+{
+	double res = 0.0;
+	double ds = spos[1] - spos[0];
+	for (int i=0;i<spos.size();++i){res += (distr[i] - distr_old[i]) * (distr[i] - distr_old[i]) * ds;}
+	return res;
+}
+static double get_residue(const my_Dvector& spos, const my_Dvector& distr)
+{
+	double res = 0.0;
+	double ds = spos[1] - spos[0];
+	for (int i=0;i<spos.size();++i){res += distr[i] * distr[i] * ds;}
+	return res;
+}
 
-    // Now I compute the equilibrium distribution and the integrated distribution to
-    // be able to generate the particles
-    my_Dvector idistr, s_distr;
-    idistr.push_back(0.0);
-    s_distr.push_back(cav_s[0]);
-    for (int i=1;i<cav_s.size();++i){
-        double&& distr = (exp(-exp_fact*(pot_well[i]  -min_ipot)) // I don't really need the distribution,
-                        + exp(-exp_fact*(pot_well[i-1]-min_ipot)))*(cav_s[i]-cav_s[i-1])/2; // only the integrated.
-        if (distr >= 1e-15) { // much more than the number of particles; think about it!
-            idistr.push_back(idistr.back() + distr); // for interpolation to work properly the there must
-            s_distr.push_back(cav_s[i]); // not exist repeated values in the integrated distribution.
-        }
-    }
+void generate_bunch(const Ring_t& ring, const Wake_t& wake, Bunch_t& bun, Results_t& results)
+{
 
+    auto& cav_s = ring.cav.ref_to_xi();
+    auto& cav_V = ring.cav.ref_to_yi();
+
+	// get the wake function at the cavity longitudinal points
+	my_Dvector&& wakeF = wake.Wl.get_wake_at_points(cav_s, bun.Ib * ring.rev_time);
+
+	// Now we iterate to get the equilibrium distribution
+	bool converged (false);
+	double espread (ring.espread);
+	do {
+		double scale (ring.mom_comp * ring.circum * ring.energy);
+		my_Dvector&& distr_old (get_distribution_from_potential(cav_s,cav_V,espread,scale));
+		double&& residue_old (get_residue(cav_s,distr_old));
+		int&& count (0);
+		my_Dvector distr (distr_old);
+		while (!converged){
+			my_Dvector&& V (cav_V + convolution(distr, wakeF,'same'));
+
+			distr = get_distribution_from_potential(ring,espread,cav_s,V);
+			double&& residue (get_residue(cav_s,distr,distr_old));
+
+			if (residue < residue_old){if (residue < 1e-20) {converged = true;}}
+			else {if (++count > 10){espread *= 1.01; break;}}
+
+			swap(distr_old, distr);
+			swap(residue_old,residue);
+		}
+	} while (!converged);
+
+
+	default_random_engine gen(19880419);
+	normal_distribution<double> espread_dist(0.0,ring.espread);
+	exponential_distribution<double> emitx_dist(1/(2*ring.emitx));
+	uniform_real_distribution<double> phix_dist(0.0,TWOPI);
     uniform_real_distribution<double> ss_dist(idistr.front(),idistr.back());
     Interpola_t idistr_interpol (idistr, s_distr);
   #ifdef OPENMP
@@ -61,7 +119,6 @@ void generate_bunch(const Ring_t& ring, Bunch_t& bun)
   #endif
 	bun.is_sorted = false;
 }
-
 
 void do_tracking(
     const Ring_t& ring,
