@@ -20,7 +20,7 @@ void Interpola_t::check_consistency()
     }
 }
 
-my_Dvector& get_distribution_from_potential(
+my_Dvector get_distribution_from_potential(
 	const my_Dvector& spos,
 	const my_Dvector& V,
 	const double& espread,
@@ -35,19 +35,20 @@ my_Dvector& get_distribution_from_potential(
     }
 
     // Now I compute the distribution
+    my_Dvector distri (spos.size(),0.0);
 	double&& exp_fact = 1.0  /  (scale * espread*espread);
 	double sumdist (0.0);
     for (int i=0;i<spos.size();++i) {
-		distr.push_back(exp(  -exp_fact * (pot_well[i]-min_ipot)  ));
-		sumdist += distr.back();
+		distri.push_back(exp(  -exp_fact * (pot_well[i]-min_ipot)  ));
+		sumdist += distri.back();
 	}
-	for (int i=0;i<spos.size();++i){distr[i] /= sumdist;} //normalization of distribution;
-	return distr;
+	for (int i=0;i<spos.size();++i){distri[i] /= sumdist;} //normalization of distribution;
+	return distri;
 }
 
-Interpola_t& get_integrated_distribution(const my_Dvector& spos, const my_Dvector& distr) {
+Interpola_t get_integrated_distribution(const my_Dvector& spos, const my_Dvector& distr) {
 	//need to resize the vectors;
-	my_Dvector idistr, s_distr;
+	my_Dvector idistr, s_idistr;
 	idistr.push_back(0.0);
 	s_idistr.push_back(spos[0]);
 	for (int i=1;i<spos.size();++i){
@@ -57,21 +58,16 @@ Interpola_t& get_integrated_distribution(const my_Dvector& spos, const my_Dvecto
 			s_idistr.push_back(spos[i]); // not exist repeated values in the integrated distribution.
 		}
 	}
-	return Interpola_t(idistr,s_idistr);
+	return Interpola_t (idistr,s_idistr);
 }
 
-my_Dvector& convolution_same(const my_Dvector& vec1, const my_Dvector vec2)
+my_Dvector convolution_same(const my_Dvector& vec1, const my_Dvector vec2)
 {
     my_Dvector conv (vec1.size()+vec2.size()-1,0.0);
-    for (int k=0;k<conv.size();++k){
-        int i1 = k;
-        for (int l=0; l<conv.size()+2;  ++l) {
-            conv[k] += vec1[l]*vec2[l+vec2.size()-1-k];
+    for (int i=0;i<conv.size();++i){
+        for (int j=(vec2.size()-1),k=i;j>=0,k>=0;--j,--k){
+            if (k<vec1.size()){ conv[i] += vec1[k]*vec2[j];}
         }
-    for (i=0; i<conv.size(); i++){
-		for (int j=0, k=i; j<vec2.size(), k>=0; ++j, --k)
-			if i1<vec1.size())
-                conv[i] += vec1[i1]*vec2[j];
-	}
     }
+    return conv;
 }
