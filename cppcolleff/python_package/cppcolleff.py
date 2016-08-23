@@ -119,6 +119,14 @@ class Interpola_t(_object):
 Interpola_t_swigregister = _cppcolleff.Interpola_t_swigregister
 Interpola_t_swigregister(Interpola_t)
 
+
+def convolution_full(*args):
+  return _cppcolleff.convolution_full(*args)
+convolution_full = _cppcolleff.convolution_full
+
+def convolution_same(*args):
+  return _cppcolleff.convolution_same(*args)
+convolution_same = _cppcolleff.convolution_same
 class Bunch_t(_object):
     __swig_setmethods__ = {}
     __setattr__ = lambda self, name, value: _swig_setattr(self, Bunch_t, name, value)
@@ -172,9 +180,6 @@ class Ring_t(_object):
     __swig_setmethods__["etaxl"] = _cppcolleff.Ring_t_etaxl_set
     __swig_getmethods__["etaxl"] = _cppcolleff.Ring_t_etaxl_get
     if _newclass:etaxl = _swig_property(_cppcolleff.Ring_t_etaxl_get, _cppcolleff.Ring_t_etaxl_set)
-    __swig_setmethods__["gammax"] = _cppcolleff.Ring_t_gammax_set
-    __swig_getmethods__["gammax"] = _cppcolleff.Ring_t_gammax_get
-    if _newclass:gammax = _swig_property(_cppcolleff.Ring_t_gammax_get, _cppcolleff.Ring_t_gammax_set)
     __swig_setmethods__["tunex"] = _cppcolleff.Ring_t_tunex_set
     __swig_getmethods__["tunex"] = _cppcolleff.Ring_t_tunex_get
     if _newclass:tunex = _swig_property(_cppcolleff.Ring_t_tunex_get, _cppcolleff.Ring_t_tunex_set)
@@ -202,9 +207,6 @@ class Ring_t(_object):
     __swig_setmethods__["espread"] = _cppcolleff.Ring_t_espread_set
     __swig_getmethods__["espread"] = _cppcolleff.Ring_t_espread_get
     if _newclass:espread = _swig_property(_cppcolleff.Ring_t_espread_get, _cppcolleff.Ring_t_espread_set)
-    __swig_setmethods__["bunlen"] = _cppcolleff.Ring_t_bunlen_set
-    __swig_getmethods__["bunlen"] = _cppcolleff.Ring_t_bunlen_get
-    if _newclass:bunlen = _swig_property(_cppcolleff.Ring_t_bunlen_get, _cppcolleff.Ring_t_bunlen_set)
     __swig_setmethods__["cav"] = _cppcolleff.Ring_t_cav_set
     __swig_getmethods__["cav"] = _cppcolleff.Ring_t_cav_get
     if _newclass:cav = _swig_property(_cppcolleff.Ring_t_cav_get, _cppcolleff.Ring_t_cav_set)
@@ -214,6 +216,8 @@ class Ring_t(_object):
         except: self.this = this
     __swig_destroy__ = _cppcolleff.delete_Ring_t
     __del__ = lambda self : None;
+    def get_distribution(self, *args): return _cppcolleff.Ring_t_get_distribution(self, *args)
+    def get_integrated_distribution(self): return _cppcolleff.Ring_t_get_integrated_distribution(self)
     def track_one_turn(self, *args): return _cppcolleff.Ring_t_track_one_turn(self, *args)
 Ring_t_swigregister = _cppcolleff.Ring_t_swigregister
 Ring_t_swigregister(Ring_t)
@@ -337,6 +341,7 @@ class WakePl(_object):
         except: self.this = this
     __swig_destroy__ = _cppcolleff.delete_WakePl
     __del__ = lambda self : None;
+    def get_wake_at_points(self, *args): return _cppcolleff.WakePl_get_wake_at_points(self, *args)
 WakePl_swigregister = _cppcolleff.WakePl_swigregister
 WakePl_swigregister(WakePl)
 
@@ -369,6 +374,10 @@ Wake_t_swigregister(Wake_t)
 def generate_bunch(*args):
   return _cppcolleff.generate_bunch(*args)
 generate_bunch = _cppcolleff.generate_bunch
+
+def solve_Haissinski(*args):
+  return _cppcolleff.solve_Haissinski(*args)
+solve_Haissinski = _cppcolleff.solve_Haissinski
 
 def do_tracking(*args):
   return _cppcolleff.do_tracking(*args)

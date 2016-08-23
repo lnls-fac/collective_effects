@@ -1,30 +1,30 @@
 
 #include <cppcolleff/Wake.h>
 
-my_Dvector& WakePl::get_wake_at_points(const my_Dvector& spos, const double stren) const
+my_Dvector WakePl::get_wake_at_points(const my_Dvector& spos, const double& stren) const
 {
     my_Dvector wakeF(spos.size(),0.0);
-    if (wake.Wl.general) {
-        for (int i=0:i<cav_s.size();++i){
-            wakeF[i] = wake.Wl.W.get_y(spos[i]) * stren;
+    if (general) {
+        for (int i=0;i<spos.size();++i){
+            wakeF[i] = W.get_y(spos[i]) * stren;
         }
     }
-    if (wake.Wl.resonator){
-        for (int r=0; r<Wl.wr.size(); r++){
-            double&& kr  = Wl.wr[r] / light_speed;
-            double&& Ql  = sqrt(Wl.Q[r] * Wl.Q[r] - 1/4);
-            double&& Amp = Wl.wr[r] * Wl.Rs[r] / Wl.Q[r] * stren;
-            double&& krl = kr * Ql / Wl.Q[r];
-            complex<double>&& cpl_kr (kr/(2*Wl.Q[r]), krl);
+    if (resonator){
+        for (int r=0; r<wr.size(); r++){
+            double&& kr  = wr[r] / light_speed;
+            double&& Ql  = sqrt(Q[r] * Q[r] - 1/4);
+            double&& Amp = wr[r] * Rs[r] / Q[r] * stren;
+            double&& krl (kr * Ql / Q[r]);
+            complex<double> cpl_kr (kr/(2*Q[r]), krl);
             complex<double> W_pot (0.0,0.0);
-            for (int i=0:i<cav_s.size();++i){
-                if (cav_s[i] < 0.0) {continue;}
-                if ((cav_s[i] < 1e-10) && (cav_s[i] > -1e-10)) {
-                    complex<double>&& kik = exp( cav_s[i]*cpl_kr);
+            for (int i=0;i<spos.size();++i){
+                if (spos[i] < 0.0) {continue;}
+                if ((spos[i] < 1e-10) && (spos[i] > -1e-10)) {
+                    complex<double>&& kik = exp( -spos[i]*cpl_kr);
                     wakeF[i] += - 0.5 * Amp * (kik.real() + 1*kik.imag()/(2*Ql));
                 }
                 else {
-                    complex<double>&& kik = exp( cav_s[i]*cpl_kr);
+                    complex<double>&& kik = exp( -spos[i]*cpl_kr);
                     wakeF[i] += - 1.0 * Amp * (kik.real() + 1*kik.imag()/(2*Ql));
                 }
             }
@@ -34,7 +34,7 @@ my_Dvector& WakePl::get_wake_at_points(const my_Dvector& spos, const double stre
 }
 
 
-my_Dvector& Wake_t::apply_kicks(Bunch_t& bun, const double stren, const double betax) const
+my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren, const double betax) const
 {
     my_Dvector Wkick (2,0.0);
 
@@ -67,7 +67,7 @@ my_Dvector& Wake_t::apply_kicks(Bunch_t& bun, const double stren, const double b
             double&& Ql  = sqrt(Wl.Q[r] * Wl.Q[r] - 1/4);
             double&& Amp = Wl.wr[r] * Wl.Rs[r] / Wl.Q[r] * stren;
             double&& krl = kr * Ql / Wl.Q[r];
-            complex<double>&& cpl_kr (kr/(2*Wl.Q[r]), krl);
+            complex<double> cpl_kr (kr/(2*Wl.Q[r]), krl);
             complex<double> W_pot (0.0,0.0);
             for (auto& p:bun.particles){
                 complex<double>&& kik = W_pot * exp( p.ss*cpl_kr);

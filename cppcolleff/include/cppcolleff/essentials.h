@@ -50,14 +50,9 @@ public:
     }
 };
 
-my_Dvector get_distribution_from_potential(
-	const my_Dvector& spos,
-	const my_Dvector& V,
-	const double& espread,
-	const double& scale);
+my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector vec2);
 
-Interpola_t get_integrated_distribution(const my_Dvector& spos, const my_Dvector& distr);
-
+// this function follows matlab's convention of same, not numpy's:
 my_Dvector convolution_same(const my_Dvector& vec1, const my_Dvector vec2);
 
 #endif

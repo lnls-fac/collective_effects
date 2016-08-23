@@ -35,13 +35,11 @@ int main()
     ring.tunex       = 0.13;
     ring.emitx       = 250e-12;
     ring.espread     = 8e-4;
-    ring.bunlen      = 3e-3;
     ring.circum      = 518.396;
     ring.T0          = 518.396/light_speed;
     ring.mom_comp    = 1.7e-4;
     ring.harm_num    = 864;
     ring.betax       = 19;
-    ring.gammax      = 1/ring.betax;
 
     my_Dvector ss ;
     my_Dvector V  ;
