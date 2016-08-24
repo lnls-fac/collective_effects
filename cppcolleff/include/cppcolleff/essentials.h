@@ -50,9 +50,11 @@ public:
     }
 };
 
-my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector vec2);
+my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2);
+my_Dvector convolution_full_orig(const my_Dvector& vec1, const my_Dvector& vec2);
 
 // this function follows matlab's convention of same, not numpy's:
-my_Dvector convolution_same(const my_Dvector& vec1, const my_Dvector vec2);
+my_Dvector convolution_same(const my_Dvector& vec1, const my_Dvector& vec2);
+my_Dvector convolution_same_orig(const my_Dvector& vec1, const my_Dvector& vec2);
 
 #endif

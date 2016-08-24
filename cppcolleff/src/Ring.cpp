@@ -47,10 +47,10 @@ my_Dvector Ring_t::get_distribution(const my_Dvector& spos, const my_Dvector& V)
     return _get_distribution(spos,V);
 }
 
-Interpola_t Ring_t::get_integrated_distribution() const  {
 
-    const my_Dvector& spos = cav.ref_to_xi();
-    my_Dvector distr (get_distribution());
+Interpola_t Ring_t::_get_integrated_distribution(const my_Dvector& spos, const my_Dvector& V) const
+{
+    my_Dvector distr (get_distribution(spos,V));
 	//need to resize the vectors;
 	my_Dvector idistr, s_idistr;
 	idistr.push_back(0.0);
@@ -63,6 +63,21 @@ Interpola_t Ring_t::get_integrated_distribution() const  {
 		}
 	}
 	return Interpola_t (idistr,s_idistr);
+}
+Interpola_t Ring_t::get_integrated_distribution() const
+{
+    const my_Dvector& spos = cav.ref_to_xi();
+    const my_Dvector& V    = cav.ref_to_yi();
+	return _get_integrated_distribution(spos,V);
+}
+Interpola_t Ring_t::get_integrated_distribution(const my_Dvector& V) const
+{
+    const my_Dvector& spos = cav.ref_to_xi();
+	return _get_integrated_distribution(spos,V);
+}
+Interpola_t Ring_t::get_integrated_distribution(const my_Dvector& spos, const my_Dvector& V) const
+{
+	return _get_integrated_distribution(spos,V);
 }
 
 

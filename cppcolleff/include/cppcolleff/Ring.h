@@ -9,6 +9,7 @@
 class Ring_t{
   private:
     my_Dvector _get_distribution(const my_Dvector& spos, const my_Dvector& V) const;
+    Interpola_t _get_integrated_distribution(const my_Dvector& spos, const my_Dvector& V) const;
   public:
     int harm_num;                              // harmonic number
     double betax, alphax, etax, etaxl,         // optical functions
@@ -28,6 +29,9 @@ class Ring_t{
     my_Dvector get_distribution(const my_Dvector& V) const;
     my_Dvector get_distribution() const;
     Interpola_t get_integrated_distribution() const;
+    Interpola_t get_integrated_distribution(const my_Dvector& V) const;
+    Interpola_t get_integrated_distribution(const my_Dvector& spos, const my_Dvector& V) const;
+
     void track_one_turn(Bunch_t& bun) const;
 };
 

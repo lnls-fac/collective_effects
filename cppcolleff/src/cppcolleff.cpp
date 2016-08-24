@@ -58,25 +58,26 @@ static double get_residue(const my_Dvector& spos, const my_Dvector& distr)
 	for (int i=0;i<spos.size();++i){res += distr[i] * distr[i] * ds;}
 	return res;
 }
-void solve_Haissinski(const Wake_t& wake, Ring_t& ring, const double& Ib)
+my_Dvector solve_Haissinski(const Wake_t& wake, Ring_t& ring, const double& Ib)
 {
     auto& cav_s = ring.cav.ref_to_xi();
     auto& cav_V = ring.cav.ref_to_yi();
+
+	my_Dvector V (cav_V.size(),0.0); // variable to be returned;
 
 	// get the wake function at the cavity longitudinal points
 	my_Dvector&& wakeF = wake.Wl.get_wake_at_points(cav_s, Ib * ring.T0);
 
 	// Now we iterate to get the equilibrium distribution
-	my_Dvector V (cav_V.size(),0.0);
 	bool converged (false);
 	do {
 		my_Dvector distr_old (ring.get_distribution());
-		my_Dvector distr (distr_old);
 		double residue_old (get_residue(cav_s,distr_old));
 		int count (0);
 		double&& ds = (cav_s[1]-cav_s[0]);
+		fprintf(stdout,"%3i  %g\n",0,residue_old);
 		while (!converged){
-			V = move(convolution_same(wakeF,distr)); // order is important!!
+			V = move(convolution_same(wakeF,distr_old));
 		  #ifdef OPENMP
 		  	#pragma omp parallel for schedule(guided,1)
 		  #endif
@@ -85,18 +86,26 @@ void solve_Haissinski(const Wake_t& wake, Ring_t& ring, const double& Ib)
 				V[i] += cav_V[i];
 			}
 
-			distr = move(ring.get_distribution(V));
-			double residue (get_residue(cav_s,distr,distr_old));
-
-			if (residue < residue_old){if (residue < 1e-20) {converged = true;}}
-			else {if (++count > 10){ring.espread *= 1.01; fprintf(stdout,"here"); break;}}
+			my_Dvector&& distr = ring.get_distribution(V);
+			double&& residue = get_residue(cav_s,distr,distr_old);
+			fprintf(stdout,"%3i  %g\n",count,residue);
+			if (residue < residue_old){
+				if (residue < 1e-6) {converged = true;}
+			}
+			else {
+				if (++count > 10){
+					ring.espread *= 1.02;
+					fprintf(stdout,"espread = %f\n",ring.espread);
+					break;
+				}
+			}
 
 			swap(distr_old, distr);
 			swap(residue_old,residue);
 		}
 	} while (!converged);
 
-	ring.cav.set_y(V);
+	return V;
 }
 
 void do_tracking(

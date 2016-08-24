@@ -27,7 +27,7 @@ int main()
 {
     typedef std::chrono::high_resolution_clock clock_;
     typedef std::chrono::duration<double, std::ratio<1> > s_;
-    const long num_part = 40000000;
+    const long num_part = 40000;
     const long nturns   = 100;
 
     Ring_t ring;
@@ -58,15 +58,16 @@ int main()
 
 
     Wake_t wake;
-    wake.Wl.resonator = false;
-    wake.Wl.wr.push_back(10e9*TWOPI);
-    wake.Wl.Rs.push_back(1e2);
+    wake.Wl.resonator = true;
+    wake.Wl.wr.push_back(30e9*TWOPI);
+    wake.Wl.Rs.push_back(1e4);
     wake.Wl.Q.push_back(1);
     Feedback_t fb;
     Results_t results (nturns);
 
     std::chrono::time_point<clock_> beg_ = clock_::now();
-    do_tracking(ring,wake,fb,bun,results);
-    cout << chrono::duration_cast<s_> (clock_::now()-beg_).count() << endl;
+    // do_tracking(ring,wake,fb,bun,results);
+    solve_Haissinski(wake,ring,5e-3);
+    cout << "ET: " << chrono::duration_cast<s_> (clock_::now()-beg_).count() << " s" << endl;
     return 0;
 }
