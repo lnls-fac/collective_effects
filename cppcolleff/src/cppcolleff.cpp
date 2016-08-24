@@ -1,4 +1,3 @@
-#include <omp.h>
 #include <cppcolleff/cppcolleff.h>
 
 static void _generate_bunch(const Ring_t& ring, Bunch_t& bun, unsigned int seed)
@@ -82,7 +81,7 @@ void solve_Haissinski(const Wake_t& wake, Ring_t& ring, const double& Ib)
 		  	#pragma omp parallel for schedule(guided,1)
 		  #endif
 			for (int i=0;i<V.size();++i){
-				V[i] *= ds; // to fix the dimension of the convolution.
+				V[i] *= ds; // to fix the scale of the convolution.
 				V[i] += cav_V[i];
 			}
 
@@ -90,7 +89,7 @@ void solve_Haissinski(const Wake_t& wake, Ring_t& ring, const double& Ib)
 			double residue (get_residue(cav_s,distr,distr_old));
 
 			if (residue < residue_old){if (residue < 1e-20) {converged = true;}}
-			else {if (++count > 10){ring.espread *= 1.01; break;}}
+			else {if (++count > 10){ring.espread *= 1.01; fprintf(stdout,"here"); break;}}
 
 			swap(distr_old, distr);
 			swap(residue_old,residue);
