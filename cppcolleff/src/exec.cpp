@@ -26,8 +26,8 @@ int main()
 {
     typedef std::chrono::high_resolution_clock clock_;
     typedef std::chrono::duration<double, std::ratio<1> > s_;
-    const long num_part = 5000;
-    const long nturns   = 1000;
+    const long num_part = 10000000;
+    const long nturns   = 100;
 
     Ring_t ring;
     ring.energy      = 3e9;
@@ -50,11 +50,10 @@ int main()
         V.push_back(V0*sin(phi0 + krf*s) - U0);
     }
     ring.cav.set_xy(ss,V);
-    auto& cav_s = ring.cav.ref_to_xi();
 
     Bunch_t bun (num_part,1e-3); //number of particles and current in A;
     generate_bunch(ring, bun);
-    bun.sort();
+    // bun.sort();
 
 
     Wake_t wake;
@@ -67,13 +66,14 @@ int main()
     for (long i=0; i<=50000; i++){x.push_back(2e-5 * 5e-2 * i); }
     my_Dvector y(wake.Wl.get_wake_at_points(x,1));
     wake.Wl.W.set_xy(x,y);
-    // wake.Wl.resonator = false;
+    wake.Wl.resonator = false;
     // wake.Wl.general  = true;
     Feedback_t fb;
     Results_t results (nturns);
 
-    my_Dvector&& dist = ring.get_distribution();
+    // my_Dvector&& dist = ring.get_distribution();
     std::chrono::time_point<clock_> beg_ = clock_::now();
+    set_num_threads(4);
     do_tracking(ring,wake,fb,bun,results);
     // solve_Haissinski(wake,ring,5e-3);
     // convolution_same(dist,Wl);

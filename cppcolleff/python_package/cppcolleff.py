@@ -71,6 +71,10 @@ except AttributeError:
 
 TWOPI = _cppcolleff.TWOPI
 light_speed = _cppcolleff.light_speed
+
+def set_num_threads(*args):
+  return _cppcolleff.set_num_threads(*args)
+set_num_threads = _cppcolleff.set_num_threads
 class Particle_t(_object):
     __swig_setmethods__ = {}
     __setattr__ = lambda self, name, value: _swig_setattr(self, Particle_t, name, value)

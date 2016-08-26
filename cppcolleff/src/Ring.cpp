@@ -92,7 +92,8 @@ void Ring_t::track_one_turn(Bunch_t& bun) const
     #pragma omp parallel for schedule(guided,1)
     for (int i=0;i<par.size();++i){
         // Longitudinal tracking:
-        par[i].de += cav.get_y(par[i].ss)/energy;
+        double&& de = cav.get_y(par[i].ss);
+        par[i].de += de/energy;//1e-4*par[i].ss;//
         par[i].ss += circum * mom_comp * par[i].de;
         //Transverse tracking:
         par[i].xx -= etax  * par[i].de; // subtract the energy dependent fixed point;
