@@ -97,6 +97,7 @@ class Particle_t(_object):
     __del__ = lambda self : None;
 Particle_t_swigregister = _cppcolleff.Particle_t_swigregister
 Particle_t_swigregister(Particle_t)
+cvar = _cppcolleff.cvar
 
 class Interpola_t(_object):
     __swig_setmethods__ = {}
@@ -119,6 +120,10 @@ class Interpola_t(_object):
 Interpola_t_swigregister = _cppcolleff.Interpola_t_swigregister
 Interpola_t_swigregister(Interpola_t)
 
+
+def bounds_for_threads(*args):
+  return _cppcolleff.bounds_for_threads(*args)
+bounds_for_threads = _cppcolleff.bounds_for_threads
 
 def convolution_full(*args):
   return _cppcolleff.convolution_full(*args)
@@ -418,6 +423,53 @@ class SwigPyIterator(_object):
     def __iter__(self): return self
 SwigPyIterator_swigregister = _cppcolleff.SwigPyIterator_swigregister
 SwigPyIterator_swigregister(SwigPyIterator)
+
+class my_Ivector(_object):
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr(self, my_Ivector, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, my_Ivector, name)
+    __repr__ = _swig_repr
+    def iterator(self): return _cppcolleff.my_Ivector_iterator(self)
+    def __iter__(self): return self.iterator()
+    def __nonzero__(self): return _cppcolleff.my_Ivector___nonzero__(self)
+    def __bool__(self): return _cppcolleff.my_Ivector___bool__(self)
+    def __len__(self): return _cppcolleff.my_Ivector___len__(self)
+    def pop(self): return _cppcolleff.my_Ivector_pop(self)
+    def __getslice__(self, *args): return _cppcolleff.my_Ivector___getslice__(self, *args)
+    def __setslice__(self, *args): return _cppcolleff.my_Ivector___setslice__(self, *args)
+    def __delslice__(self, *args): return _cppcolleff.my_Ivector___delslice__(self, *args)
+    def __delitem__(self, *args): return _cppcolleff.my_Ivector___delitem__(self, *args)
+    def __getitem__(self, *args): return _cppcolleff.my_Ivector___getitem__(self, *args)
+    def __setitem__(self, *args): return _cppcolleff.my_Ivector___setitem__(self, *args)
+    def append(self, *args): return _cppcolleff.my_Ivector_append(self, *args)
+    def empty(self): return _cppcolleff.my_Ivector_empty(self)
+    def size(self): return _cppcolleff.my_Ivector_size(self)
+    def clear(self): return _cppcolleff.my_Ivector_clear(self)
+    def swap(self, *args): return _cppcolleff.my_Ivector_swap(self, *args)
+    def get_allocator(self): return _cppcolleff.my_Ivector_get_allocator(self)
+    def begin(self): return _cppcolleff.my_Ivector_begin(self)
+    def end(self): return _cppcolleff.my_Ivector_end(self)
+    def rbegin(self): return _cppcolleff.my_Ivector_rbegin(self)
+    def rend(self): return _cppcolleff.my_Ivector_rend(self)
+    def pop_back(self): return _cppcolleff.my_Ivector_pop_back(self)
+    def erase(self, *args): return _cppcolleff.my_Ivector_erase(self, *args)
+    def __init__(self, *args): 
+        this = _cppcolleff.new_my_Ivector(*args)
+        try: self.this.append(this)
+        except: self.this = this
+    def push_back(self, *args): return _cppcolleff.my_Ivector_push_back(self, *args)
+    def front(self): return _cppcolleff.my_Ivector_front(self)
+    def back(self): return _cppcolleff.my_Ivector_back(self)
+    def assign(self, *args): return _cppcolleff.my_Ivector_assign(self, *args)
+    def resize(self, *args): return _cppcolleff.my_Ivector_resize(self, *args)
+    def insert(self, *args): return _cppcolleff.my_Ivector_insert(self, *args)
+    def reserve(self, *args): return _cppcolleff.my_Ivector_reserve(self, *args)
+    def capacity(self): return _cppcolleff.my_Ivector_capacity(self)
+    __swig_destroy__ = _cppcolleff.delete_my_Ivector
+    __del__ = lambda self : None;
+my_Ivector_swigregister = _cppcolleff.my_Ivector_swigregister
+my_Ivector_swigregister(my_Ivector)
 
 class my_Dvector(_object):
     __swig_setmethods__ = {}

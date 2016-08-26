@@ -48,6 +48,9 @@ static double get_residue(const my_Dvector& spos, const my_Dvector& distr, const
 {
 	double res = 0.0;
 	double ds = spos[1] - spos[0];
+	#ifdef OPENMP
+	  #pragma omp parallel for schedule(guided,1) reduction(+:res)
+	#endif
 	for (int i=0;i<spos.size();++i){res += (distr[i] - distr_old[i]) * (distr[i] - distr_old[i]) * ds;}
 	return res;
 }
@@ -55,6 +58,9 @@ static double get_residue(const my_Dvector& spos, const my_Dvector& distr)
 {
 	double res = 0.0;
 	double ds = spos[1] - spos[0];
+	#ifdef OPENMP
+	  #pragma omp parallel for schedule(guided,1) reduction(+:res)
+	#endif
 	for (int i=0;i<spos.size();++i){res += distr[i] * distr[i] * ds;}
 	return res;
 }
@@ -65,8 +71,8 @@ my_Dvector solve_Haissinski(const Wake_t& wake, Ring_t& ring, const double& Ib)
 
 	my_Dvector V (cav_V.size(),0.0); // variable to be returned;
 
-	// get the wake function at the cavity longitudinal points
-	my_Dvector&& wakeF = wake.Wl.get_wake_at_points(cav_s, Ib * ring.T0);
+	// get the wake function at the cavity longitudinal points (actually it is the kick)
+	my_Dvector&& KickF = wake.Wl.get_wake_at_points(cav_s, -Ib * ring.T0);
 
 	// Now we iterate to get the equilibrium distribution
 	bool converged (false);
@@ -77,7 +83,7 @@ my_Dvector solve_Haissinski(const Wake_t& wake, Ring_t& ring, const double& Ib)
 		double&& ds = (cav_s[1]-cav_s[0]);
 		fprintf(stdout,"%3i  %g\n",0,residue_old);
 		while (!converged){
-			V = move(convolution_same(wakeF,distr_old));
+			V = move(convolution_same(KickF,distr_old));
 		  #ifdef OPENMP
 		  	#pragma omp parallel for schedule(guided,1)
 		  #endif
@@ -126,7 +132,7 @@ void do_tracking(
 
         // After this sorting, the particles will be ordered from head to tail.
         // It means, from smaller ss to bigger ss.
-        // bun.general_sort();
+        bun.general_sort();
 
         results.register_Wkicks(n, wake.apply_kicks(bun,kick_stren, ring.betax));
         results.register_FBkick(n,   fb.apply_kick(bun, xx_ave,     ring.betax));

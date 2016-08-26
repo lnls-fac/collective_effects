@@ -81,10 +81,10 @@ Interpola_t Ring_t::get_integrated_distribution(const my_Dvector& spos, const my
 }
 
 
+#ifdef OPENMP
 void Ring_t::track_one_turn(Bunch_t& bun) const
 {
     double gammax ((1+alphax*alphax)/betax);
-  #ifdef OPENMP
     // the ring model is composed by one cavity,
     // then the magnetic elements and finally the wake-field.*/
     my_PartVector& par = bun.particles;
@@ -113,7 +113,11 @@ void Ring_t::track_one_turn(Bunch_t& bun) const
         par[i].xx += etax  * par[i].de; // add the energy dependent fixed point;
         par[i].xl += etaxl * par[i].de;
     }
-  #else
+}
+#else
+void Ring_t::track_one_turn(Bunch_t& bun) const
+{
+    double gammax ((1+alphax*alphax)/betax);
     // the ring model is composed by one cavity,
     // then the magnetic elements and finally the wake-field.*/
     for (auto& p:bun.particles){
@@ -139,5 +143,5 @@ void Ring_t::track_one_turn(Bunch_t& bun) const
         p.xx += etax  * p.de; // add the energy dependent fixed point;
         p.xl += etaxl * p.de;
     }
-  #endif
 }
+#endif

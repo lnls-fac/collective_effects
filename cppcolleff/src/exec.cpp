@@ -22,13 +22,12 @@
 //     // fprintf(stdout,"%f \n",a[2]);
 // }
 
-
 int main()
 {
     typedef std::chrono::high_resolution_clock clock_;
     typedef std::chrono::duration<double, std::ratio<1> > s_;
-    const long num_part = 40000;
-    const long nturns   = 100;
+    const long num_part = 5000;
+    const long nturns   = 1000;
 
     Ring_t ring;
     ring.energy      = 3e9;
@@ -45,12 +44,13 @@ int main()
     my_Dvector V  ;
     double phi0 (171.24/360*TWOPI), V0 (3e6), krf (TWOPI*ring.harm_num/ring.circum);
     double U0 (V0*sin(phi0));
-    for (long i=-1000; i<=1000; i++){
-        double&& s = 1e-3 * 10e-2 * i;
+    for (long i=-10000; i<=10000; i++){
+        double&& s = 1e-4 * 10e-2 * i;
         ss.push_back(s);
         V.push_back(V0*sin(phi0 + krf*s) - U0);
     }
     ring.cav.set_xy(ss,V);
+    auto& cav_s = ring.cav.ref_to_xi();
 
     Bunch_t bun (num_part,1e-3); //number of particles and current in A;
     generate_bunch(ring, bun);
@@ -62,12 +62,21 @@ int main()
     wake.Wl.wr.push_back(30e9*TWOPI);
     wake.Wl.Rs.push_back(1e4);
     wake.Wl.Q.push_back(1);
+
+    my_Dvector x;
+    for (long i=0; i<=50000; i++){x.push_back(2e-5 * 5e-2 * i); }
+    my_Dvector y(wake.Wl.get_wake_at_points(x,1));
+    wake.Wl.W.set_xy(x,y);
+    // wake.Wl.resonator = false;
+    // wake.Wl.general  = true;
     Feedback_t fb;
     Results_t results (nturns);
 
+    my_Dvector&& dist = ring.get_distribution();
     std::chrono::time_point<clock_> beg_ = clock_::now();
-    // do_tracking(ring,wake,fb,bun,results);
-    solve_Haissinski(wake,ring,5e-3);
+    do_tracking(ring,wake,fb,bun,results);
+    // solve_Haissinski(wake,ring,5e-3);
+    // convolution_same(dist,Wl);
     cout << "ET: " << chrono::duration_cast<s_> (clock_::now()-beg_).count() << " s" << endl;
     return 0;
 }

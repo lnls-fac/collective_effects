@@ -4,11 +4,14 @@
 
 #include <vector>
 #include <iostream>
+#include <thread>
 #include <cmath>
 using namespace std;
 
 #define TWOPI  6.28318530717959
 #define light_speed 299792458.0         // [m/s]   - definition
+
+extern int global_num_threads;
 
 struct Particle_t {
     double xx, xl, de, ss;
@@ -19,6 +22,7 @@ struct Particle_t {
 
 typedef vector<double> my_Dvector;
 typedef vector<Particle_t> my_PartVector;
+typedef vector<int> my_Ivector;
 
 
 class Interpola_t {
@@ -49,6 +53,8 @@ public:
         return  yi[i]   +   (yi[i+1]-yi[i]) / (xi[i+1]-xi[i]) * (x-xi[i]);
     }
 };
+
+my_Ivector bounds_for_threads(const int parts, const int ini, const int final);
 
 my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2);
 my_Dvector convolution_full_orig(const my_Dvector& vec1, const my_Dvector& vec2);

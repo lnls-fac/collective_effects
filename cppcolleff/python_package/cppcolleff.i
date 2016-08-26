@@ -39,6 +39,7 @@
 %include "stl.i"
 
 namespace std {
+    %template(my_Ivector) vector<int>;
     %template(my_Dvector) vector<double>;
     %template(my_PartVector) vector<Particle_t>;
 }

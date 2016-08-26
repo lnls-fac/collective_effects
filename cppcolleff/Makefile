@@ -36,10 +36,14 @@ CC          = gcc
 CXX         = g++
 AR          = ar
 MACHINE     = -m64
-OPT_FLAG    = -O3 -fopenmp -std=c++11 -fPIC #-DOPENMP
-DBG_FLAG    = -O0 -g3 -std=c++11 -fPIC
+GEN_FLAG    = -fopenmp -pthread -std=c++11 -fPIC
+OPT_FLAG    = -O3 $(GEN_FLAG)
+DBG_FLAG    = -O0 -g3 $(GEN_FLAG)
 ARFLAGS     = rcs
-DFLAGS      = -DVERSION=$(VERSION)
+DFLAGS      = -DVERSION=$(VERSION) -DOPENMP
+LDFLAGS     = $(MACHINE) $(GEN_FLAG) $(DFLAGS)
+WL_FLAGS    = -Wl,--no-as-needed
+
 LIBSOURCES_CPP = essentials.cpp \
 				 Bunch.cpp \
 				 Ring.cpp \
@@ -51,7 +55,7 @@ BINSOURCES_CPP = exec.cpp
 
 AUXFILES  = VERSION
 
-LIBS = -lgsl -lgslcblas -lm -fopenmp
+LIBS = -lgsl -lgslcblas -lm
 INC  = -I./include
 BINDEST_DIR = /usr/local/bin
 LIBDEST_DIR = /usr/local/lib
@@ -74,16 +78,6 @@ endif
 
 LIBOBJECTS  = $(addprefix $(OBJDIR)/, $(LIBSOURCES_CPP:.cpp=.o))
 BINOBJECTS  = $(addprefix $(OBJDIR)/, $(BINSOURCES_CPP:.cpp=.o))
-LDFLAGS    = $(MACHINE)
-
-#### DERIVED CONDITIONALS AND VARIABLES ####
-ifeq ($(shell hostname), uv100)
-    CC          = /progs/users/gcc-4.7.3/bin/gcc
-    CXX         = /progs/users/gcc-4.7.3/bin/g++
-    LIBS        = -Wl,-rpath,/progs/users/gcc-4.7.3/lib64 ~/bin/GSL/lib/libgsl.a ~/bin/GSL/lib/libgslcblas.a
-    INC         = -I../bin/GSL/include/
-endif
-
 
 .PHONY: all alllibs cppcolleff clean cleanall
 
@@ -108,7 +102,7 @@ $(OBJDIR)/libcppcolleff.a: $(LIBOBJECTS)
 	$(AR) $(ARFLAGS) $@ $^
 
 $(OBJDIR)/cppcolleff: libcppcolleff $(BINOBJECTS)
-	$(CXX) $(LDFLAGS) $(BINOBJECTS) $(OBJDIR)/libcppcolleff.a $(LIBS) -o $@
+	$(CXX) $(LDFLAGS) $(WL_FLAGS) $(BINOBJECTS) $(OBJDIR)/libcppcolleff.a $(LIBS) -o $@
 
 $(LIBOBJECTS): | $(OBJDIR)
 
