@@ -132,7 +132,7 @@ void do_tracking(
 
         // After this sorting, the particles will be ordered from head to tail.
         // It means, from smaller ss to bigger ss.
-        // bun.general_sort();
+        bun.general_sort();
 
         results.register_Wkicks(n, wake.apply_kicks(bun,kick_stren, ring.betax));
         results.register_FBkick(n,   fb.apply_kick(bun, xx_ave,     ring.betax));

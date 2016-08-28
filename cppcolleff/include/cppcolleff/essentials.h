@@ -6,6 +6,7 @@
 #include <iostream>
 #include <thread>
 #include <cmath>
+#include <complex>
 #include <omp.h>
 using namespace std;
 
@@ -22,10 +23,10 @@ struct Particle_t {
     ~Particle_t() = default;
 };
 
-typedef vector<double> my_Dvector;
-typedef vector<Particle_t> my_PartVector;
 typedef vector<int> my_Ivector;
-
+typedef vector<double> my_Dvector;
+typedef vector<complex<double>> my_Cvector;
+typedef vector<Particle_t> my_PartVector;
 
 class Interpola_t {
 private:
