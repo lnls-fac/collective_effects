@@ -7,10 +7,10 @@
 
 struct WakePl
 {
-    bool general, resonator;
-    Interpola_t  W;
+    bool wake_function, wake_potential, resonator;
+    Interpola_t  WF, WP;
     my_Dvector wr, Rs, Q;
-    WakePl(): general(false), resonator(false) {};
+    WakePl(): wake_function(false), wake_potential(false), resonator(false) {};
     ~WakePl() = default;
     my_Dvector get_wake_at_points(const my_Dvector& spos, const double& stren) const;
 };

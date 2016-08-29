@@ -10,27 +10,18 @@ static void _generate_bunch(const Ring_t& ring, Bunch_t& bun, unsigned int seed)
 	uniform_real_distribution<double> phix_dist(0.0,TWOPI);
 	uniform_real_distribution<double> ss_dist(idist.front(),idist.back());
 	default_random_engine gen(seed);
+	my_PartVector& p = bun.particles;
   #ifdef OPENMP
-	my_PartVector& par = bun.particles;
 	#pragma omp ṕarallel for schedule(guided,1)
-	for (int i=0;i<par.size();++i){
-		double&& emitx = emitx_dist(gen);
-		double&& phix  = phix_dist(gen);
-		par[i].de = espread_dist(gen);
-		par[i].ss = idistr_interpol.get_y(ss_dist(gen));
-		par[i].xx =  sqrt(emitx*ring.betax)*cos(phix) + ring.etax*par[i].de;
-		par[i].xl = -sqrt(emitx/ring.betax)*(ring.alphax*cos(phix) + sin(phix)) + ring.etaxl*par[i].de;
-	}
-  #else
-	for (auto& p:bun.particles){
-		double&& emitx = emitx_dist(gen);
-		double&& phix  = phix_dist(gen);
-		p.de = espread_dist(gen);
-		p.ss = idistr_interpol.get_y(ss_dist(gen));
-		p.xx =  sqrt(emitx*ring.betax)*cos(phix) + ring.etax*p.de;
-		p.xl = -sqrt(emitx/ring.betax)*(ring.alphax*cos(phix) + sin(phix)) + ring.etaxl*p.de;
-	}
   #endif
+	for (int i=0;i<p.size();++i){
+		double&& emitx = emitx_dist(gen);
+		double&& phix  = phix_dist(gen);
+		p[i].de = espread_dist(gen);
+		p[i].ss = idistr_interpol.get_y(ss_dist(gen));
+		p[i].xx =  sqrt(emitx*ring.betax)*cos(phix) + ring.etax*p[i].de;
+		p[i].xl = -sqrt(emitx/ring.betax)*(ring.alphax*cos(phix) + sin(phix)) + ring.etaxl*p[i].de;
+	}
 	bun.is_sorted = false;
 }
 void generate_bunch(const Ring_t& ring, Bunch_t& bun)
@@ -72,7 +63,7 @@ my_Dvector solve_Haissinski(const Wake_t& wake, Ring_t& ring, const double& Ib)
 	my_Dvector V (cav_V.size(),0.0); // variable to be returned;
 
 	// get the wake function at the cavity longitudinal points (actually it is the kick)
-	my_Dvector&& KickF = wake.Wl.get_wake_at_points(cav_s, -Ib * ring.T0);
+	my_Dvector&& KickF = wake.Wl.get_wake_at_points(cav_s, -Ib * ring.T0 / ring.energy);
 
 	// Now we iterate to get the equilibrium distribution
 	bool converged (false);
@@ -95,15 +86,11 @@ my_Dvector solve_Haissinski(const Wake_t& wake, Ring_t& ring, const double& Ib)
 			my_Dvector&& distr = ring.get_distribution(V);
 			double&& residue = get_residue(cav_s,distr,distr_old);
 			fprintf(stdout,"%3i  %g\n",count,residue);
-			if (residue < residue_old){
-				if (residue < 1e-6) {converged = true;}
-			}
-			else {
-				if (++count > 10){
-					ring.espread *= 1.02;
-					fprintf(stdout,"espread = %f\n",ring.espread);
-					break;
-				}
+			if (residue < residue_old) if (residue < 1e-6) {converged = true;}
+			else if (++count > 10){
+				ring.espread *= 1.02;
+				fprintf(stdout,"espread = %f\n",ring.espread);
+				break;
 			}
 
 			swap(distr_old, distr);
@@ -129,10 +116,6 @@ void do_tracking(
         /* convention: positive ss, means particle behind the sinchronous particle;
          First do single particle tracking:*/
         ring.track_one_turn(bun);
-
-        // After this sorting, the particles will be ordered from head to tail.
-        // It means, from smaller ss to bigger ss.
-        bun.general_sort();
 
         results.register_Wkicks(n, wake.apply_kicks(bun,kick_stren, ring.betax));
         results.register_FBkick(n,   fb.apply_kick(bun, xx_ave,     ring.betax));

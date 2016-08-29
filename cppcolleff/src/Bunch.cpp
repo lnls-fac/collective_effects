@@ -1,12 +1,37 @@
-
 #include <cppcolleff/Bunch.h>
+
+my_Dvector Bunch_t::get_xx() const
+{
+	my_Dvector x (particles.size(),0.0);
+	for(int i=0;i<x.size();++i) x[i] = particles[i].xx;
+	return x;
+}
+my_Dvector Bunch_t::get_xl() const
+{
+	my_Dvector x (particles.size(),0.0);
+	for(int i=0;i<x.size();++i) x[i] = particles[i].xl;
+	return x;
+}
+my_Dvector Bunch_t::get_de() const
+{
+	my_Dvector x (particles.size(),0.0);
+	for(int i=0;i<x.size();++i) x[i] = particles[i].de;
+	return x;
+}
+my_Dvector Bunch_t::get_ss() const
+{
+	my_Dvector x (particles.size(),0.0);
+	for(int i=0;i<x.size();++i) x[i] = particles[i].ss;
+	return x;
+}
 
 inline bool sort_increasing_ss(const Particle_t& first, const Particle_t& second)
 {
 	if (first.ss < second.ss) return true;
 	else return false;
 }
-void Bunch_t::general_sort() {std::sort(particles.begin(),particles.end(),sort_increasing_ss);}
+void Bunch_t::general_sort() {__gnu_parallel::sort(particles.begin(),particles.end(),sort_increasing_ss);}
+// void Bunch_t::general_sort() {std::sort(particles.begin(),particles.end(),sort_increasing_ss);}
 
 void Bunch_t::insertion_sort()
 {

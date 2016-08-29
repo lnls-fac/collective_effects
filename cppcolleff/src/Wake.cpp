@@ -1,12 +1,11 @@
-
 #include <cppcolleff/Wake.h>
 
 my_Dvector WakePl::get_wake_at_points(const my_Dvector& spos, const double& stren) const
 {
     my_Dvector wakeF(spos.size(),0.0);
-    if (general) {
+    if (wake_function) {
         for (int i=0;i<spos.size();++i){
-            wakeF[i] = W.get_y(spos[i]) * stren;
+            wakeF[i] = WF.get_y(spos[i]) * stren;
         }
     }
     if (resonator){
@@ -22,14 +21,8 @@ my_Dvector WakePl::get_wake_at_points(const my_Dvector& spos, const double& stre
             #endif
             for (int i=0;i<spos.size();++i){
                 if (spos[i] < 0.0) {continue;}
-                if ((spos[i] < 1e-10) && (spos[i] > -1e-10)) {
-                    complex<double>&& kik = exp( -spos[i]*cpl_kr);
-                    wakeF[i] += 0.5 * Amp * (1.0*kik.real() + 1.0*kik.imag()/(2*Ql));
-                }
-                else {
-                    complex<double>&& kik = exp( -spos[i]*cpl_kr);
-                    wakeF[i] += 1.0 * Amp * (1.0*kik.real() + 1.0*kik.imag()/(2*Ql));
-                }
+                complex<double>&& kik = exp( -spos[i]*cpl_kr);
+                wakeF[i] += Amp * (1.0*kik.real() + 1.0*kik.imag()/(2*Ql));
             }
         }
     }
@@ -114,11 +107,10 @@ void W_res_kick(
     // Now I have to prepare the second round of threads.
     ch_W_pot = false; // I don't want the potential W_pot to be updated;
     complex<double> W_pot_sum (W_pot[0]); // temporary variables
-    complex<double> temp_var;
     for(int i=1;i<nr_th;++i){
         ths[i-1].join(); // join the thread i
-        temp_var   = W_pot[i]; // create the new wake potetial to be applied in the particles
-        W_pot[i]   = W_pot_sum;
+        complex<double> temp_var (W_pot[i]); // create the new wake potential
+        W_pot[i]   = W_pot_sum;              // to be applied in the particles
         W_pot_sum += temp_var;
         Wk += Kick[i]; // update the total kick received by the particles
         Kick[i] = 0.0; // reset the temporary variable to be filled again
@@ -137,27 +129,44 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren, const double be
     my_Dvector Wkick (2,0.0);
     double Wgl(0.0), Wgd(0.0);
     auto& p = bun.particles;
+    double&& strenT = stren / betax;
+
+    // After this sorting, the particles will be ordered from head to tail.
+    // It means, from smaller ss to bigger ss.
+    if (Wd.wake_function || Wq.wake_function || Wl.wake_function ||
+        Wd.resonator     || Wq.resonator     || Wl.resonator ){
+        bun.general_sort();
+    }
 
     //pw --> witness particle   ps --> source particle
-    if (Wd.general || Wq.general || Wl.general){
+    if (Wd.wake_function || Wq.wake_function || Wl.wake_function){
       #ifdef OPENMP
         #pragma omp parallel for schedule(guided,1) reduction(+:Wgl,Wgd)
       #endif
         for (auto w=0;w<p.size();++w){ // Begin from the particle ahead
-            for (auto s=w;s>=0;--s){ // loop over all particles ahead of it.
+            if (Wl.wake_function) {
+                double&& kick = Wl.WF.get_y(0.0);
+                kick *= -stren * 0.5; // A particle see half of its potential.
+                Wgl     += kick;
+                p[w].de += kick;
+            }
+            for (auto s=w-1;s>=0;--s){ // loop over all particles ahead of it.
                 double&& ds = p[w].ss - p[s].ss;
-                if (Wl.general) {
-                    double&& kick = - Wl.W.get_y(ds) * stren;
+                if (Wl.wake_function) {
+                    double&& kick = Wl.WF.get_y(ds);
+                    kick *= -stren;
                     Wgl     += kick;
                     p[w].de += kick;
                 }
-                if (Wd.general) {
-                    double&& kick = -p[s].xx * Wd.W.get_y(ds) * stren / betax; // The kick is the negative of the wake;
+                if (Wd.wake_function) {
+                    double&& kick = Wd.WF.get_y(ds);
+                    kick *= -p[s].xx * strenT; // The kick is the negative of the wake;
                     Wgd     += kick;
                     p[w].xl += kick;
                 }
-                if (Wq.general) {
-                    double&& kick = -p[w].xx * Wq.W.get_y(ds) * stren / betax; // The kick is the negative of the wake;
+                if (Wq.wake_function) {
+                    double&& kick = Wq.WF.get_y(ds);
+                    kick *= -p[w].xx * strenT; // The kick is the negative of the wake;
                     Wgd     += kick;
                     p[w].xl += kick;
                 }
@@ -165,25 +174,49 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren, const double be
         }
     }
 
-    my_Ivector lims (bounds_for_threads(global_num_threads,0,p.size())); //Determine the bounds of for loops in each thread
+    //pw --> witness particle   ps --> source particle
+    if (Wd.wake_potential || Wq.wake_potential || Wl.wake_potential){
+      #ifdef OPENMP
+        #pragma omp parallel for schedule(guided,1) reduction(+:Wgl,Wgd)
+      #endif
+        for (auto w=0;w<p.size();++w){ // Begin from the particle ahead
+            for (auto s=p.size();s>=0;--s){ // loop over all particles.
+                double&& ds = p[w].ss - p[s].ss;
+                if (Wl.wake_potential) {
+                    double&& kick = Wl.WP.get_y(ds);
+                    kick *= -stren;
+                    Wgl     += kick;
+                    p[w].de += kick;
+                }
+                if (Wd.wake_potential) {
+                    double&& kick = Wd.WP.get_y(ds);
+                    kick *= -p[s].xx * strenT; // The kick is the negative of the wake;
+                    Wgd     += kick;
+                    p[w].xl += kick;
+                }
+                if (Wq.wake_potential) {
+                    double&& kick = Wq.WP.get_y(ds);
+                    kick *= -p[w].xx * strenT; // The kick is the negative of the wake;
+                    Wgd     += kick;
+                    p[w].xl += kick;
+                }
+            }
+        }
+    }
 
+
+    my_Ivector lims (bounds_for_threads(global_num_threads,0,p.size())); //Determine the bounds of for loops in each thread
     if (Wl.resonator){
         int Ktype(0);
-        for (int r=0; r<Wl.wr.size(); r++){
-            W_res_kick(p, Wl, Ktype, stren, Wgl, r, lims);
-        }
+        for (int r=0; r<Wl.wr.size(); r++) W_res_kick(p, Wl, Ktype, stren, Wgl, r, lims);
     }
     if (Wd.resonator){
         int Ktype(1);
-        for (int r=0; r<Wd.wr.size(); r++){
-            W_res_kick(p, Wd, Ktype, stren/betax, Wgd, r, lims);
-        }
+        for (int r=0; r<Wd.wr.size(); r++) W_res_kick(p, Wd, Ktype,strenT, Wgd, r, lims);
     }
     if (Wq.resonator){
         int Ktype(2);
-        for (int r=0; r<Wq.wr.size(); r++){
-            W_res_kick(p, Wq, Ktype, stren/betax, Wgd, r, lims);
-        }
+        for (int r=0; r<Wq.wr.size(); r++) W_res_kick(p, Wq, Ktype,strenT, Wgd, r, lims);
     }
     Wkick[0] = Wgl;
     Wkick[1] = Wgd;

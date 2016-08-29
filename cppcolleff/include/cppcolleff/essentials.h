@@ -61,7 +61,7 @@ public:
         if      (x > xi.back())  {return 0.0;}
         else if (x < xi.front()) {return 0.0;}
 
-        unsigned int i;// = (unsigned int) (x/dx - offset);
+        unsigned int i;
         if (equally_spaced){i = (unsigned int) (x/dx - offset);}
         else {for (i=0;i<xi.size();++i){if (x<xi[i]){break;}}}
 

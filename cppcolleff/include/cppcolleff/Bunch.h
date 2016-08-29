@@ -2,7 +2,7 @@
 #define _BUNCH_H
 
 #include <random>  //std::generator and some distributions
-#include <algorithm> //std::sort
+#include <parallel/algorithm> //std::sort
 #include <utility> //std::swap
 #include <cppcolleff/essentials.h>
 
@@ -15,6 +15,11 @@ class Bunch_t {
     Bunch_t (const long part): num_part(part), particles(part,0.0) {};
     Bunch_t (const long part,const double I): num_part(part), particles(part,0.0), Ib(I) {};
     ~Bunch_t() = default;
+
+    my_Dvector get_xx() const;
+    my_Dvector get_xl() const;
+    my_Dvector get_de() const;
+    my_Dvector get_ss() const;
 
     void generate_bunch();
     void general_sort();

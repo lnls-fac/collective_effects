@@ -53,7 +53,6 @@ my_Dvector convolution_same_orig(const my_Dvector& vec1, const my_Dvector& vec2)
     }
     return conv;
 }
-// this function follows matlab's convention of same, not numpy's.
 my_Dvector convolution_full_orig(const my_Dvector& vec1, const my_Dvector& vec2)
 {
     my_Dvector conv (vec1.size()+vec2.size()-1,0.0);
@@ -82,7 +81,6 @@ static void _trim_vec(const my_Dvector& vec, int& mini, int& maxi)
         if ((!minb) && (!maxb)) {break;}
     }
 }
-#ifdef OPENMP
 static void _convolution(const my_Dvector& vec1, const my_Dvector& vec2, my_Dvector& conv, int init)
 {
     // To do the convolution I trim the beginning and ending points if they are zero (1e-30);
@@ -95,7 +93,9 @@ static void _convolution(const my_Dvector& vec1, const my_Dvector& vec2, my_Dvec
     int ini = max(min1+min2-init,0);
     int fin = min(int(conv.size()), max1 + max2 - 1);
 
+  #ifdef OPENMP
     #pragma omp parallel for schedule(guided,1)
+  #endif
     for (int i=ini;i<fin;++i){
         const int delta = max(i+init-min2-max1,0);
         for (int j=min2+delta,k=(i+init-min2-delta);j<max2 && k>=min1;++j,--k){
@@ -103,55 +103,6 @@ static void _convolution(const my_Dvector& vec1, const my_Dvector& vec2, my_Dvec
         }
     }
 }
-#else
-void _convolution_thread(
-    const my_Dvector& vec1,
-    const my_Dvector& vec2,
-    my_Dvector& conv,  const int init,
-    const int min1,    const int max1,
-    const int min2,    const int max2,
-    const int start,   const int final)
-{
-    for (int i=start;i<final;++i){
-        const int delta = max(i+init-min2-max1,0);
-        for (int j=min2+delta,  k=(i+init-min2-delta);
-                 j<max2     &&  k>=min1;
-                 ++j,           --k){
-            conv[i] += vec1[k]*vec2[j];
-        }
-    }
-}
-static void _convolution(const my_Dvector& vec1, const my_Dvector& vec2, my_Dvector& conv, int init)
-{
-    // To do the convolution I trim the beginning and ending points if they are zero (1e-30);
-    int min1 (0), max1 (vec1.size());
-    _trim_vec(vec1, min1, max1);
-
-    int min2 (0), max2 (vec2.size());
-    _trim_vec(vec2, min2, max2);
-
-    int ini = max(min1+min2-init,0);
-    int fin = min(int(conv.size()), max1 + max2 - 1);
-
-    int num_threads = 4*global_num_threads; // big difference in number of calcs of each thread;
-    vector<thread> ths;
-    my_Ivector&& lims = bounds_for_threads(num_threads, ini, fin);
-
-    for(int i=0;i<(num_threads-1);++i){
-        ths.push_back(thread(_convolution_thread, ref(vec1), ref(vec2), ref(conv),
-             init, min1, max1, min2, max2, lims[i],lims[i+1]));
-    }
-    _convolution_thread(vec1, vec2, conv,
-         init, min1, max1, min2, max2,
-         lims[num_threads-1],
-         lims[num_threads]);
-
-    for (auto& th: ths){
-        th.join();
-    }
-
-}
-#endif
 
 // this function follows matlab's convention of same, not numpy's.
 my_Dvector convolution_same(const my_Dvector& vec1, const my_Dvector& vec2)
