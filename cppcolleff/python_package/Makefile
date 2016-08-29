@@ -3,7 +3,8 @@
 C         = gcc
 CXX       = g++
 SWIG      = swig3.0
-PYTHON    = python3.4
+PV       := $(shell python3 --version | cut -f2 --delimiter=.)
+PYTHON    = python3.$(PV)
 
 MACHINE   = -m64
 OPT_FLAG  = -O4
