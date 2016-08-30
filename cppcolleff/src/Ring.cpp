@@ -106,6 +106,8 @@ void Ring_t::track_one_turn(Bunch_t& bun) const
         );
         double&& sinx  = sin(phix);
         double&& cosx  = cos(phix);
+        // double&& cosx  = sqrt(1-sinx*sinx);
+
         // apply the one turn matrix
         double&& x_tmp  = p[i].xx*(cosx + alphax*sinx) + betax*p[i].xl*sinx;
         p[i].xl       =-p[i].xx*gammax*sinx + p[i].xl*(cosx - alphax*sinx);

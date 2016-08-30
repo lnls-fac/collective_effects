@@ -96,7 +96,7 @@ int main()
 
     // my_Dvector&& dist = ring.get_distribution();
     std::chrono::time_point<clock_> beg_ = clock_::now();
-    set_num_threads(8);
+    set_num_threads(2);
     do_tracking(ring,wake,fb,bun,results);
     // solve_Haissinski(wake,ring,5e-3);
     // convolution_same(dist,Wl);

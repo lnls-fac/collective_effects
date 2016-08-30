@@ -12,7 +12,7 @@ static void _generate_bunch(const Ring_t& ring, Bunch_t& bun, unsigned int seed)
 	default_random_engine gen(seed);
 	my_PartVector& p = bun.particles;
   #ifdef OPENMP
-	#pragma omp ṕarallel for schedule(guided,1)
+	#pragma omp parallel for schedule(guided,1)
   #endif
 	for (int i=0;i<p.size();++i){
 		double&& emitx = emitx_dist(gen);
