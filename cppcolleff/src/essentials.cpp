@@ -1,6 +1,6 @@
 #include <cppcolleff/essentials.h>
 
-int global_num_threads = 8;
+int global_num_threads = omp_get_num_threads();
 void set_num_threads(int nr){global_num_threads = nr; omp_set_num_threads(nr);}
 
 void Interpola_t::check_consistency()
@@ -103,7 +103,6 @@ static void _convolution(const my_Dvector& vec1, const my_Dvector& vec2, my_Dvec
         }
     }
 }
-
 // this function follows matlab's convention of same, not numpy's.
 my_Dvector convolution_same(const my_Dvector& vec1, const my_Dvector& vec2)
 {
@@ -113,7 +112,6 @@ my_Dvector convolution_same(const my_Dvector& vec1, const my_Dvector& vec2)
     _convolution(vec1, vec2, conv, init);
     return conv;
 }
-
 my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2)
 {
     my_Dvector conv (vec1.size()+vec2.size()-1,0.0);

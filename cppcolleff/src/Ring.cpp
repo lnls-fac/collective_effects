@@ -30,7 +30,6 @@ my_Dvector Ring_t::_get_distribution(const my_Dvector& spos, const my_Dvector& V
 
     return distri;
 }
-
 my_Dvector Ring_t::get_distribution() const
 {
     const my_Dvector& spos = cav.ref_to_xi();
