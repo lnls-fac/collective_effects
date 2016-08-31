@@ -1,7 +1,6 @@
 #include <cppcolleff/essentials.h>
 
-int global_num_threads = omp_get_num_threads();
-void set_num_threads(int nr){global_num_threads = nr; omp_set_num_threads(nr);}
+int NumThreads::num_threads = omp_get_num_threads();
 
 void Interpola_t::check_consistency()
 {

@@ -13,8 +13,13 @@ using namespace std;
 #define TWOPI  6.28318530717959
 #define light_speed 299792458.0         // [m/s]   - definition
 
-extern int global_num_threads;
-void set_num_threads(int nr);
+class NumThreads {
+  private:
+    static int num_threads;
+  public:
+    static void set_num_threads(int nr) {num_threads = nr; omp_set_num_threads(nr);}
+    static int get_num_threads(){return num_threads;}
+}
 
 struct Particle_t {
     double xx, xl, de, ss;
@@ -46,13 +51,12 @@ private:
 public:
     //Interpola_t(my_Dvector&& xref, my_Dvector&& yref) {xi = move(xref); yi = move(yref);check_consistency();}
     Interpola_t(my_Dvector& xref, my_Dvector& yref):
-    xi(move(xref)), yi(move(yref)) {check_consistency();initialize_interp();}
+    xi(xref), yi(yref) {check_consistency();initialize_interp();}
     Interpola_t() = default;
     ~Interpola_t() = default;
-    void set_x(my_Dvector& xref){xi = move(xref);check_consistency();initialize_interp();}
-    void set_y(my_Dvector& yref){yi = move(yref);check_consistency();initialize_interp();}
-    void set_xy(my_Dvector& xref, my_Dvector& yref){
-        xi = move(xref); yi = move(yref);check_consistency();initialize_interp();}
+    void set_x(my_Dvector& xref){xi=xref; check_consistency(); initialize_interp();}
+    void set_y(my_Dvector& yref){yi=yref; check_consistency(); initialize_interp();}
+    void set_xy(my_Dvector& xref, my_Dvector& yref){xi=xref; yi=yref; check_consistency(); initialize_interp();}
     const my_Dvector& ref_to_xi() const {return xi;}
     const my_Dvector& ref_to_yi() const {return yi;}
 

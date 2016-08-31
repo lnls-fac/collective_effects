@@ -13,7 +13,8 @@
 void generate_bunch(const Ring_t& ring, Bunch_t& bun);
 void generate_bunch(const Ring_t& ring, Bunch_t& bun, unsigned int seed);
 
-my_Dvector solve_Haissinski(const Wake_t& wake, Ring_t& ring, const double& Ib);
+my_Dvector solve_Haissinski(const Wake_t& wake,	const Ring_t& ring,	const double& Ib);
+double find_equilibrium_energy_spread(const Wake_t& wake, Ring_t& ring,	const double& Ib);
 
 void do_tracking(
     const Ring_t& ring,

@@ -1,26 +1,42 @@
 #include <cppcolleff/cppcolleff.h>
-
-static void _generate_bunch(const Ring_t& ring, Bunch_t& bun, unsigned int seed)
+static void _generate_bunch_thread(
+	const Ring_t& ring,
+	Particle_t& p,
+	const unsigned int seed,
+	const exponential_distribution<double>& emitx_dist,
+	const uniform_real_distribution<double>& phix_dist,
+	const normal_distribution<double>& espread_dist,
+	const univor_real_distribution<double>& ss_dist,
+	const int init,
+	const int final)
 {
-	Interpola_t&& idistr_interpol = ring.get_integrated_distribution();
-	const my_Dvector& idist = idistr_interpol.ref_to_xi();
-
-	normal_distribution<double> espread_dist(0.0,ring.espread);
-	exponential_distribution<double> emitx_dist(1/(2*ring.emitx));
-	uniform_real_distribution<double> phix_dist(0.0,TWOPI);
-	uniform_real_distribution<double> ss_dist(idist.front(),idist.back());
 	default_random_engine gen(seed);
-	my_PartVector& p = bun.particles;
-  #ifdef OPENMP
-	#pragma omp parallel for schedule(guided,1)
-  #endif
-	for (int i=0;i<p.size();++i){
+	for (int i=init;i<final;++i){
 		double&& emitx = emitx_dist(gen);
 		double&& phix  = phix_dist(gen);
 		p[i].de = espread_dist(gen);
 		p[i].ss = idistr_interpol.get_y(ss_dist(gen));
 		p[i].xx =  sqrt(emitx*ring.betax)*cos(phix) + ring.etax*p[i].de;
 		p[i].xl = -sqrt(emitx/ring.betax)*(ring.alphax*cos(phix) + sin(phix)) + ring.etaxl*p[i].de;
+	}
+}
+static void _generate_bunch(const Ring_t& ring, Bunch_t& bun, unsigned int seed)
+{
+	Interpola_t idistr_interpol (ring.get_integrated_distribution());
+	const my_Dvector& idist = idistr_interpol.ref_to_xi();
+
+	normal_distribution<double> espread_dist(0.0,ring.espread);
+	exponential_distribution<double> emitx_dist(1/(2*ring.emitx));
+	uniform_real_distribution<double> phix_dist(0.0,TWOPI);
+	uniform_real_distribution<double> ss_dist(idist.front(),idist.back());
+
+	my_PartVector& p = bun.particles;
+
+	int nr_th = NumThreads::get_num_threads();
+	my_Dvector lims (bounds_for_threads(nr_th,0,p.size()));
+
+	for (int i=0;i<lims.size();++i){
+
 	}
 	bun.is_sorted = false;
 }
@@ -55,50 +71,82 @@ static double get_residue(const my_Dvector& spos, const my_Dvector& distr)
 	for (int i=0;i<spos.size();++i){res += distr[i] * distr[i] * ds;}
 	return res;
 }
-my_Dvector solve_Haissinski(const Wake_t& wake, Ring_t& ring, const double& Ib)
+static my_Dvector _const_espread_iteration_Haissinski(const Ring_t ring, const my_Dvector KickF)
 {
-    auto& cav_s = ring.cav.ref_to_xi();
-    auto& cav_V = ring.cav.ref_to_yi();
+	my_Dvector distr_old (ring.get_distribution());
+	auto& cav_s = ring.cav.ref_to_xi();
+	auto& cav_V = ring.cav.ref_to_yi();
+	double residue_old (get_residue(cav_s,distr_old));
+	int count (0);
+	double&& ds = (cav_s[1]-cav_s[0]);
+	while (true) {
+		my_Dvector V (convolution_same(KickF,distr_old)); // variable to be returned;
 
-	my_Dvector V (cav_V.size(),0.0); // variable to be returned;
+	  #ifdef OPENMP
+		#pragma omp parallel for schedule(guided,1)
+	  #endif
+		for (int i=0;i<V.size();++i){
+			V[i] *= ds; // to fix the scale of the convolution.
+			V[i] += cav_V[i];
+		}
 
+		my_Dvector&& distr = ring.get_distribution(V);
+		double&& residue = get_residue(cav_s,distr,distr_old);
+
+		if (residue < residue_old) if (residue < 1e-6) return V;
+		else if (++count > 10) return my_Dvector ();
+
+		distr_old.swap(distr);
+		swap(residue_old,residue);
+	}
+}
+
+my_Dvector solve_Haissinski(
+	const Wake_t& wake,
+	const Ring_t& ring,
+	const double& Ib)
+{
 	// get the wake function at the cavity longitudinal points (actually it is the kick)
+	auto& cav_s = ring.cav.ref_to_xi();
 	my_Dvector&& KickF = wake.Wl.get_wake_at_points(cav_s, -Ib * ring.T0 / ring.energy);
 
-	// Now we iterate to get the equilibrium distribution
-	bool converged (false);
-	do {
-		my_Dvector distr_old (ring.get_distribution());
-		double residue_old (get_residue(cav_s,distr_old));
-		int count (0);
-		double&& ds = (cav_s[1]-cav_s[0]);
-		fprintf(stdout,"%3i  %g\n",0,residue_old);
-		while (!converged){
-			V = move(convolution_same(KickF,distr_old));
-		  #ifdef OPENMP
-		  	#pragma omp parallel for schedule(guided,1)
-		  #endif
-			for (int i=0;i<V.size();++i){
-				V[i] *= ds; // to fix the scale of the convolution.
-				V[i] += cav_V[i];
-			}
+	return my_Dvector (_const_espread_iteration_Haissinski(ring, KickF));
+}
 
-			my_Dvector&& distr = ring.get_distribution(V);
-			double&& residue = get_residue(cav_s,distr,distr_old);
-			fprintf(stdout,"%3i  %g\n",count,residue);
-			if (residue < residue_old) if (residue < 1e-6) {converged = true;}
-			else if (++count > 10){
-				ring.espread *= 1.02;
-				fprintf(stdout,"espread = %f\n",ring.espread);
-				break;
-			}
+double find_equilibrium_energy_spread(
+	const Wake_t& wake,
+	Ring_t& ring,
+	const double& Ib)
+{
+	// get the wake function at the cavity longitudinal points (actually it is the kick)
+	auto& cav_s = ring.cav.ref_to_xi();
+	my_Dvector&& KickF = wake.Wl.get_wake_at_points(cav_s, -Ib * ring.T0 / ring.energy);
 
-			swap(distr_old, distr);
-			swap(residue_old,residue);
+	my_Dvector V (_const_espread_iteration_Haissinski(ring, KickF));
+
+	// Now use bissection to get the equilibrium distribution if needed
+	double final_espread (ring.espread);
+	if ( V.empty() ) {
+		double init_espread (ring.espread);
+		double delta_spread (ring.espread); //begin with a delta equal to the natural energy spread
+		bool conv_once (false);
+
+		while (delta_spread > 1e-5) {
+			if (V.empty()) {
+				if (conv_once) delta_spread /= 2;
+				ring.espread += delta_spread;
+			}
+			else {
+				conv_once = true;
+				final_espread = ring.espread;
+				delta_spread /= 2;
+				ring.espread -= delta_spread;
+			}
+			V = _const_espread_iteration_Haissinski(ring, KickF);
 		}
-	} while (!converged);
-
-	return V;
+		ring.espread = init_espread;
+	}
+	return final_espread;
 }
 
 void do_tracking(

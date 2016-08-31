@@ -80,25 +80,28 @@ int main()
 
 
     Wake_t wake;
-    wake.Wd.resonator = true;
-    wake.Wd.wr.push_back(30e9*TWOPI);
-    wake.Wd.Rs.push_back(1e4);
-    wake.Wd.Q.push_back(1);
+    wake.Wl.resonator = true;
+    wake.Wl.wr.push_back(30e9*TWOPI);
+    wake.Wl.Rs.push_back(1e4);
+    wake.Wl.Q.push_back(1);
 
     my_Dvector x;
     for (long i=0; i<=50000; i++){x.push_back(2e-5 * 5e-2 * i); }
     my_Dvector y(wake.Wd.get_wake_at_points(x,1));
-    wake.Wd.WF.set_xy(x,y);
-    wake.Wd.resonator = false;
+    wake.Wl.WF.set_xy(x,y);
+    // wake.Wl.resonator = false;
     // wake.Wd.wake_function  = true;
     Feedback_t fb;
     Results_t results (nturns);
 
     // my_Dvector&& dist = ring.get_distribution();
     std::chrono::time_point<clock_> beg_ = clock_::now();
-    set_num_threads(2);
-    do_tracking(ring,wake,fb,bun,results);
-    // solve_Haissinski(wake,ring,5e-3);
+    set_num_threads(8);
+    // do_tracking(ring,wake,fb,bun,results);
+    for (double i=1;i<=10;++i) {
+        double espread (find_equilibrium_energy_spread(wake,ring, 1e-3 * i));
+        fprintf(stdout,"%9.5g\n",espread);
+    }
     // convolution_same(dist,Wl);
     cout << "ET: " << chrono::duration_cast<s_> (clock_::now()-beg_).count() << " s" << endl;
     return 0;

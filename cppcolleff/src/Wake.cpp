@@ -78,7 +78,7 @@ void W_res_kick(
     my_Ivector& lims)
 {
     // First I get the number of threads to be used:
-    int& nr_th = global_num_threads;
+    int nr_th = NumThreads::get_num_threads();
 
     // Now I calculate some important variables'
     double&& kr  = W.wr[r] / light_speed;
@@ -135,7 +135,7 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren, const double be
     // It means, from smaller ss to bigger ss.
     if (Wd.wake_function || Wq.wake_function || Wl.wake_function ||
         Wd.resonator     || Wq.resonator     || Wl.resonator ){
-        bun.general_sort();
+        bun.sort();
     }
 
     //pw --> witness particle   ps --> source particle
@@ -205,7 +205,7 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren, const double be
     }
 
 
-    my_Ivector lims (bounds_for_threads(global_num_threads,0,p.size())); //Determine the bounds of for loops in each thread
+    my_Ivector lims (bounds_for_threads(NumThreads::get_num_threads(),0,p.size())); //Determine the bounds of for loops in each thread
     if (Wl.resonator){
         int Ktype(0);
         for (int r=0; r<Wl.wr.size(); r++) W_res_kick(p, Wl, Ktype, stren, Wgl, r, lims);
