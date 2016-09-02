@@ -135,7 +135,7 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren, const double be
     // It means, from smaller ss to bigger ss.
     if (Wd.wake_function || Wq.wake_function || Wl.wake_function ||
         Wd.resonator     || Wq.resonator     || Wl.resonator ){
-        bun.sort();
+        bun.general_sort();
     }
 
     //pw --> witness particle   ps --> source particle

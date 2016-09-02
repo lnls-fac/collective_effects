@@ -71,10 +71,33 @@ except AttributeError:
 
 TWOPI = _cppcolleff.TWOPI
 light_speed = _cppcolleff.light_speed
+class NumThreads(_object):
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr(self, NumThreads, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, NumThreads, name)
+    __repr__ = _swig_repr
+    __swig_getmethods__["set_num_threads"] = lambda x: _cppcolleff.NumThreads_set_num_threads
+    if _newclass:set_num_threads = staticmethod(_cppcolleff.NumThreads_set_num_threads)
+    __swig_getmethods__["get_num_threads"] = lambda x: _cppcolleff.NumThreads_get_num_threads
+    if _newclass:get_num_threads = staticmethod(_cppcolleff.NumThreads_get_num_threads)
+    def __init__(self): 
+        this = _cppcolleff.new_NumThreads()
+        try: self.this.append(this)
+        except: self.this = this
+    __swig_destroy__ = _cppcolleff.delete_NumThreads
+    __del__ = lambda self : None;
+NumThreads_swigregister = _cppcolleff.NumThreads_swigregister
+NumThreads_swigregister(NumThreads)
 
-def set_num_threads(*args):
-  return _cppcolleff.set_num_threads(*args)
-set_num_threads = _cppcolleff.set_num_threads
+def NumThreads_set_num_threads(*args):
+  return _cppcolleff.NumThreads_set_num_threads(*args)
+NumThreads_set_num_threads = _cppcolleff.NumThreads_set_num_threads
+
+def NumThreads_get_num_threads():
+  return _cppcolleff.NumThreads_get_num_threads()
+NumThreads_get_num_threads = _cppcolleff.NumThreads_get_num_threads
+
 class Particle_t(_object):
     __swig_setmethods__ = {}
     __setattr__ = lambda self, name, value: _swig_setattr(self, Particle_t, name, value)
@@ -101,7 +124,6 @@ class Particle_t(_object):
     __del__ = lambda self : None;
 Particle_t_swigregister = _cppcolleff.Particle_t_swigregister
 Particle_t_swigregister(Particle_t)
-cvar = _cppcolleff.cvar
 
 class Interpola_t(_object):
     __swig_setmethods__ = {}
@@ -402,17 +424,21 @@ def generate_bunch(*args):
   return _cppcolleff.generate_bunch(*args)
 generate_bunch = _cppcolleff.generate_bunch
 
-def solve_Haissinski(*args):
-  return _cppcolleff.solve_Haissinski(*args)
-solve_Haissinski = _cppcolleff.solve_Haissinski
+def solve_Haissinski_get_potential(*args):
+  return _cppcolleff.solve_Haissinski_get_potential(*args)
+solve_Haissinski_get_potential = _cppcolleff.solve_Haissinski_get_potential
 
 def find_equilibrium_energy_spread(*args):
   return _cppcolleff.find_equilibrium_energy_spread(*args)
 find_equilibrium_energy_spread = _cppcolleff.find_equilibrium_energy_spread
 
-def do_tracking(*args):
-  return _cppcolleff.do_tracking(*args)
-do_tracking = _cppcolleff.do_tracking
+def single_bunch_tracking(*args):
+  return _cppcolleff.single_bunch_tracking(*args)
+single_bunch_tracking = _cppcolleff.single_bunch_tracking
+
+def multi_bunch_tracking(*args):
+  return _cppcolleff.multi_bunch_tracking(*args)
+multi_bunch_tracking = _cppcolleff.multi_bunch_tracking
 class SwigPyIterator(_object):
     __swig_setmethods__ = {}
     __setattr__ = lambda self, name, value: _swig_setattr(self, SwigPyIterator, name, value)

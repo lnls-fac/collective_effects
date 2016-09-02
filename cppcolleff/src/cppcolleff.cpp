@@ -1,43 +1,51 @@
 #include <cppcolleff/cppcolleff.h>
+
 static void _generate_bunch_thread(
 	const Ring_t& ring,
-	Particle_t& p,
+	my_PartVector& p,
 	const unsigned int seed,
-	const exponential_distribution<double>& emitx_dist,
-	const uniform_real_distribution<double>& phix_dist,
-	const normal_distribution<double>& espread_dist,
-	const univor_real_distribution<double>& ss_dist,
+	const Interpola_t& idistr_interpol,
 	const int init,
 	const int final)
 {
+	const my_Dvector& idist = idistr_interpol.ref_to_xi();
+	normal_distribution<double> espread_dist(0.0,ring.espread);
+	exponential_distribution<double> emitx_dist(1/(2*ring.emitx));
+	uniform_real_distribution<double> phix_dist(0.0,TWOPI);
+	uniform_real_distribution<double> ss_dist(idist.front(),idist.back());
 	default_random_engine gen(seed);
+
 	for (int i=init;i<final;++i){
 		double&& emitx = emitx_dist(gen);
 		double&& phix  = phix_dist(gen);
+		double&& Ax    = sqrt(emitx/ring.betax);
+		double&& Acosx = Ax*cos(phix);
+		double&& Asinx = Ax*sin(phix);
 		p[i].de = espread_dist(gen);
 		p[i].ss = idistr_interpol.get_y(ss_dist(gen));
-		p[i].xx =  sqrt(emitx*ring.betax)*cos(phix) + ring.etax*p[i].de;
-		p[i].xl = -sqrt(emitx/ring.betax)*(ring.alphax*cos(phix) + sin(phix)) + ring.etaxl*p[i].de;
+		p[i].xx =  Acosx*ring.betax          + ring.etax *p[i].de;
+		p[i].xl = -Acosx*ring.alphax - Asinx + ring.etaxl*p[i].de;
 	}
 }
 static void _generate_bunch(const Ring_t& ring, Bunch_t& bun, unsigned int seed)
 {
 	Interpola_t idistr_interpol (ring.get_integrated_distribution());
-	const my_Dvector& idist = idistr_interpol.ref_to_xi();
-
-	normal_distribution<double> espread_dist(0.0,ring.espread);
-	exponential_distribution<double> emitx_dist(1/(2*ring.emitx));
-	uniform_real_distribution<double> phix_dist(0.0,TWOPI);
-	uniform_real_distribution<double> ss_dist(idist.front(),idist.back());
-
 	my_PartVector& p = bun.particles;
 
 	int nr_th = NumThreads::get_num_threads();
-	my_Dvector lims (bounds_for_threads(nr_th,0,p.size()));
+	my_Ivector lims (bounds_for_threads(nr_th,0,p.size()));
+	vector<thread> ths;
 
-	for (int i=0;i<lims.size();++i){
-
+	for (int i=0;i<nr_th-1;++i){
+		ths.push_back(thread(
+			_generate_bunch_thread, ref(ring),ref(p),seed+i,
+									ref(idistr_interpol), lims[i], lims[i+1]
+		));
 	}
+	_generate_bunch_thread(ring, p, seed+nr_th-1, idistr_interpol,
+						   lims[nr_th-1], lims[nr_th]);
+	for(auto& th:ths) th.join();
+
 	bun.is_sorted = false;
 }
 void generate_bunch(const Ring_t& ring, Bunch_t& bun)
@@ -101,7 +109,7 @@ static my_Dvector _const_espread_iteration_Haissinski(const Ring_t ring, const m
 	}
 }
 
-my_Dvector solve_Haissinski(
+my_Dvector solve_Haissinski_get_potential(
 	const Wake_t& wake,
 	const Ring_t& ring,
 	const double& Ib)
@@ -149,7 +157,7 @@ double find_equilibrium_energy_spread(
 	return final_espread;
 }
 
-void do_tracking(
+void single_bunch_tracking(
     const Ring_t& ring,
     const Wake_t& wake,
     Feedback_t& fb,
@@ -169,4 +177,16 @@ void do_tracking(
         results.register_FBkick(n,   fb.apply_kick(bun, xx_ave,     ring.betax));
     }
     results.calc_stats(bun,results.get_nturns());
+}
+
+
+void multi_bunch_tracking(
+	const Ring_t& ring,
+	const Wake_t& long_range_wake,
+	const Wake_t& short_range_wake,
+	Feedback_t& fb,
+	vector<Bunch_t>& buns,
+	vector<Results_t>& results)
+{
+	
 }

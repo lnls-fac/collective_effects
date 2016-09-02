@@ -13,16 +13,30 @@
 void generate_bunch(const Ring_t& ring, Bunch_t& bun);
 void generate_bunch(const Ring_t& ring, Bunch_t& bun, unsigned int seed);
 
-my_Dvector solve_Haissinski(const Wake_t& wake,	const Ring_t& ring,	const double& Ib);
-double find_equilibrium_energy_spread(const Wake_t& wake, Ring_t& ring,	const double& Ib);
+my_Dvector solve_Haissinski_get_potential(
+    const Wake_t& wake,
+    const Ring_t& ring,
+    const double& Ib);
 
-void do_tracking(
+double find_equilibrium_energy_spread(
+    const Wake_t& wake,
+    Ring_t& ring, // Only changes the energy spread internally;
+    const double& Ib);
+
+void single_bunch_tracking(
     const Ring_t& ring,
     const Wake_t& wake,
     Feedback_t& fb,
     Bunch_t& bun,
     Results_t& results);
 
+void multi_bunch_tracking(
+	const Ring_t& ring,
+	const Wake_t& long_range_wake,
+	const Wake_t& short_range_wake,
+	Feedback_t& fb,
+	vector<Bunch_t>& buns,
+	vector<Results_t>& results);
 
 
 #endif

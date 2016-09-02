@@ -19,7 +19,7 @@ class NumThreads {
   public:
     static void set_num_threads(int nr) {num_threads = nr; omp_set_num_threads(nr);}
     static int get_num_threads(){return num_threads;}
-}
+};
 
 struct Particle_t {
     double xx, xl, de, ss;

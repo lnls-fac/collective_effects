@@ -47,10 +47,6 @@
 
 int main()
 {
-    typedef std::chrono::high_resolution_clock clock_;
-    typedef std::chrono::duration<double, std::ratio<1> > s_;
-    const long num_part = 10000000;
-    const long nturns   = 200;
 
     Ring_t ring;
     ring.energy      = 3e9;
@@ -74,6 +70,8 @@ int main()
     }
     ring.cav.set_xy(ss,V);
 
+    const long num_part = 10000000;
+    const long nturns   = 200;
     Bunch_t bun (num_part,1e-3); //number of particles and current in A;
     generate_bunch(ring, bun);
     bun.sort();
@@ -94,14 +92,17 @@ int main()
     Feedback_t fb;
     Results_t results (nturns);
 
+
+    typedef std::chrono::high_resolution_clock clock_;
+    typedef std::chrono::duration<double, std::ratio<1> > s_;
     // my_Dvector&& dist = ring.get_distribution();
     std::chrono::time_point<clock_> beg_ = clock_::now();
-    set_num_threads(8);
-    // do_tracking(ring,wake,fb,bun,results);
-    for (double i=1;i<=10;++i) {
-        double espread (find_equilibrium_energy_spread(wake,ring, 1e-3 * i));
-        fprintf(stdout,"%9.5g\n",espread);
-    }
+    NumThreads::set_num_threads(8);
+    single_bunch_tracking(ring,wake,fb,bun,results);
+    // for (double i=1;i<=10;++i) {
+    //     double espread (find_equilibrium_energy_spread(wake,ring, 1e-3 * i));
+    //     fprintf(stdout,"%9.5g\n",espread);
+    // }
     // convolution_same(dist,Wl);
     cout << "ET: " << chrono::duration_cast<s_> (clock_::now()-beg_).count() << " s" << endl;
     return 0;

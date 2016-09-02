@@ -90,19 +90,25 @@ class Ring:
                   ', not '+ type(value).__name__+'.')
         self.__dict__[attr] = value
 
-    def loss_factor(self,budget=None, element=None, w=None, Zl=None,sigma=None):
-        """ Calcula o loss factor and effective impedance para nb pacotes com
-        comprimento longitudinal sigma igualmente espacados.
-
-        Chamada:
-          lossf = loss_factor(w,Z,sigma,w0,nb)
+    def loss_factor(self,budget=None, element=None, w=None, Zl=None, sigma=None):
+        """ Calculate the loss factor and effective impedance.
 
         Inputs:
-          w = frequencia angular [rad/s]
-          Z = Impedancia longitudinal [Ohm]
-          sigma = tamanho longitudinal do feixe [m]
-          w0 = frequencia angular de revolucao no anel [rad/s]
-          nb = numero de pacotes preenchidos
+          budget  = instance of Budget class
+                        or
+          element = instance of Element class
+                        or
+          w  = angular frequency [rad/s]
+          Zl = Longitudinal Impedance [Ohm]
+
+          (optional) sigma = Longitudinal beamsize [m]
+
+        Outputs:
+          lossf  = Loss factor in V/C
+          Pl     = Power loss in W
+          Zl_eff = Effective Impedance in Ohm
+          wp     = vector of angular frequencies where the impedance was sampled
+          lossfp = vector of loss factor with contribution of each sampled frequency
         """
 
         w0 = self.w0
@@ -122,7 +128,8 @@ class Ring:
         interpol_Z = _np.interp(wp,w,Zl.real)
 
         # Loss factor and Power loss:
-        lossf  = nb*(w0/2/_np.pi)*sum(interpol_Z*h)
+        lossfp = nb*(w0/2/_np.pi)*interpol_Z*h
+        lossf  = sum(lossfp)
         Pl     = lossf * (self.T0*self.nom_cur**2/nb)
 
         #Effective Impedance:
@@ -130,11 +137,27 @@ class Ring:
         h = specs[(1,0)]**2
         Zl_eff =  sum(interpol_Z*h/( (wp+1e-4)/w0 )) / sum(h) #pag 223 K.Y.Ng book
 
-        return lossf, Pl, Zl_eff, wp
+        return lossf, Pl, Zl_eff, wp, lossfp
 
-    def kick_factor(self,budget=None, element=None, w=None, Z=None, sigma=None, Imp='Zdv'):
-        """Calcula o kick factor para nb pacotes com comprimento longitudinal sigma
-        igualmente espacados.
+    def kick_factor(self,budget=None, element=None, w=None, Z=None, sigma=None, Imp='Zdy'):
+        """ Calculate the kick factor, tune shift and effective impedance.
+
+        Inputs:
+          budget  = instance of Budget class
+                        or
+          element = instance of Element class
+                        or
+          w  = angular frequency [rad/s]
+          Zl = Longitudinal Impedance [Ohm]
+
+          (optional) sigma = Longitudinal beamsize [m]
+          (optional) Imp   = string with type of impedance to consider from element or budget
+                             options: Zll(default), Zdy, Zqy, Zdx, Zqx
+
+        Outputs:
+          Kick_f = Kick Factor factor in V/C
+          Tush   = Tune shift
+          Zt_eff = Effective Impedance in Ohm
         """
 
         w0 = self.w0
@@ -173,9 +196,8 @@ class Ring:
             raise Exception('Incorrect impedance input.')
 
     def longitudinal_cbi(self, budget=None, element=None, w=None, Zl=None, sigma=None, m=0):
-        """Calcula a impedancia longitudinal efetiva dos nb modos de oscilacao,
-        considerando um feixe gaussiano, para o modo azimutal m e radial k=0;
-        E calcula as instabilidades de Coupled_bunch a partir dela.
+        """Calculate the complex coeherent frequency shifts of the beam for all the oscilation modes,
+        considering a Gaussian beam and only azimuthal mode k=0;
         """
 
         assert m > 0, 'azimuthal mode m must be greater than zero.'
