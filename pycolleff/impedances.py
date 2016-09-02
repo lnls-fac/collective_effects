@@ -26,6 +26,10 @@ _BETA   ={'Zll' :lambda x:1,
           'Zqy':lambda x:x.betay,
           'Zqx':lambda x:x.betax}
 
+RW_default_w = np.logspace(5,12.4,3000)
+RW_default_w = np.array([-np.flipud(RW_default_w),RW_default_w]).ravel()
+
+
 def _plotlog(x, y, color=None, label=None, ax=None,linewidth=1.5):
     if ax is None: ax = _plt.gca()
 
