@@ -26,8 +26,8 @@ _BETA   ={'Zll' :lambda x:1,
           'Zqy':lambda x:x.betay,
           'Zqx':lambda x:x.betax}
 
-RW_default_w = np.logspace(5,12.4,3000)
-RW_default_w = np.array([-np.flipud(RW_default_w),RW_default_w]).ravel()
+RW_default_w = _np.logspace(5,12.4,3000)
+RW_default_w = _np.array([-_np.flipud(RW_default_w),RW_default_w]).ravel()
 
 
 def _plotlog(x, y, color=None, label=None, ax=None,linewidth=1.5):
@@ -58,7 +58,7 @@ def _prepare_props(props):
 
 class Element:
 
-    _YLABEL ={'Zl' :r'$Z_l [\Omega]$',
+    _YLABEL ={'Zll' :r'$Z_l [\Omega]$',
               'Zdy':r'$Z_y^D [k\Omega/m]$',
               'Zdx':r'$Z_x^D [k\Omega/m]$',
               'Zqy':r'$Z_y^Q [k\Omega/m]$',

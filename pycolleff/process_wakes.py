@@ -291,7 +291,7 @@ def _load_data_GdfidL(simul_data,path,anal_pl,silent=False):
             if not silent: print('There is no wake files in this folder. I will assume there is no symmetry.')
             spos,wake,sbun,bun,bunlen,xd,yd = [],[],[],[],[],[],[]
             for sub_fol in ['dpl','dmi']:
-                ext_path = _jnPth([path,anal_pl+sul_folder])
+                ext_path = _jnPth([path,anal_pl+sub_fol])
                 if not silent: print('Looking for '+anal_pl+sub_fol+' subfolder:')
                 if not _os.path.isdir(ext_path):
                     if not silent: print('For non-symmetric structures, there must '
@@ -316,7 +316,7 @@ def _load_data_GdfidL(simul_data,path,anal_pl,silent=False):
                     print('Loading {0:s} Dipolar Wake file:'.format(
                           'Horizontal' if anal_pl=='dx' else 'Vertical'))
                 wk = _get_transversal_info(ext_path,f_match,pl=anal_pl) # V/C
-                if wk:
+                if wk is not None:
                     wake.append(wk)
                 else:
                     if not silent: print('Actually there is something wrong, these wake files should be here.')
