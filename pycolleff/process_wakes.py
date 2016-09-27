@@ -125,7 +125,7 @@ class EMSimulData:
         return PlossZ
 
 
-def _load_data_ACE3P(simpar):
+def _ACE3P_load_data(simpar):
     raise NotImplementedError('This function was not tested yet.')
     nsigmas = 5
     headerL = 3
@@ -144,7 +144,7 @@ def _load_data_ACE3P(simpar):
     spos = spos - nsigmas* sigma   # Performs displacement over s axis
     return spos, wake
 
-def _load_data_CST(simpar):
+def _CST_load_data(simpar):
     raise NotImplementedError('This function was not tested yet.')
     headerL = 2
     if wdir.startswith(tardir): cpfile = False
@@ -162,7 +162,213 @@ def _load_data_CST(simpar):
 
     return spos, wake
 
-def _load_data_GdfidL(simul_data,path,anal_pl,silent=False):
+
+def _GdfidL_load_dados_info(filename):
+    dados, info = [], []
+    with open(filename) as fh:
+        data = fh.read()
+    for line in data.splitlines():
+        if not line.startswith((' #',' %',' $')):
+            dados.append(line)
+        else:
+            info.append(line)
+    return dados, info
+def _GdfidL_get_charge(info):
+    for line in info:
+        if line.find('total charge')>=0:
+            l = line.split(',')[1]
+            charge = float(_re.findall(r'[-+]?\d+\.?\d+[eE]?[-+]?\d+',l)[0])
+            break
+    return charge
+def _GdfidL_get_integration_path(info):
+    for line in info:
+        if line.find('subtitle=')>=0:
+            x,y = (float(val) for val in _re.findall(r'[-+]?\d+\.?\d+[eE]?[-+]?\d+',line))
+            break
+    return x, y
+def _GdfidL_get_longitudinal_info(path,filelist,pl='ll'):
+    if not silent: print('Loading longitunal Wake file:')
+    fn = [f for f in filelist if f.find('Wq_AT_XY')>=0]
+    if not fn:
+        if not silent: print('No longitudinal wake file found. It is needed to have one')
+        raise Exception('No longitudinal wake file found. It is needed to have one')
+    if len(fn)>1:
+        if not silent: print('More than one longitudinal wake file found. It is only allowed 1')
+        raise Exception('More than one longitudinal wake file found. It is only allowed 1')
+    dados, info = _load_dados_info(_jnPth([path,fn[0]]))
+    charge = _get_charge(info)
+    xd, yd = _get_integration_path(info)
+    spos,wake = _np.loadtxt(dados,unpack=True) # dados is a list of strings
+    if not silent: print('Charge of the driving bunch: {0:5.3g} pC'.format(charge*1e12))
+    if pl == 'll' and (abs(xd) > 1e-10 or abs(yd) > 1e-10) and not silent:
+        print('Driving particle not in the origin. Are you sure this is what you want?')
+    elif pl !='ll' and abs(xd) < 1e-10 and abs(yd) < 1e-10 and not silent:
+        print('The driving bunch is too close to origin. Are you sure this is what you want?')
+
+    a = _np.argmin(_np.diff(spos)) + 1
+    sbun   = spos[a:]
+    bun    = wake[a:]*charge/_np.trapz(wake[a:],x=sbun) # C
+    wake   = -wake[:a]/charge # V/C # minus sign because of convention
+    spos   = spos[:a]                # m
+    bunlen = -sbun[0]/6            # gdfidl uses a bunch with 6-sigma
+    if not silent:
+        print('Bunch length of the driving bunch: {0:7.4g} mm'.format(bunlen*1e3))
+    return spos, wake, sbun, bun, bunlen, xd, yd
+def _GdfidL_get_transversal_info(path,filelist,pl='qx'):
+    stri = 'W{0:s}_AT_XY'.format(pl[1].upper())
+    fn = [f for f in f_match if f.find(stri)>=0]
+    if not fn:
+        if not silent: print('No W{0:s} wake file found. Skipping to next'.format(pl))
+        return None
+    if not silent: print('{0:2d} W{1:s} wake file found: {2:s}'.format(len(fn),pl,', '.join(fn)))
+    dados, info = _load_dados_info(_jnPth([path,fn[0]]))
+    charge = _get_charge(info)
+    if pl[1] == 'x':
+        delta1,_ = _get_integration_path(info)
+    else:
+        _,delta1 = _get_integration_path(info)
+    _, wake1 = _np.loadtxt(dados,unpack=True)
+    print('Integration path at {0:s} = {1:8.4g} um '.format(pl[1],delta1*1e6),end='')
+    wake = wake1/delta1 / charge # V/C/m
+    if len(fn) > 1:
+        dados, info = _load_dados_info(_jnPth([path,fn[1]]))
+        if pl[1] == 'x':
+            delta2,_ = _get_integration_path(info)
+        else:
+            _,delta2 = _get_integration_path(info)
+        _, wake2 = _np.loadtxt(dados,unpack=True)
+        print('and {0:8.4g} um'.format(delta2*1e6))
+        if pl[0] == 'd':
+            wake = (wake1/delta1 - wake2/delta2)/(1/delta1-1/delta2) / charge # V/C
+        else:
+            wake = (wake1 - wake2)/(delta1-delta2) / charge # V/C/m
+    else:
+        print()
+    return wake
+def _GdfidL2_load_data(simul_data,path,anal_pl,silent=False,**symmetries):
+
+    return NotImplementedError('Not implemented yet.')
+    # list all the files that match the name pattern for wakefields
+    f_in_dir = _sh.ls(path).stdout.decode()
+    f_match = _re.findall(FNAME_GDFIDL,f_in_dir)
+
+    anal_pl_ori = None
+    if anal_pl == 'db':
+        anal_pl_ori = 'db'
+        if not f_match:
+            anal_pl = 'dx' if os.path.isdir('dxdpl') else 'dy'
+        else:
+            anal_pl = 'dx' if [f for f in f_match if f.find('WX_AT_XY')>=0] else 'dy'
+        if not silent: print('There is symmetry y=x, calculation performed in the '
+                             + anal_pl[1].upper() + ' plane.')
+
+    fl_match = [f]
+
+    if anal_pl in {'ll'}:
+        if not f_match:
+            if not silent: print('No files found for longitudinal analysis.')
+            raise Exception('No files found for longitudinal analisys')
+
+        #Load longitudinal Wake
+        spos, wake, sbun, bun, bunlen, xd, yd = _GdfidL_get_longitudinal_info(path,f_match,pl='ll')
+        simul_data.Wll  = wake
+        simul_data.s    = spos
+        simul_data.bun  = bun
+        simul_data.sbun = sbun
+        simul_data.bunlen = bunlen
+
+        # And quadrupolar Wakes, if existent:
+        if not silent: print('Loading Horizontal Quadrupolar Wake file:')
+        wake = _GdfidL_get_transversal_info(path,f_match,pl='qx') # V/C/m
+        if wake is not None: simul_data.Wqx = wake
+        if not silent: print('Loading Vertical Quadrupolar Wake file:')
+        wake = _GdfidL_get_transversal_info(path,f_match,pl='qy') # V/C/m
+        if wake is not None: simul_data.Wqy = wake
+        if not silent: print('Longitudinal Data Loaded.')
+
+    elif anal_pl in {'dx','dy'}:
+        if not f_match:
+            if not silent: print('There is no wake files in this folder. I will assume there is no symmetry.')
+            spos,wake,sbun,bun,bunlen,xd,yd = [],[],[],[],[],[],[]
+            for sub_fol in ['dpl','dmi']:
+                ext_path = _jnPth([path,anal_pl+sub_fol])
+                if not silent: print('Looking for '+anal_pl+sub_fol+' subfolder:')
+                if not _os.path.isdir(ext_path):
+                    if not silent: print('For non-symmetric structures, there must '
+                                   'be subfolders {0:s}dpl {0:s}dmi with the data'.format(anal_pl))
+                    raise Exception('Files not found')
+                # list all the files that match the pattern
+                f_in_dir = _sh.ls(ext_path).stdout.decode()
+                f_match = _re.findall(FNAME_GDFIDL,f_in_dir)
+                if not f_match:
+                    if not silent: print('No files found for transverse analysis.')
+                    raise Exception('No files found for transverse analisys')
+
+                sp, _, sb, bn, bnln, xdi, ydi = _get_longitudinal_info(ext_path,f_match,pl=anal_pl)
+                spos.append(sp)
+                bun.append(bn)
+                sbun.append(sb)
+                bunlen.append(bnln)
+                xd.append(xdi)
+                yd.append(ydi)
+
+                if not silent:
+                    print('Loading {0:s} Dipolar Wake file:'.format(
+                          'Horizontal' if anal_pl=='dx' else 'Vertical'))
+                wk = _get_transversal_info(ext_path,f_match,pl=anal_pl) # V/C
+                if wk is not None:
+                    wake.append(wk)
+                else:
+                    if not silent: print('Actually there is something wrong, these wake files should be here.')
+                    raise Exception('Transverse {0:s} dipolar wake files not found'.format(
+                                    'Horizontal' if anal_pl=='dx' else 'Vertical'))
+
+            delta = xd if anal_pl=='dx' else yd
+            ndel  = yd if anal_pl=='dx' else xd
+            if not (_np.allclose(spos[0],spos[1],atol=0) and
+                    _np.allclose(sbun[0],sbun[1],atol=0) and
+                    _np.allclose( bun[0], bun[1],atol=0) and
+                    _np.allclose(ndel[0],ndel[1],atol=0)):
+                if not silent: print('There is a mismatch between the paramenters of the'
+                            'simulation in the {0:s}dpl and {0:s}dmi folders.'.format(anal_pl))
+                raise Exception('Mismatch of the parameters of the simulation in the subfolders.')
+            simul_data.s      = spos[0]
+            simul_data.bun    = bun[0]
+            simul_data.sbun   = sbun[0]
+            simul_data.bunlen = bunlen[0]
+            setattr(simul_data,'W'+anal_pl, (wake[0]-wake[1])/(delta[0]-delta[1])) # V/C/m
+        else:
+            spos, wake, sbun, bun, bunlen, xd, yd = _get_longitudinal_info(path,f_match,pl=anal_pl)
+            simul_data.s      = spos
+            simul_data.bun    = bun
+            simul_data.sbun   = sbun
+            simul_data.bunlen = bunlen
+
+            if not silent:
+                print('Loading {0:s} Dipolar Wake file:'.format(
+                      'Horizontal' if anal_pl=='dx' else 'Vertical'))
+            wake = _get_transversal_info(path,f_match,pl=anal_pl) # V/C
+            if wake is not None:
+                delta = xd if anal_pl=='dx' else yd
+                setattr(simul_data,'W'+anal_pl,wake/delta) # V/C/m
+            else:
+                print('Actually there is something wrong, these wake files should be here.')
+                raise Exception('Transverse {0:s} dipolar wake files not found'.format(
+                                'Horizontal' if anal_pl=='dx' else 'Vertical'))
+        if not silent: print('Transverse Data Loaded.')
+    else:
+        if not silent: print('Plane of analysis {0:s} does not match any of the possible options'.format(anal_pl))
+        raise Exception('Plane of analysis {0:s} does not match any of the possible options'.format(anal_pl))
+
+    if anal_pl_ori:
+        anal_pl_comp = 'dx' if anal_pl == 'dy' else 'dy'
+        if not silent: print('There is symmetry. Copying the data from the '+
+                    '{0:s} plane to the {1:s} plane'.format(anal_pl[1].upper(),anal_pl_comp[1].upper()))
+        setattr(simul_data, 'W'+anal_pl_comp, getattr(simul_data,'W'+anal_pl).copy())
+
+
+
+def _GdfidL_load_data(simul_data,path,anal_pl,silent=False):
 
     def _load_dados_info(filename):
         dados, info = [], []
@@ -255,6 +461,8 @@ def _load_data_GdfidL(simul_data,path,anal_pl,silent=False):
     f_in_dir = _sh.ls(path).stdout.decode()
     f_match = _re.findall(FNAME_GDFIDL,f_in_dir)
 
+    elec_symm = False
+
     anal_pl_ori = None
     if anal_pl == 'db':
         anal_pl_ori = 'db'
@@ -262,7 +470,7 @@ def _load_data_GdfidL(simul_data,path,anal_pl,silent=False):
             anal_pl = 'dx' if os.path.isdir('dxdpl') else 'dy'
         else:
             anal_pl = 'dx' if [f for f in f_match if f.find('WX_AT_XY')>=0] else 'dy'
-        if not silent: print('There is symmetry, calculation performed in the '+anal_pl[1].upper()+' plane.')
+        if not silent: print('There is symmetry y=x, calculation performed in the '+anal_pl[1].upper()+' plane.')
 
     if anal_pl in {'ll'}:
         if not f_match:
@@ -288,7 +496,15 @@ def _load_data_GdfidL(simul_data,path,anal_pl,silent=False):
 
     elif anal_pl in {'dx','dy'}:
         if not f_match:
-            if not silent: print('There is no wake files in this folder. I will assume there is no symmetry.')
+            if not silent: print('There is no wake files in this folder.')
+            elec_fol = _jnPth([path,'elec'])
+            if _os.path.isdir(elec_fol):
+                if not silent: print(' I found a folder named "elec". I will assume the simulation has this symmetry.')
+                f_in_dir = _sh.ls(elec_fol).stdout.decode()
+                f_match = _re.findall(FNAME_GDFIDL,f_in_dir)
+                elec_symm = True;
+        if not f_match:
+            if not silent: print(' I will assume there is no symmetry.')
             spos,wake,sbun,bun,bunlen,xd,yd = [],[],[],[],[],[],[]
             for sub_fol in ['dpl','dmi']:
                 ext_path = _jnPth([path,anal_pl+sub_fol])
@@ -338,6 +554,7 @@ def _load_data_GdfidL(simul_data,path,anal_pl,silent=False):
             simul_data.bunlen = bunlen[0]
             setattr(simul_data,'W'+anal_pl, (wake[0]-wake[1])/(delta[0]-delta[1])) # V/C/m
         else:
+            if elec_symm: path = elec_fol
             spos, wake, sbun, bun, bunlen, xd, yd = _get_longitudinal_info(path,f_match,pl=anal_pl)
             simul_data.s      = spos
             simul_data.bun    = bun
@@ -350,6 +567,7 @@ def _load_data_GdfidL(simul_data,path,anal_pl,silent=False):
             wake = _get_transversal_info(path,f_match,pl=anal_pl) # V/C
             if wake is not None:
                 delta = xd if anal_pl=='dx' else yd
+                delta *= 2 if elec_symm else 1
                 setattr(simul_data,'W'+anal_pl,wake/delta) # V/C/m
             else:
                 print('Actually there is something wrong, these wake files should be here.')
@@ -366,7 +584,7 @@ def _load_data_GdfidL(simul_data,path,anal_pl,silent=False):
                     '{0:s} plane to the {1:s} plane'.format(anal_pl[1].upper(),anal_pl_comp[1].upper()))
         setattr(simul_data, 'W'+anal_pl_comp, getattr(simul_data,'W'+anal_pl).copy())
 
-def _load_data_ECHOz1(simul_data,path,anal_pl,silent=False):
+def _ECHOz1_load_data(simul_data,path,anal_pl,silent=False):
 
     if anal_pl=='ll':
         if not silent: print('Loading longitudinal Wake file:',end='')
@@ -398,7 +616,7 @@ def _load_data_ECHOz1(simul_data,path,anal_pl,silent=False):
         print('Bunch length of the driving bunch: {0:7.3g} mm'.format(bunlen*1e3))
         print('Data Loaded.')
 
-def _load_data_ECHOz2(simul_data,path,anal_pl,silent=False):
+def _ECHOz2_load_data(simul_data,path,anal_pl,silent=False):
 
     anal_pl_ori = None
     if anal_pl == 'db':
@@ -465,7 +683,7 @@ def _load_data_ECHOz2(simul_data,path,anal_pl,silent=False):
                     '{0:s} plane to the {1:s} plane'.format(anal_pl[1].upper(),anal_pl_comp[1].upper()))
         setattr(simul_data, 'W'+anal_pl_comp, getattr(simul_data,'W'+anal_pl).copy())
 
-def _load_data_ECHO_rect(simul_data,code,path,anal_pl,silent):
+def _ECHO_rect_load_data(simul_data,code,path,anal_pl,silent):
     def _load_dados(fname,mode, bc, code):
         if code == 'echozr':
             len_unit, charge_unit, header = 1e-2, 1e-12, 3 # cm to m, pC to C
@@ -639,10 +857,10 @@ def _load_data_ECHO_rect(simul_data,code,path,anal_pl,silent):
         if not silent: print('Plane of analysis {0:s} does not match any of the possible options'.format(anal_pl))
         raise Exception('Plane of analysis {0:s} does not match any of the possible options'.format(anal_pl))
 
-def _load_data_ECHOzR(simul_data,path,anal_pl,silent=False):
-    _load_data_ECHO_rect(simul_data,'echozr',path,anal_pl,silent)
+def _ECHOzR_load_data(simul_data,path,anal_pl,silent=False):
+    _ECHO_rect_load_data(simul_data,'echozr',path,anal_pl,silent)
 
-def _load_data_ECHO2D(simul_data,path,anal_pl,silent=False):
+def _ECHO2D_load_data(simul_data,path,anal_pl,silent=False):
 
     if not silent: print('Trying to find out the geometry type: ',end='')
 
@@ -723,13 +941,13 @@ def _load_data_ECHO2D(simul_data,path,anal_pl,silent=False):
             print('Data Loaded.')
 
 
-CODES    = {'echoz1': _load_data_ECHOz1,
-            'echoz2': _load_data_ECHOz2,
-            'echo2d': _load_data_ECHO2D,
-            'echozr': _load_data_ECHOzR,
-            'gdfidl': _load_data_GdfidL,
-            'ace3p' : _load_data_ACE3P,
-            'cst'   : _load_data_CST
+CODES    = {'echoz1': _ECHOz1_load_data,
+            'echoz2': _ECHOz2_load_data,
+            'echo2d': _ECHO2D_load_data,
+            'echozr': _ECHOzR_load_data,
+            'gdfidl': _GdfidL_load_data,
+            'ace3p' : _ACE3P_load_data,
+            'cst'   : _CST_load_data
            }
 
 def load_raw_data(simul_data=None, code=None, path=None, anal_pl=None, silent=False):
@@ -788,8 +1006,14 @@ def load_raw_data(simul_data=None, code=None, path=None, anal_pl=None, silent=Fa
             elif code == 'echoz2':  anal_pl = 'dy' if _os.path.isfile('wakeT.dat') else 'll'
             elif code == 'gdfidl':
                 f_mat = _re.findall(r"[\w-]+W([YXq]{2})_AT_XY.[0-9]{4}",f_in_dir)
-                if len(f_mat) > 0:  anal_pl = 'd'+f_mat[0][0].lower()
-                else:               anal_pl = 'll'
+                if len(f_mat) > 0:
+                    # f_mat = _re.findall(r"[\w-]+W([YX]{1})_AT_XY.[0-9]{4}",f_in_dir)
+                    # countx = [x for x in f_mat if x=='X']
+                    # county = [y for y in f_mat if y=='Y']
+                    # anal_pl = 'dy' if len(county) >= len(county) else 'dx'
+                    anal_pl = 'd'+f_mat[0][0].lower()
+                else:
+                    anal_pl = 'll'
             elif code == 'echozr':
                 if _os.path.isdir(_jnPth([path,'magn'])):    anal_pl = 'll'
                 elif _os.path.isdir(_jnPth([path,'elec'])):  anal_pl = 'dy'
@@ -809,7 +1033,8 @@ def load_raw_data(simul_data=None, code=None, path=None, anal_pl=None, silent=Fa
 
     CODES[code](simul_data,silent=silent,path=path,anal_pl=anal_pl) # changes in simul_data are made implicitly
 
-    print('#'*60+'\n')
+    if not silent: print('#'*60+'\n')
+    return simul_data
 
 def calc_impedance(simul_data, use_win = True, cutoff = 2, silent = False):
 
