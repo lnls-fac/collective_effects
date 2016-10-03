@@ -85,6 +85,31 @@ class EMSimulData:
         self._kckqxW  = None
         self._kckqyW  = None
 
+    def copy(self):
+        other = EMSimulData()
+        other.code      =  self.code
+        other.bunlen =  self.bunlen
+        other.sbun =  self.sbun.copy()
+        other.bun  =  self.bun.copy()
+        other.s    =  self.s.copy()
+        other.Wll  =  self.Wll.copy()
+        other.Wdx  =  self.Wdx.copy()
+        other.Wdy  =  self.Wdy.copy()
+        other.Wqx  =  self.Wqx.copy()
+        other.Wqy  =  self.Wqy.copy()
+        other.freq =  self.freq.copy()
+        other.Zll  =  self.Zll.copy()
+        other.Zdx  =  self.Zdx.copy()
+        other.Zdy  =  self.Zdy.copy()
+        other.Zqx  =  self.Zqx.copy()
+        other.Zqy  =  self.Zqy.copy()
+        other._klossW  =  self._klossW
+        other._kckdxW  =  self._kckdxW
+        other._kckdyW  =  self._kckdyW
+        other._kckqxW  =  self._kckqxW
+        other._kckqyW  =  self._kckqyW
+        return other
+
     def klossW(self):
         if self._klossW: return self._klossW
         T0, sigs, spos = _si.T0, self.bunlen, self.s
@@ -1036,7 +1061,7 @@ def load_raw_data(simul_data=None, code=None, path=None, anal_pl=None, silent=Fa
     if not silent: print('#'*60+'\n')
     return simul_data
 
-def calc_impedance(simul_data, use_win = True, cutoff = 2, silent = False):
+def calc_impedance(simul_data, use_win=True, pl=None, cutoff=2, s_min=None, s_max=None, silent=False):
 
     def _get_impedance(spos,wake,sigt,cutoff):
         dt = (spos[-1]-spos[0]) / (spos.shape[0]-1) / c # frequency scale (Hz):
@@ -1055,9 +1080,17 @@ def calc_impedance(simul_data, use_win = True, cutoff = 2, silent = False):
         Z      = VHat[indcs]/Jwlist[indcs]
         return freq[indcs], Z
 
+    if pl is None: planes = PLANES
+    else: planes = [pl]
+
     # Extracts Needed Variables
     sigt    = simul_data.bunlen / c  # bunch time-length
-    spos    = simul_data.s
+    spos    = simul_data.s.copy()
+
+    if s_min is None: s_min = spos[0]
+    if s_max is None: s_max = spos[-1]
+    inds = _np.logical_and(spos >= s_min, spos <= s_max)
+    spos = spos[inds]
 
     if not silent: print('#'*60 + '\n' + 'Calculating Impedances')
     if use_win:
@@ -1070,14 +1103,16 @@ def calc_impedance(simul_data, use_win = True, cutoff = 2, silent = False):
 
     if not silent: print('Cutoff frequency w = {0:d}/sigmat'.format(cutoff))
 
-    for pl in PLANES:
+    for pl in planes:
         if not silent: print('Performing FFT on W{0:s}: '.format(pl),end='')
-        Wpl = getattr(simul_data,'W'+pl).copy()
+        Wpl  = getattr(simul_data,'W'+pl).copy()
+        Wpl  = Wpl[inds]
         if Wpl is None or _np.all(Wpl == 0):
             if not silent: print('No Data found.')
             continue
         if not silent: print('Data found. ',end='')
         Wpl *= window
+
         simul_data.freq, Zpl = _get_impedance(spos,Wpl,sigt,cutoff)
         if pl =='ll':
             # I have to take the conjugate of the fft because:
@@ -1093,8 +1128,7 @@ def calc_impedance(simul_data, use_win = True, cutoff = 2, silent = False):
 
     if not silent: print('#'*60 + '\n')
 
-
-def calc_impedance_naff(simul_data, pl='ll', s_min = None, win = 1, nr_ff = 20):
+def calc_impedance_naff(simul_data, pl='ll', s_min = None,s_max = None, win = 1, nr_ff = 20):
 
     if pl not in PLANES:
         raise Exception('Value of variable pl not accepted. Must be one of these: '+', '.join(PLANES))
@@ -1103,20 +1137,21 @@ def calc_impedance_naff(simul_data, pl='ll', s_min = None, win = 1, nr_ff = 20):
     sigt    = simul_data.bunlen / c  # bunch time-length
     spos    = simul_data.s.copy()
     W    = getattr(simul_data,'W' + pl).copy()
-
+    sizeW = len(W)
     if W is None or not len(W) or _np.all(W == 0):
         raise Exception('No Data found.')
 
     if s_min is None: s_min = spos[0]
+    if s_max is None: s_max = spos[-1]
 
-    inds = spos >= s_min
+    inds = _np.logical_and(spos >= s_min, spos <= s_max)
     spos = spos[inds]
     W    = W[inds]
     dt   = (spos[1]-spos[0])/c
-    leng = len(W) + 1 - (len(W)%6)
+    leng = len(W) - (len(W)-1)%6
     spos = spos[-leng:]
     W    = W[-leng:]
-    if win == 1/2:
+    if 0.49 < win < 0.51:
         W  *= _np.hanning(2*spos.shape[0])[spos.shape[0]:]
         tu,a = _naff.naff_general(W,use_win=0, is_real=False, nr_ff=nr_ff)
     elif isinstance(win,int):
@@ -1128,12 +1163,19 @@ def calc_impedance_naff(simul_data, pl='ll', s_min = None, win = 1, nr_ff = 20):
     w    = 2*_np.pi*freq
     # Longitudinal position shift to match center of the bunch with zero z:
     a   *= _np.exp(-1j*w*(spos[0])/c)
+
+    # Reconstruct the signal
+    S = _np.zeros(leng,dtype=complex)
+    for wi,ai in zip(w,a):
+        S += ai*_np.exp(1j*wi*spos/c)
+    S = S.real
+
     # Deconvolve the Transform with a gaussian bunch:
     a   /= _np.exp(-(w*sigt)**2/2)
 
     # Must multiply by the vector length due to difference in the meaning of the
     # amplitune in the NAFF transform and the fourier transform
-    Z    = a*dt*leng
+    Z    = a*dt*sizeW
 
     if pl =='ll':
         # I have to take the conjugate of the fft because:
@@ -1146,7 +1188,7 @@ def calc_impedance_naff(simul_data, pl='ll', s_min = None, win = 1, nr_ff = 20):
         #Z == i\int exp(i*2pi*f*t/n) G(t) dt
         Z = 1j*Z.conj()
 
-    return freq, Z, leng
+    return freq, Z, leng, S
 
 def plot_wakes(simul_data,save_figs=False,pth2sv=None,show=False,pls=None):
 
