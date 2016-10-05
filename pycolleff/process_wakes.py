@@ -1061,12 +1061,20 @@ def load_raw_data(simul_data=None, code=None, path=None, anal_pl=None, silent=Fa
     if not silent: print('#'*60+'\n')
     return simul_data
 
-def calc_impedance(simul_data, use_win=True, pl=None, cutoff=2, s_min=None, s_max=None, silent=False):
+def calc_impedance(simul_data, use_win='phase', pl=None, cutoff=2, s_min=None, s_max=None, silent=False):
+
+    def better_fft_length(n,max_factor=1000):
+        for p in range(n):
+            n2, i = n-p, 2
+            while (i * i <= n2 and i < max_factor):
+                if n2 % i: i += 1
+                else:      n2 //= i
+                if n2 < max_factor: return p, n-p
 
     def _get_impedance(spos,wake,sigt,cutoff):
-        dt = (spos[-1]-spos[0]) / (spos.shape[0]-1) / c # frequency scale (Hz):
-        VHat = _np.fft.fft(wake) * dt   # fft == \int exp(-i*2pi*f*t/n) G(t) dt
-        freq = _np.fft.fftfreq(wake.shape[0],d=dt)
+        dt   = (spos[-1]-spos[0]) / (spos.shape[0]-1) / c # frequency scale (Hz):
+        VHat = _np.fft.fft(wake, wake.shape[0]) * dt   # fft == \int exp(-i*2pi*f*t/n) G(t) dt
+        freq = _np.fft.fftfreq(wake.shape[0], d=dt)
         VHat = _np.fft.fftshift(VHat) # shift the negative frequencies
         freq = _np.fft.fftshift(freq) # to the center of the spectrum
         # Longitudinal position shift to match center of the bunch with zero z:
@@ -1080,6 +1088,8 @@ def calc_impedance(simul_data, use_win=True, pl=None, cutoff=2, s_min=None, s_ma
         Z      = VHat[indcs]/Jwlist[indcs]
         return freq[indcs], Z
 
+    if not silent: print('#'*60 + '\n' + 'Calculating Impedances')
+
     if pl is None: planes = PLANES
     else: planes = [pl]
 
@@ -1091,11 +1101,21 @@ def calc_impedance(simul_data, use_win=True, pl=None, cutoff=2, s_min=None, s_ma
     if s_max is None: s_max = spos[-1]
     inds = _np.logical_and(spos >= s_min, spos <= s_max)
     spos = spos[inds]
+    p, n = better_fft_length(spos.shape[0]) # numpy's fft algorithm is slow for large primes
+    spos = spos[:n]
 
-    if not silent: print('#'*60 + '\n' + 'Calculating Impedances')
-    if use_win:
+    if not silent and p>0:
+        print('Last {0:d} point{1:s} of wake {2:s} '.format(
+                                p, *(('s','were') if p > 1 else ('','was'))) +
+              'not considered to gain performance in FFT.')
+
+    if use_win is True:
         if not silent: print('Using Half-Hanning Window')
         # Half Hanning window to zero the end of the signal
+        window = _np.hanning(2*spos.shape[0])[spos.shape[0]:]
+    elif isinstance(use_win,str) and use_win.lower().startswith('phase'):
+        if not silent: print('Using Half-Hanning Window to correct the phases')
+        # Half Hanning window to smooth the final of the signal
         window = _np.hanning(2*spos.shape[0])[spos.shape[0]:]
     else:
         if not silent: print('Not using Window')
@@ -1106,14 +1126,18 @@ def calc_impedance(simul_data, use_win=True, pl=None, cutoff=2, s_min=None, s_ma
     for pl in planes:
         if not silent: print('Performing FFT on W{0:s}: '.format(pl),end='')
         Wpl  = getattr(simul_data,'W'+pl).copy()
-        Wpl  = Wpl[inds]
         if Wpl is None or _np.all(Wpl == 0):
             if not silent: print('No Data found.')
             continue
         if not silent: print('Data found. ',end='')
-        Wpl *= window
+        Wpl  = Wpl[inds]
+        Wpl  = Wpl[:n]
 
-        simul_data.freq, Zpl = _get_impedance(spos,Wpl,sigt,cutoff)
+        simul_data.freq, Zpl = _get_impedance(spos,Wpl*window,sigt,cutoff)
+        if isinstance(use_win,str) and use_win.lower().startswith('phase'):
+            _, Zpl2 = _get_impedance(spos,Wpl,sigt,cutoff)
+            Zpl = _np.abs(Zpl2)*_np.exp(1j*_np.angle(Zpl))
+
         if pl =='ll':
             # I have to take the conjugate of the fft because:
             #fftt == \int exp(-i*2pi*f*t/n) G(t) dt

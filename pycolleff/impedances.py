@@ -275,7 +275,7 @@ def longitudinal_resonator(Rs, Q, wr, w):
     return Zl.sum(0).flatten()
 
 def transverse_resonator(Rs, Q, wr, w):
-    """Returns the longitudinal resonator impedance for w.
+    """Returns the transverse resonator impedance for w.
 
     Inputs:
     Rs    = Shunt impedance [Ohm]
@@ -313,8 +313,96 @@ def transverse_resonator(Rs, Q, wr, w):
     Zt = wr*Rs/(w + 1j*Q*(wr - w**2/wr))
     return Zt.sum(0).flatten()
 
-    Zt = wr*Rs/(w + 1j*Q*(wr - w**2/wr))
-    return Zt
+def wake_longitudinal_resonator(Rs, Q, wr, s):
+    """Returns the longitudinal resonator wake-function for s.
+
+    Inputs:
+    Rs    = Shunt impedance [Ohm]
+    Q     = Quality Factor
+    wr    = Angular resonance frequency [rad/s]
+    w     = numpy array of frequencies to calculate the impedance [rad/s]
+
+    Rs, Q and wr may be a float, list, tuple or a numpy array.
+
+    Outputs:
+    Zl    = Longitudinal Impedance (real and imaginary) [Ohm]
+
+    Sign convention followed:
+        Chao, A., Physics of Collective Beam Instabilities in High Energy
+        Accelerators, Wiley 1993.
+
+    Examples:
+    >>> w = _np.linspace(-5e9,5e9,1000)
+    >>> Rs, Q, wr = 1000, 1, 2*_np.pi*1e9
+    >>> Zl = longitudinal_resonator(Rs,Q,wr,w)
+    >>> Zl.shape
+    (1000,)
+    >>> Rs, Q, wr = [1000,2000], [1,10], [2*_np.pi*1e9,2*_np.pi*5e8]
+    >>> Zl = longitudinal_resonator(Rs,Q,wr,w)
+    >>> Zl.shape
+    (1000,)
+    >>> Rs, Q, wr = _np.array(Rs), _np.array(Q), _np.array(wr)
+    >>> Zl = longitudinal_resonator(Rs,Q,wr,w)
+    >>> Zl.shape
+    (1000,)
+    """
+    Rs    = _np.array(Rs,ndmin=1,dtype=float)[:,None] # I am using broadcasting
+    Q     = _np.array(Q, ndmin=1,dtype=float)[:,None]
+    wr    = _np.array(wr,ndmin=1,dtype=float)[:,None]
+    alpha   = wr / (2*Q)
+    wrl     = _np.sqrt(wr*wr - alpha*alpha)
+    Wl      = _np.zeros(len(s))
+    sel     = s > 0.0
+    Wl[sel] = (2*alpha * Rs * _np.exp(-alpha*s[sel]/_c)*(_np.cos(wrl*s[sel]/_c) -
+                                               alpha/wrl*_np.sin(wrl*s[sel]/_c))
+            ).sum(0).flatten()
+    Wl[s==0] = (alpha * Rs) .sum(0).flatten()
+    return Wl
+
+def wake_transverse_resonator(Rs, Q, wr, s):
+    """Returns the Transverse resonator wake-function for w.
+
+    Inputs:
+    Rs    = Shunt impedance [Ohm]
+    Q     = Quality Factor
+    wr    = Angular resonance frequency [rad/s]
+    w     = numpy array of frequencies to calculate the impedance [rad/s]
+
+    Rs, Q and wr may be a float, list, tuple or a numpy array.
+
+    Outputs:
+    Zl    = Longitudinal Impedance (real and imaginary) [Ohm]
+
+    Sign convention followed:
+        Chao, A., Physics of Collective Beam Instabilities in High Energy
+        Accelerators, Wiley 1993.
+
+    Examples:
+    >>> w = _np.linspace(-5e9,5e9,1000)
+    >>> Rs, Q, wr = 1000, 1, 2*_np.pi*1e9
+    >>> Zt = longitudinal_resonator(Rs,Q,wr,w)
+    >>> Zt.shape
+    (1000,)
+    >>> Rs, Q, wr = [1000,2000], [1,10], [2*_np.pi*1e9,2*_np.pi*5e8]
+    >>> Zt = longitudinal_resonator(Rs,Q,wr,w)
+    >>> Zt.shape
+    (1000,)
+    >>> Rs, Q, wr = _np.array(Rs), _np.array(Q), _np.array(wr)
+    >>> Zt = longitudinal_resonator(Rs,Q,wr,w)
+    >>> Zt.shape
+    (1000,)
+    """
+    Rs = _np.array(Rs,ndmin=1,dtype=float)[:,None] # I am using broadcasting
+    Q  = _np.array(Q, ndmin=1,dtype=float)[:,None]
+    wr = _np.array(wr,ndmin=1,dtype=float)[:,None]
+    alpha   = wr / (2*Q)
+    wrl     = _np.sqrt(wr*wr - alpha*alpha)
+    Wt      = _np.zeros(len(s))
+    sel     = s > 0.0
+    Wt[sel] = (Rs * wr / (Q * wrl) * _np.exp(-alpha*s[sel]/_c)*_np.sin(wrl*s[sel]/_c)
+              ).sum(0).flatten()
+    return Wt
+
 
 def _prepare_input_epr_mur(w,epb,mub,ange,angm,sigmadc,tau):
     epr = _np.zeros((len(epb),len(w)),dtype=complex)

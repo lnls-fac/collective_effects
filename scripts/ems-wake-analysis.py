@@ -7,7 +7,7 @@ import pycolleff.process_wakes as ems
 def main(pth2sv,silent = False):
     simul_data = ems.EMSimulData()
     ems.load_raw_data(simul_data,silent=silent)
-    ems.calc_impedance(simul_data,silent=silent)
+    ems.calc_impedance(simul_data,silent=silent,use_win='phase')
     ems.save_processed_data(simul_data,silent=silent,pth2sv=pth2sv)
     return simul_data
 
