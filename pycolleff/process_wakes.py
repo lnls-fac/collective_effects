@@ -281,7 +281,7 @@ def _GdfidL2_load_data(simul_data,path,anal_pl,silent=False,**symmetries):
     if anal_pl == 'db':
         anal_pl_ori = 'db'
         if not f_match:
-            anal_pl = 'dx' if os.path.isdir('dxdpl') else 'dy'
+            anal_pl = 'dx' if _os.path.isdir('dxdpl') else 'dy'
         else:
             anal_pl = 'dx' if [f for f in f_match if f.find('WX_AT_XY')>=0] else 'dy'
         if not silent: print('There is symmetry y=x, calculation performed in the '
@@ -492,7 +492,7 @@ def _GdfidL_load_data(simul_data,path,anal_pl,silent=False):
     if anal_pl == 'db':
         anal_pl_ori = 'db'
         if not f_match:
-            anal_pl = 'dx' if os.path.isdir('dxdpl') else 'dy'
+            anal_pl = 'dx' if _os.path.isdir('dxdpl') else 'dy'
         else:
             anal_pl = 'dx' if [f for f in f_match if f.find('WX_AT_XY')>=0] else 'dy'
         if not silent: print('There is symmetry y=x, calculation performed in the '+anal_pl[1].upper()+' plane.')
@@ -652,7 +652,7 @@ def _ECHOz2_load_data(simul_data,path,anal_pl,silent=False):
     if anal_pl=='ll':
         if not silent: print('Loading longitudinal Wake file:',end='')
         fname = _jnPth([path,'wakeL.dat'])
-        if os.path.isfile(fname):
+        if _os.path.isfile(fname):
             if not silent: print('Data found.')
             spos,wl = _np.loadtxt(fname, skiprows=0,usecols=(0,1),unpack=True)
         else:
@@ -720,7 +720,7 @@ def _ECHO_rect_load_data(simul_data,code,path,anal_pl,silent):
             arbitrary_factor = 2 # I don't know why I have to divide the echozr data by 2;
             y0 = y = mstep*offset / 100
         elif code == 'echo2d':
-            len_unit, charge_unit, header = 1, 1, 5
+            len_unit, charge_unit, header = 1, 1, 6
             with open(fname) as f:
                 f.readline()
                 mstep, offset = _np.fromstring(f.readline(),sep='\t')
@@ -777,6 +777,7 @@ def _ECHO_rect_load_data(simul_data,code,path,anal_pl,silent):
 
     spos, W, mode, mesh_size, width, bunlen = [], [], [], [], [], []
     for fn, m in f_match:
+        if int(m) == 0: continue
         s, Wm, ms, wid, bl = _load_dados(_jnPth([pname,fn]),int(m),bc,code)
         mode.append(int(m))
         spos.append(s)
@@ -889,11 +890,11 @@ def _ECHO2D_load_data(simul_data,path,anal_pl,silent=False):
 
     if not silent: print('Trying to find out the geometry type: ',end='')
 
-    if (os.path.isdir(_jnPth([path,'magn'])) or
-        os.path.isdir(_jnPth([path,'elec']))):
+    if (_os.path.isdir(_jnPth([path,'magn'])) or
+        _os.path.isdir(_jnPth([path,'elec']))):
         geo_type = 'rectangular'
-    elif (os.path.isfile(_jnPth([path,'wakeL_00.txt'])) or
-          os.path.isfile(_jnPth([path,'wakeL_01.txt']))):
+    elif (_os.path.isfile(_jnPth([path,'wakeL_00.txt'])) or
+         _os.path.isfile(_jnPth([path,'wakeL_01.txt']))):
         geo_type = 'round'
     else:
         if not silent: print('not ok.\n Could not find out the geometry type.')
@@ -901,7 +902,7 @@ def _ECHO2D_load_data(simul_data,path,anal_pl,silent=False):
     if not silent: print(geo_type)
 
     if geo_type == 'rectangular':
-        _load_data_ECHO_rect(simul_data,'echo2d',silent)
+        _ECHO_rect_load_data(simul_data,'echo2d',path,anal_pl,silent)
     else:
         anal_pl_ori = None
         if anal_pl == 'db':
@@ -912,7 +913,7 @@ def _ECHO2D_load_data(simul_data,path,anal_pl,silent=False):
         if anal_pl=='ll':
             if not silent: print('Loading longitudinal Wake file:',end='')
             fname = _jnPth([path,'wakeL_00.dat'])
-            if os.path.isfile(fname):
+            if _os.path.isfile(fname):
                 if not silent: print('Data found.')
                 with open(fname) as f:
                     f.readline()
@@ -1364,7 +1365,7 @@ def save_processed_data(simul_data,silent=False,pth2sv=None):
 
     if pth2sv is None:
         if not silent: print('Saving in the same folder of the raw data')
-        pth2sv = os.path.abspath('.')
+        pth2sv = _os.path.abspath('.')
     elif type(pth2sv) is str:
         if not silent: print('Saving to subfolder: ' + pth2sv)
         if not _os.path.isdir(pth2sv):
@@ -1410,7 +1411,7 @@ def load_processed_data(filename):
     return simul_data
 
 def create_make_fig_file(path = None):
-    if path is None: path = os.path.abspath('.')
+    if path is None: path = _os.path.abspath('.')
     fname = _jnPth([path,'create_figs.py'])
     analysis  = '#!/usr/bin/env python3\n\n'
     analysis += 'import os\n'

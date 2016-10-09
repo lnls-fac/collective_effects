@@ -623,14 +623,14 @@ def kicker_tsutsui_model(w, epr, mur, a, b, d, L, n):
     # L = 0.6
 
     # Terms for the infinite sum:
-    n = _np.arange(0,n+1)
+    n = _np.arange(0,n+1)[:,None]
 
     k = _np.ones(n.shape)*w/_c
     epr = _np.ones(n.shape)*epr
     mur = _np.ones(n.shape)*mur
 
 
-    kxn = _np.repeats((2*n[:,None]+1)*_np.pi/2/a, w.shape[0], axis=1)
+    kxn = _np.repeat((2*n + 1)*_np.pi/2/a, w.shape[0], axis=1)
     kyn = _np.sqrt((epr*mur-1)*k**2 - kxn**2)
     sh  = _np.sinh(kxn*b)
     ch  = _np.cosh(kxn*b)
