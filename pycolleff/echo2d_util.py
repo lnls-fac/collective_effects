@@ -117,13 +117,9 @@ def create_collimator(fname=None,R_in=0.012,R_out=None, r=0.004,
     theta_out = _np.arctan(1/t_out)
 
     points  = create_linear_taper(r_in=R_in, r_out=r,t=t_in, s_in=init,s_out=0.0,C=C_in)
-    print(points)
     t_m     = line(points[-1][2],points[-1][3],points[-1][2]+g,points[-1][3])
-    print(t_m)
     points2 = create_linear_taper(r_in=r,r_out=R_out,t=t_out,s_in=0.0,s_out=init,C=C_out)
-    print(points2)
     points2 = translate(points2,t_m[2]-points2[0][0])
-    print(points2)
     points  += [t_m,] + points2
 
     if fname is not None:
@@ -131,11 +127,12 @@ def create_collimator(fname=None,R_in=0.012,R_out=None, r=0.004,
 
     return points
 
-def create_geometry_file(fname):
+def create_geometry_file(fname,points):
     if not fname.endswith('.txt'): fname += '.txt'
     with open(fname,'w') as f:
         f.write('{0:d}'.format(len(points)) + '\n')
-        for p in points:  f.write(''.join(['{0:12.5f}'.format(x) for x in p]) + '\n')
+        for p in points:
+            f.write(''.join(['{0:12.5f}'.format(x) for x in p]) + '\n')
 
 def plot_geometry(points):
     _plt.figure()
@@ -204,6 +201,7 @@ TimeSteps=0                         % 0(default)
 OutPartFile= -                      % -(no output)
 OutFieldFile= -                     % -(no output)
 ''')
+
 
 # def parse_from_input_file(fname):
 #

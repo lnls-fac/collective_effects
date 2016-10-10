@@ -3,7 +3,7 @@ DEST_DIR = /usr/local/bin
 
 GENERALSCRIPTS =
 
-FMASCRIPTS = $(shell ls ems-*)
+FMASCRIPTS = $(shell ls ems-* echo*) 
 
 SCRIPTS = $(GENERALSCRIPTS)\
 		  $(FMASCRIPTS)
