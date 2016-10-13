@@ -115,7 +115,7 @@ class Ring:
         nb = self.nbun
         sigma = sigma or self.sigma(self.nom_cur/nb)
 
-        w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zl')
+        w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zll')
 
         pmin = _np.ceil( w[0] /(w0*nb))  # arredonda em direcao a +infinito
         pmax = _np.floor(w[-1]/(w0*nb)) # arredonda em direcao a -infinito
@@ -486,24 +486,24 @@ class Ring:
             print(ele[2].format(el.name),end='')
             w = el.w
 
-            Zl = el.Zl * el.quantity
+            Zl = el.Zll * el.quantity
             if len(Zl) != 0:
                 values['lsf'], values['pls'],values['zln'],*_ = self.loss_factor(w=w,Zl=Zl)
 
-            Zd = el.Zdv * el.quantity * el.betay
+            Zd = el.Zdy * el.quantity * el.betay
             if len(Zd) != 0:
                 values['kdy'], values['ndy'],*_ = self.kick_factor(w=w,Z=Zd,Imp='Zdv')
-            Zq = el.Zqv * el.quantity * el.betay
+            Zq = el.Zqy * el.quantity * el.betay
             if len(Zq) != 0:
                 values['kqy'], values['nqy'],*_ = self.kick_factor(w=w,Z=Zq,Imp='Zqv')
             if len(Zd) != 0 or len(Zq) != 0:
                 values['kty'] = values.get('kdy',0) + values.get('kqy',0)
                 values['nty'] = values.get('ndy',0) + values.get('nqy',0)
 
-            Zd = el.Zdh * el.quantity * el.betax
+            Zd = el.Zdx * el.quantity * el.betax
             if len(Zd) != 0:
                 values['kdx'], values['ndx'],*_ = self.kick_factor(w=w,Z=Zd,Imp='Zdh')
-            Zq = el.Zqh * el.quantity * el.betax
+            Zq = el.Zqx * el.quantity * el.betax
             if len(Zq) != 0:
                 values['kqx'], values['nqx'],*_ = self.kick_factor(w=w,Z=Zq,Imp='Zqh')
             if len(Zd) != 0 or len(Zq) != 0:

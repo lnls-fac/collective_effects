@@ -196,7 +196,8 @@ class Budget(list):
         data = _mp.utils.load_pickle(_os.path.sep.join([self.path,name]))
         return data['budget']
 
-    def plot(self, props='all', logscale=True, show = True, save = False, name='',figsize=(8,6),fontsize=14,linewidth=1.5):
+    def plot(self, props='all', logscale=True, show = True, save = False,
+            name='',figsize=(8,6),fontsize=14,linewidth=1.5):
 
         color_map = _plt.get_cmap('nipy_spectral')
         if name: name = '_'+name
@@ -234,6 +235,14 @@ class Budget(list):
             ax[0].set_title(self.name+': '+_TITLE[prop],fontsize=fontsize)
             if save: f.savefig(_os.path.sep.join((self.path, prop + name + '.svg')))
         if show: _plt.show()
+
+def load_budget(fname):
+        data = _mp.utils.load_pickle(fname)
+        return data['budget']
+
+def load_element(fname):
+        data = _mp.utils.load_pickle(fname)
+        return data['element']
 
 def longitudinal_resonator(Rs, Q, wr, w):
     """Returns the longitudinal resonator impedance for w.

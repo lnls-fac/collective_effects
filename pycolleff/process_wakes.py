@@ -912,7 +912,7 @@ def _ECHO2D_load_data(simul_data,path,anal_pl,silent=False):
 
         if anal_pl=='ll':
             if not silent: print('Loading longitudinal Wake file:',end='')
-            fname = _jnPth([path,'wakeL_00.dat'])
+            fname = _jnPth([path,'wakeL_00.txt'])
             if _os.path.isfile(fname):
                 if not silent: print('Data found.')
                 with open(fname) as f:
@@ -920,7 +920,7 @@ def _ECHO2D_load_data(simul_data,path,anal_pl,silent=False):
                     mstep, offset = _np.fromstring(f.readline(),sep='\t')
                     f.readline()
                     _, bunlen   = _np.fromstring(f.readline(),sep='\t')
-                spos, Wm = _np.loadtxt(fname,skiprows=5,unpack=True)
+                spos, Wm = _np.loadtxt(fname,skiprows=6,unpack=True)
                 simul_data.s = spos
                 simul_data.Wll = -Wm # V/C the minus sign is due to convention
             else:
@@ -930,7 +930,7 @@ def _ECHO2D_load_data(simul_data,path,anal_pl,silent=False):
 
         elif anal_pl in {'dx','dy'}:
             if not silent: print('Loading Transverse Wake file:',end='')
-            fname = _jnPth([path,'wakeL_01.dat'])
+            fname = _jnPth([path,'wakeL_01.txt'])
             if _os.path.isfile(fname):
                 if not silent: print('Data found.')
                 with open(fname) as f:
@@ -939,9 +939,9 @@ def _ECHO2D_load_data(simul_data,path,anal_pl,silent=False):
                     f.readline()
                     _, bunlen   = _np.fromstring(f.readline(),sep='\t')
                 y0 = mstep*(offset+0.5) # transverse wakes are calculated in the middle of the mesh
-                spos, Wm = _np.loadtxt(fname,skiprows=5,unpack=True) # m and V/C/m^2
+                spos, Wm = _np.loadtxt(fname,skiprows=6,unpack=True) # m and V/C/m^2
                 simul_data.s = spos
-                Wdm = -scy_int.cumtrapz(-Wm/y0^2,x=spos,initial=0) # V/C/m the minus sign is due to convention
+                Wdm = -_scy_int.cumtrapz(-Wm/(y0*y0),x=spos,initial=0) # V/C/m the minus sign is due to convention
                 setattr(simul_data, 'W'+anal_pl, Wdm)
             else:
                 if not silent: print('File not found.')
