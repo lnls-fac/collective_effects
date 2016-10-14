@@ -84,6 +84,24 @@ class Element:
         self.Wqy      = _np.array([],dtype=float)
         self.Wqx      = _np.array([],dtype=float)
 
+    def copy(self):
+        other = Element(name =self.name,path=self.path,betax=self.betax,
+                        betay=self.betay,quantity=self.quantity)
+        other.w   = self.w.copy()
+        other.Zll = self.Zll.copy()
+        other.Zdy = self.Zdy.copy()
+        other.Zdx = self.Zdx.copy()
+        other.Zqy = self.Zqy.copy()
+        other.Zqx = self.Zqx.copy()
+        other.s   = self.s.copy()
+        other.Wll = self.Wll.copy()
+        other.Wdy = self.Wdy.copy()
+        other.Wdx = self.Wdx.copy()
+        other.Wqy = self.Wqy.copy()
+        other.Wqx = self.Wqx.copy()
+
+        return other
+
     def save(self):
         name = self.name.replace(' ','_').lower()
         _mp.utils.save_pickle(_os.path.sep.join([self.path, name]),element=self)
@@ -178,6 +196,12 @@ class Budget(list):
             string += '{0:<15s}: {1:^10d} {2:^10.1f} {3:^10.1f}\n'.format(el.name,el.quantity,el.betax,el.betay)
         string +='\n'
         return string
+
+    def copy(self):
+        other = Budget(name=self.name,path=self.path)
+        for el in self:
+            other.append(el.copy())
+        return other
 
     def budget2element(self,name=None,path=None):
         ele = Element(name=name,path=path)
