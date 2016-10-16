@@ -458,13 +458,13 @@ class Ring:
             '[kV/pC]', '[kV/pC]', '1/10^3',  '1/10^3',  '1/10^3',  '1/10^3',  '1/10^3',  '1/10^3'],
             index=props),
         latex_unit=pd.Series([
-            '[mV/pC]', '[m$\Omega$]', '[W]', '[kV/pC]', '[kV/pC]', '[kV/pC]', '[kV/pC]', '[kV/pC]',
-            '[kV/pC]', '$10^{-3}$',  '$10^{-3}$',  '$10^{-3}$',  '$10^{-3}$',  '$10^{-3}$',  '$10^{-3}$'],
+            r'[mV/pC]', r'[m$\Omega$]', r'[W]', r'[kV/pC]', r'[kV/pC]', r'[kV/pC]', r'[kV/pC]', r'[kV/pC]',
+            r'[kV/pC]', r'$10^{-3}$',  r'$10^{-3}$',  r'$10^{-3}$',  r'$10^{-3}$',  r'$10^{-3}$',  r'$10^{-3}$'],
             index=props),
         latex_name=pd.Series([
             '$\kappa_{Loss}$', '$Z_L/n|_{eff}$', '$P_{Loss}$',
-            '$\kappa_x^D$', '$\kappa_y^D$', '$\kappa_x^Q$', '$\kappa_y^Q$','$\kappa_x$', '$\kappa_y$',
-            '$\Delta\nu_x^D$', '$\Delta\nu_y^D$', '$\Delta\nu_x^Q$', '$\Delta\nu_y^Q$', '$\Delta\nu_x$', '$\Delta\nu_y$'],
+            r'$\kappa_x^D$', r'$\kappa_y^D$', r'$\kappa_x^Q$', r'$\kappa_y^Q$',r'$\kappa_x$', r'$\kappa_y$',
+            r'$\Delta\nu_x^D$', r'$\Delta\nu_y^D$', r'$\Delta\nu_x^Q$', r'$\Delta\nu_y^Q$', r'$\Delta\nu_x$', r'$\Delta\nu_y$'],
             index=props)
         ))
 
