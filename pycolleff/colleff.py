@@ -33,23 +33,6 @@ _TYPES = dict(version = str,
           dampte      = (float,_np.float_),
           en_lost_rad = (float,_np.float_))
 
-SUMMARY_PRINTER = dict(
-        lsf=('KLoss',  '[mV/pC]',1e-9),
-        zln=('Zl/n',   '[mOhm]', 1e3),
-        pls=('PLoss',  '[W]',    1),
-        kdx=('Kdx',    '[kV/pC]',1e-15),
-        kdy=('Kdy',    '[kV/pC]',1e-15),
-        kqx=('Kqx',    '[kV/pC]',1e-15),
-        kqy=('Kqx',    '[kV/pC]',1e-15),
-        ktx=('Kx',     '[kV/pC]',1e-15),
-        kty=('Ky',     '[kV/pC]',1e-15),
-        ndx=('TuShdx', 'x10^3',  1e3),
-        ndy=('TuShdy', 'x10^3',  1e3),
-        nqx=('TuShqx', 'x10^3',  1e3),
-        nqy=('TuShqy', 'x10^3',  1e3),
-        ntx=('TuShx',  'x10^3',  1e3),
-        nty=('TuShy',  'x10^3',  1e3),
-        )
 
 class Ring:
     def __init__(self):
@@ -461,33 +444,37 @@ class Ring:
                 delta[ii,:] = _np.linalg.eigvals(B)
         return delta
 
-    def budget_summary(self,budget=None, props=None ):
-        #          name                     unit           value
-        ele=(('{0:^17s}','Element'),('{0:^17s}',' '),    '{0:<17s}' )
+    def budget_summary(self,budget=None ):
+        props = ['lsf', 'zln', 'pls', 'kdx', 'kdy', 'kqx', 'kqy',
+                 'ktx', 'kty', 'ndx', 'ndy', 'nqx', 'nqy', 'ntx', 'nty']
 
-        FMTS = r'{0:^10s}'
-        FMTF = r'{0:^10.2f}'
+        bud_res = pd.DataFrame(dict(
+        name=pd.Series([
+            'KLoss', 'Zl/n', 'PLoss', 'Kdx', 'Kdy', 'Kqx', 'Kqx','Kx', 'Ky',
+            'TuShdx', 'TuShdy', 'TuShqx', 'TuShqy', 'TuShx', 'TuShy'],
+            index=props),
+        unit=pd.Series([
+            '[mV/pC]', '[mOhm]', '[W]', '[kV/pC]', '[kV/pC]', '[kV/pC]', '[kV/pC]',
+            '[kV/pC]', '[kV/pC]', '1/10^3',  '1/10^3',  '1/10^3',  '1/10^3',  '1/10^3',  '1/10^3'],
+            index=props),
+        latex_unit=pd.Series([
+            '[mV/pC]', '[m$\Omega$]', '[W]', '[kV/pC]', '[kV/pC]', '[kV/pC]', '[kV/pC]', '[kV/pC]',
+            '[kV/pC]', '$10^{-3}$',  '$10^{-3}$',  '$10^{-3}$',  '$10^{-3}$',  '$10^{-3}$',  '$10^{-3}$'],
+            index=props),
+        latex_name=pd.Series([
+            '$\kappa_{Loss}$', '$Z_L/n|_{eff}$', '$P_{Loss}$',
+            '$\kappa_x^D$', '$\kappa_y^D$', '$\kappa_x^Q$', '$\kappa_y^Q$','$\kappa_x$', '$\kappa_y$',
+            '$\Delta\nu_x^D$', '$\Delta\nu_y^D$', '$\Delta\nu_x^Q$', '$\Delta\nu_y^Q$', '$\Delta\nu_x$', '$\Delta\nu_y$'],
+            index=props)
+        ))
 
-        if props == 'all': props = sorted(list(SUMMARY_PRINTER.keys()))
-        if isinstance(props,(list,tuple)):
-            for i,prop in enumerate(props):
-                if prop not in SUMMARY_PRINTER.keys(): props.pop(i)
-        if props is None: props = ['lsf','zln','pls','kdx','kdy']
+        convert = dict(
+                lsf=1e-9, zln=1e3, pls=1, kdx=1e-15, kdy=1e-15, kqx=1e-15, kqy=1e-15,
+                ktx=1e-15, kty=1e-15, ndx=1e3, ndy=1e3, nqx=1e3, nqy=1e3, ntx=1e3, nty=1e3
+                )
 
-
-        # Print Names
-        print(ele[0][0].format(ele[0][1]),end='')
-        for prop in props: print(FMTS.format(SUMMARY_PRINTER[prop][0]),end='')
-        print()
-        # Print Units
-        print(ele[1][0].format(ele[1][1]),end='')
-        for prop in props: print(FMTS.format(SUMMARY_PRINTER[prop][1]),end='')
-        print()
-
-        bud_res = dict()
         for el in budget:
             values = dict()
-            print(ele[2].format(el.name),end='')
             w = el.w
 
             Zl = el.Zll * el.quantity
@@ -514,34 +501,9 @@ class Ring:
                 values['ktx'] = values.get('kdx',0) + values.get('kqx',0)
                 values['ntx'] = values.get('ndx',0) + values.get('nqx',0)
 
-            bud_res[el.name] = values
-            for prop in props:
-                val = values.get(prop)
-                if val is not None:
-                    val *= SUMMARY_PRINTER[prop][2]
-                    print(FMTF.format(val),end='')
-                else: print(FMTS.format('-'),end='')
-            print()
+            for prop in values.keys():   values[prop] *= convert[prop]
 
-        values = dict()
-        print(ele[2].format('Total'),end='')
-        w = budget.w
-
-
-        values['lsf'], values['pls'],values['zln'],*_ = self.loss_factor(budget = budget)
-        values['kdy'], values['ndy'],*_ = self.kick_factor(budget = budget,Imp='Zdy')
-        values['kqy'], values['nqy'],*_ = self.kick_factor(budget = budget,Imp='Zqy')
-        values['kty'] = values['kdy'] + values['kqy']
-        values['nty'] = values['ndy'] + values['nqy']
-
-        values['kdx'], values['ndx'],*_ = self.kick_factor(budget = budget,Imp='Zdx')
-        values['kqx'], values['nqx'],*_ = self.kick_factor(budget = budget,Imp='Zqx')
-        values['ktx'] = values['kdx'] + values['kqx']
-        values['ntx'] = values['ndx'] + values['nqx']
-
-        for prop in props: print(FMTF.format(values.get(prop)*SUMMARY_PRINTER[prop][2]),end='')
-        print()
-
+            bud_res[el.name] = pd.Series(values)
         return bud_res
 
     def kicker_power(self, gr, Rshunt=15e3, betak=5, Ab=1e-3, betab=5, coupled_mode=None):
