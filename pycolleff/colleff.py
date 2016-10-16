@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import numpy as _np
+import pandas as pd
 import mathphys as _mp
 # import impedances as _imp
 
@@ -31,6 +32,24 @@ _TYPES = dict(version = str,
           dampty      = (float,_np.float_),
           dampte      = (float,_np.float_),
           en_lost_rad = (float,_np.float_))
+
+SUMMARY_PRINTER = dict(
+        lsf=('KLoss',  '[mV/pC]',1e-9),
+        zln=('Zl/n',   '[mOhm]', 1e3),
+        pls=('PLoss',  '[W]',    1),
+        kdx=('Kdx',    '[kV/pC]',1e-15),
+        kdy=('Kdy',    '[kV/pC]',1e-15),
+        kqx=('Kqx',    '[kV/pC]',1e-15),
+        kqy=('Kqx',    '[kV/pC]',1e-15),
+        ktx=('Kx',     '[kV/pC]',1e-15),
+        kty=('Ky',     '[kV/pC]',1e-15),
+        ndx=('TuShdx', 'x10^3',  1e3),
+        ndy=('TuShdy', 'x10^3',  1e3),
+        nqx=('TuShqx', 'x10^3',  1e3),
+        nqy=('TuShqy', 'x10^3',  1e3),
+        ntx=('TuShx',  'x10^3',  1e3),
+        nty=('TuShy',  'x10^3',  1e3),
+        )
 
 class Ring:
     def __init__(self):
@@ -134,7 +153,7 @@ class Ring:
 
         #Effective Impedance:
         interpol_Z = _np.interp(wp,w,Zl.imag)
-        h = specs[(1,0)]**2
+        h = specs[(0,0)]**2
         Zl_eff =  sum(interpol_Z*h/( (wp+1e-4)/w0 )) / sum(h) #pag 223 K.Y.Ng book
 
         return lossf, Pl, Zl_eff, wp, lossfp
@@ -445,42 +464,27 @@ class Ring:
     def budget_summary(self,budget=None, props=None ):
         #          name                     unit           value
         ele=(('{0:^17s}','Element'),('{0:^17s}',' '),    '{0:<17s}' )
-        printer = dict(
-                        lsf=('KLoss',  '[mV/pC]',1e-9),
-                        zln=('Zl/n',   '[mOhm]', 1e3),
-                        pls=('PLoss',  '[W]',    1),
-                        kdx=('Kdx',    '[kV/pC]',1e-15),
-                        kdy=('Kdy',    '[kV/pC]',1e-15),
-                        kqx=('Kqx',    '[kV/pC]',1e-15),
-                        kqy=('Kqx',    '[kV/pC]',1e-15),
-                        ktx=('Kx',     '[kV/pC]',1e-15),
-                        kty=('Ky',     '[kV/pC]',1e-15),
-                        ndx=('TuShdx', 'x10^3',  1e3),
-                        ndy=('TuShdy', 'x10^3',  1e3),
-                        nqx=('TuShqx', 'x10^3',  1e3),
-                        nqy=('TuShqy', 'x10^3',  1e3),
-                        ntx=('TuShx',  'x10^3',  1e3),
-                        nty=('TuShy',  'x10^3',  1e3),
-                      )
+
         FMTS = r'{0:^10s}'
         FMTF = r'{0:^10.2f}'
 
-        if props == 'all': props = sorted(list(printer.keys()))
+        if props == 'all': props = sorted(list(SUMMARY_PRINTER.keys()))
         if isinstance(props,(list,tuple)):
             for i,prop in enumerate(props):
-                if prop not in printer.keys(): props.pop(i)
+                if prop not in SUMMARY_PRINTER.keys(): props.pop(i)
         if props is None: props = ['lsf','zln','pls','kdx','kdy']
 
 
         # Print Names
         print(ele[0][0].format(ele[0][1]),end='')
-        for prop in props: print(FMTS.format(printer[prop][0]),end='')
+        for prop in props: print(FMTS.format(SUMMARY_PRINTER[prop][0]),end='')
         print()
         # Print Units
         print(ele[1][0].format(ele[1][1]),end='')
-        for prop in props: print(FMTS.format(printer[prop][1]),end='')
+        for prop in props: print(FMTS.format(SUMMARY_PRINTER[prop][1]),end='')
         print()
 
+        bud_res = dict()
         for el in budget:
             values = dict()
             print(ele[2].format(el.name),end='')
@@ -492,28 +496,29 @@ class Ring:
 
             Zd = el.Zdy * el.quantity * el.betay
             if len(Zd) != 0:
-                values['kdy'], values['ndy'],*_ = self.kick_factor(w=w,Z=Zd,Imp='Zdv')
+                values['kdy'], values['ndy'],*_ = self.kick_factor(w=w,Z=Zd,Imp='Zdy')
             Zq = el.Zqy * el.quantity * el.betay
             if len(Zq) != 0:
-                values['kqy'], values['nqy'],*_ = self.kick_factor(w=w,Z=Zq,Imp='Zqv')
+                values['kqy'], values['nqy'],*_ = self.kick_factor(w=w,Z=Zq,Imp='Zqy')
             if len(Zd) != 0 or len(Zq) != 0:
                 values['kty'] = values.get('kdy',0) + values.get('kqy',0)
                 values['nty'] = values.get('ndy',0) + values.get('nqy',0)
 
             Zd = el.Zdx * el.quantity * el.betax
             if len(Zd) != 0:
-                values['kdx'], values['ndx'],*_ = self.kick_factor(w=w,Z=Zd,Imp='Zdh')
+                values['kdx'], values['ndx'],*_ = self.kick_factor(w=w,Z=Zd,Imp='Zdx')
             Zq = el.Zqx * el.quantity * el.betax
             if len(Zq) != 0:
-                values['kqx'], values['nqx'],*_ = self.kick_factor(w=w,Z=Zq,Imp='Zqh')
+                values['kqx'], values['nqx'],*_ = self.kick_factor(w=w,Z=Zq,Imp='Zqx')
             if len(Zd) != 0 or len(Zq) != 0:
                 values['ktx'] = values.get('kdx',0) + values.get('kqx',0)
                 values['ntx'] = values.get('ndx',0) + values.get('nqx',0)
 
+            bud_res[el.name] = values
             for prop in props:
                 val = values.get(prop)
                 if val is not None:
-                    val *= printer[prop][2]
+                    val *= SUMMARY_PRINTER[prop][2]
                     print(FMTF.format(val),end='')
                 else: print(FMTS.format('-'),end='')
             print()
@@ -524,18 +529,20 @@ class Ring:
 
 
         values['lsf'], values['pls'],values['zln'],*_ = self.loss_factor(budget = budget)
-        values['kdy'], values['ndy'],*_ = self.kick_factor(budget = budget,Imp='Zdv')
-        values['kqy'], values['nqy'],*_ = self.kick_factor(budget = budget,Imp='Zqv')
+        values['kdy'], values['ndy'],*_ = self.kick_factor(budget = budget,Imp='Zdy')
+        values['kqy'], values['nqy'],*_ = self.kick_factor(budget = budget,Imp='Zqy')
         values['kty'] = values['kdy'] + values['kqy']
         values['nty'] = values['ndy'] + values['nqy']
 
-        values['kdx'], values['ndx'],*_ = self.kick_factor(budget = budget,Imp='Zdh')
-        values['kqx'], values['nqx'],*_ = self.kick_factor(budget = budget,Imp='Zqh')
+        values['kdx'], values['ndx'],*_ = self.kick_factor(budget = budget,Imp='Zdx')
+        values['kqx'], values['nqx'],*_ = self.kick_factor(budget = budget,Imp='Zqx')
         values['ktx'] = values['kdx'] + values['kqx']
         values['ntx'] = values['ndx'] + values['nqx']
 
-        for prop in props: print(FMTF.format(values.get(prop)*printer[prop][2]),end='')
+        for prop in props: print(FMTF.format(values.get(prop)*SUMMARY_PRINTER[prop][2]),end='')
         print()
+
+        return bud_res
 
     def kicker_power(self, gr, Rshunt=15e3, betak=5, Ab=1e-3, betab=5, coupled_mode=None):
         ''' Calculate the minimum transverse bunch by bunch feedback power necessary

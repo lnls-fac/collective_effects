@@ -1031,6 +1031,7 @@ def load_raw_data(simul_data=None, code=None, path=None, anal_pl=None, silent=Fa
             if  code == 'echoz1':   anal_pl = 'll'
             elif code == 'echoz2':  anal_pl = 'dy' if _os.path.isfile('wakeT.dat') else 'll'
             elif code == 'gdfidl':
+                f_in_dir = _sh.ls(path).stdout.decode()
                 f_mat = _re.findall(r"[\w-]+W([YXq]{2})_AT_XY.[0-9]{4}",f_in_dir)
                 if len(f_mat) > 0:
                     # f_mat = _re.findall(r"[\w-]+W([YX]{1})_AT_XY.[0-9]{4}",f_in_dir)

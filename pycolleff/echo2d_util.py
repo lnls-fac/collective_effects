@@ -4,11 +4,17 @@ import numpy as _np
 import matplotlib.pyplot as _plt
 
 class EchoObj(_np.ndarray):
-    def __new__(cls):
+    def __new__(cls,*args):
         return _np.ndarray.__new__(cls,10,dtype=float)
-    def __init__(self):
-        for i in range(len(self)):
-            self[i] = 0.0
+    def __init__(self,array=None):
+        if array is not None:
+            if isinstance(array,(_np.ndarray,list,tuple)) and len(array)==10:
+                for i in range(len(array)): self[i] = array[i]
+            else:
+                raise Exception('error in array parameter: type={0:s}, len={1:d}'.format(
+                                    type(array),len(array)))
+        else:
+            for i in range(len(self)):  self[i] = 0.0
 
 def line(x1,y1,x2,y2):
     t = EchoObj()
@@ -74,6 +80,32 @@ def translate(t_in,delta):
         raise Exception('error')
     return t_out
 
+def translate_radius(t_in,delta):
+    if isinstance(t_in,(list,tuple)) and isinstance(t_in[0],EchoObj):
+        t_out = t_in.copy()
+        for i in range(len(t_in)): t_out[i] = translate_radius(t_in[i],delta)
+    elif isinstance(t_in,EchoObj):
+        t_out = t_in.copy()
+        t_out[[1,3]] += delta
+        if _np.any(t_out[[5,7]] != 0): t_out[[5,7]] += delta
+    else:
+        raise Exception('error')
+    return t_out
+
+def read_geometry_file(fname):
+    array = _np.loadtxt(fname=fname,skiprows=1)
+    points = []
+    for a in array:
+        b = list(a)
+        if len(b)==9: b.append(0)
+        points.append(EchoObj(b))
+    return points
+
+def convert_units(points,unit=1e-2):
+    for p in points:
+        p *= unit
+    return points
+
 def create_linear_taper(fname=None, r_in=0.012, r_out=0.004, t = 20,
                          s_in=0.0025, s_out=0.0025, C=None):
     p2 = _np.array([ 0.0           , r_in])
@@ -135,7 +167,7 @@ def create_geometry_file(fname,points):
             f.write(''.join(['{0:12.5f}'.format(x) for x in p]) + '\n')
 
 def plot_geometry(points):
-    _plt.figure()
+    fig = _plt.figure()
     for p in points:
         color = 'b' if _np.all(p[[4,5,6,7]]==0) else 'r'
         _plt.plot(p[[0,2]],p[[1,3]]*1e3,color)
@@ -143,6 +175,7 @@ def plot_geometry(points):
     _plt.ylabel('R [mm]')
     _plt.grid('on')
     _plt.show()
+    return fig
 
 def create_input_file(fname, geo_fname,
     geo_unit='m', geo_type='recta',geo_width=0.024,geo_bound='magn',geo_conv=True,
