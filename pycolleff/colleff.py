@@ -68,51 +68,71 @@ class Ring:
         if isinstance(self._nus,(int,_np.int,float,_np.float)):
             return self._nus
         elif isinstance(self._nus,type(lambda x:x)):
-            if I is None: return self._nus(self.nom_cur/self.nbun)
-            else:         return self._nus(I)
+            if I is None:
+                return self._nus(self.nom_cur/self.nbun)
+            else:
+                return self._nus(I)
         elif isinstance(self._nus,(_np.ndarray,list,tuple)):
-            if I is None: return _np.interp(self.nom_cur/self.nbun,xp=self._nus,fp=self.cur_bun)
-            else:         return _np.interp(I,xp=self._nus,fp=self.cur_bun)
+            if I is None:
+                return _np.interp(self.nom_cur/self.nbun,fp=self._nus,xp=self.cur_bun)
+            else:
+                return _np.interp(I,fp=self._nus,xp=self.cur_bun)
 
     def espread(self,I=None):
         if isinstance(self._espread,(int,_np.int,float,_np.float)):
             return self._espread
         elif isinstance(self._espread,type(lambda x:x)):
-            if I is None: return self._espread(self.nom_cur/self.nbun)
-            else:         return self._espread(I)
+            if I is None:
+                return self._espread(self.nom_cur/self.nbun)
+            else:
+                return self._espread(I)
         elif isinstance(self._espread,(_np.ndarray,list,tuple)):
-            if I is None: return _np.interp(self.nom_cur/self.nbun,xp=self._espread,fp=self.cur_bun)
-            else:         return _np.interp(I,xp=self._esprea,fp=self.cur_bun)
+            if I is None:
+                return _np.interp(self.nom_cur/self.nbun,fp=self._espread,xp=self.cur_bun)
+            else:
+                return _np.interp(I,fp=self._esprea,xp=self.cur_bun)
 
     def sigma(self,I=None):
         if isinstance(self._sigma,(int,_np.int,float,_np.float)):
             return self._sigma
         elif isinstance(self._sigma,type(lambda x:x)):
-            if I is None: return self._sigma(self.nom_cur/self.nbun)
-            else:         return self._sigma(I)
+            if I is None:
+                return self._sigma(self.nom_cur/self.nbun)
+            else:
+                return self._sigma(I)
         elif isinstance(self._sigma,(_np.ndarray,list,tuple)):
-            if I is None: return _np.interp(self.nom_cur/self.nbun,xp=self._sigma,fp=self.cur_bun)
-            else:         return _np.interp(I,xp=self._sigma,fp=self.cur_bun)
+            if I is None:
+                return _np.interp(self.nom_cur/self.nbun,fp=self._sigma,xp=self.cur_bun)
+            else:
+                return _np.interp(I,fp=self._sigma,xp=self.cur_bun)
 
     def emitx(self,I=None):
         if isinstance(self._emitx,(int,_np.int,float,_np.float)):
             return self._emitx
         elif isinstance(self._emitx,type(lambda x:x)):
-            if I is None: return self._emitx(self.nom_cur/self.nbun)
-            else:         return self._emitx(I)
+            if I is None:
+                return self._emitx(self.nom_cur/self.nbun)
+            else:
+                return self._emitx(I)
         elif isinstance(self._emitx,(_np.ndarray,list,tuple)):
-            if I is None: return _np.interp(self.nom_cur/self.nbun,xp=self._emitx,fp=self.cur_bun)
-            else:         return _np.interp(I,xp=self._emitx,fp=self.cur_bun)
+            if I is None:
+                return _np.interp(self.nom_cur/self.nbun,fp=self._emitx,xp=self.cur_bun)
+            else:
+                return _np.interp(I,fp=self._emitx,xp=self.cur_bun)
 
     def emity(self,I=None):
         if isinstance(self._emity,(int,_np.int,float,_np.float)):
             return self._emity
         elif isinstance(self._emity,type(lambda x:x)):
-            if I is None: return self._emity(self.nom_cur/self.nbun)
-            else:         return self._emity(I)
+            if I is None:
+                return self._emity(self.nom_cur/self.nbun)
+            else:
+                return self._emity(I)
         elif isinstance(self._emity,(_np.ndarray,list,tuple)):
-            if I is None: return _np.interp(self.nom_cur/self.nbun,xp=self._emity,fp=self.cur_bun)
-            else:         return _np.interp(I,xp=self._emity,fp=self.cur_bun)
+            if I is None:
+                return _np.interp(self.nom_cur/self.nbun,fp=self._emity,xp=self.cur_bun)
+            else:
+                return _np.interp(I,fp=self._emity,xp=self.cur_bun)
 
     def __str__(self):
         string = ''
@@ -304,9 +324,9 @@ class Ring:
         nb   = self.nbun
         I_tot= self.nom_cur
         if plane.lower().startswith(('x','h')):
-            nut, chrom, imp   = self.nux, self.chromx, 'Zdh'
+            nut, chrom, imp   = self.nux, self.chromx, 'Zdx'
         else:
-            nut, chrom, imp   = self.nuy, self.chromy, 'Zdv'
+            nut, chrom, imp   = self.nuy, self.chromy, 'Zdy'
 
         if sigma is None: sigma = self.sigma(I_tot/nb)
         w, Zt = self._prepare_input_impedance(budget,element,w,Zt,imp)
@@ -469,9 +489,9 @@ class Ring:
             print('Coupled Bunch Mode greater than Number of Bunchs.\n',
                   'Reseting mu to 0.')
         if plane.lower().startswith(('x','h')):
-            nut, chrom, imp = self.nux, self.chromx, 'Zdh'
+            nut, chrom, imp = self.nux, self.chromx, 'Zdx'
         else:
-            nut, chrom, imp = self.nuy, self.chromy, 'Zdv'
+            nut, chrom, imp = self.nuy, self.chromy, 'Zdy'
 
         if sigma is None: sigma = self.sigma(I_b)
         if isinstance(sigma,(float,_np.float_)): sigma = [sigma]
