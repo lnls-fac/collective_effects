@@ -23,7 +23,7 @@ _TYPES = dict(version = str,
         #   budget      = _imp.Budget,
           cur_bun     = _np.ndarray,
           nom_cur     = (float,_np.float_),
-          nus         = (float,_np.float_),
+          nus         = (float,_np.float_,type(lambda x:x)),
           espread     = type(lambda x:x),
           sigma       = type(lambda x:x),
           emitx       = type(lambda x:x),
@@ -54,15 +54,65 @@ class Ring:
         I = _np.linspace(0,4,num=40)
         self.cur_bun     = I*0.0 # bunch current vector in [A]
         self.nom_cur     = 0.00 # total current [A]
-        self.nus         = 0.00 # synchrotron tune
-        self.espread     = lambda x:0.0+0*x
-        self.sigma       = lambda x:0.0+0*x # bunch length in [m]
-        self.emitx       = lambda x:0.0+0*x
-        self.emity       = lambda x:0.0+0*x
+        self._nus         = 0.00 # synchrotron tune
+        self._espread     = lambda x:0.0+0*x
+        self._sigma       = lambda x:0.0+0*x # bunch length in [m]
+        self._emitx       = lambda x:0.0+0*x
+        self._emity       = lambda x:0.0+0*x
         self.damptx      = 0.0 # horizontal damping time in [s]
         self.dampty      = 0.0 # vertical damping time in [s]
         self.dampte      = 0.0 # longitudinal damping time in [s]
         self.en_lost_rad = 0.0 # Energy lost per turn in [eV]
+
+    def nus(self,I=None):
+        if isinstance(self._nus,(int,_np.int,float,_np.float)):
+            return self._nus
+        elif isinstance(self._nus,type(lambda x:x)):
+            if I is None: return self._nus(self.nom_cur/self.nbun)
+            else:         return self._nus(I)
+        elif isinstance(self._nus,(_np.ndarray,list,tuple)):
+            if I is None: return _np.interp(self.nom_cur/self.nbun,xp=self._nus,fp=self.cur_bun)
+            else:         return _np.interp(I,xp=self._nus,fp=self.cur_bun)
+
+    def espread(self,I=None):
+        if isinstance(self._espread,(int,_np.int,float,_np.float)):
+            return self._espread
+        elif isinstance(self._espread,type(lambda x:x)):
+            if I is None: return self._espread(self.nom_cur/self.nbun)
+            else:         return self._espread(I)
+        elif isinstance(self._espread,(_np.ndarray,list,tuple)):
+            if I is None: return _np.interp(self.nom_cur/self.nbun,xp=self._espread,fp=self.cur_bun)
+            else:         return _np.interp(I,xp=self._esprea,fp=self.cur_bun)
+
+    def sigma(self,I=None):
+        if isinstance(self._sigma,(int,_np.int,float,_np.float)):
+            return self._sigma
+        elif isinstance(self._sigma,type(lambda x:x)):
+            if I is None: return self._sigma(self.nom_cur/self.nbun)
+            else:         return self._sigma(I)
+        elif isinstance(self._sigma,(_np.ndarray,list,tuple)):
+            if I is None: return _np.interp(self.nom_cur/self.nbun,xp=self._sigma,fp=self.cur_bun)
+            else:         return _np.interp(I,xp=self._sigma,fp=self.cur_bun)
+
+    def emitx(self,I=None):
+        if isinstance(self._emitx,(int,_np.int,float,_np.float)):
+            return self._emitx
+        elif isinstance(self._emitx,type(lambda x:x)):
+            if I is None: return self._emitx(self.nom_cur/self.nbun)
+            else:         return self._emitx(I)
+        elif isinstance(self._emitx,(_np.ndarray,list,tuple)):
+            if I is None: return _np.interp(self.nom_cur/self.nbun,xp=self._emitx,fp=self.cur_bun)
+            else:         return _np.interp(I,xp=self._emitx,fp=self.cur_bun)
+
+    def emity(self,I=None):
+        if isinstance(self._emity,(int,_np.int,float,_np.float)):
+            return self._emity
+        elif isinstance(self._emity,type(lambda x:x)):
+            if I is None: return self._emity(self.nom_cur/self.nbun)
+            else:         return self._emity(I)
+        elif isinstance(self._emity,(_np.ndarray,list,tuple)):
+            if I is None: return _np.interp(self.nom_cur/self.nbun,xp=self._emity,fp=self.cur_bun)
+            else:         return _np.interp(I,xp=self._emity,fp=self.cur_bun)
 
     def __str__(self):
         string = ''
@@ -75,22 +125,32 @@ class Ring:
         string += '{0:28s}: {1:^20d}\n'.format('Harmonic Number',self.harm_num)
         string += '{0:28s}: {1:^20.1f}\n'.format('Current [mA]',self.nom_cur*1e3)
         string += '{0:28s}: {1:^20.3f}\n'.format('Current per Bunch [mA]',self.nom_cur/self.nbun*1e3)
-        string += '{0:28s}: {1:^20.3e}\n'.format('Synchrotron Tune',self.nus)
+        string += '{0:28s}: {1:^20.3e}\n'.format('Synchrotron Tune',self.nus())
         string += '{0:28s}: {1:>9.3f}/{2:<10.3f}\n'.format('Tunes x/y',self.nux,self.nuy)
         string += '{0:28s}: {1:>6.1f}/{2:^6.1f}/{3:<6.1f}\n'.format('Damping Times x/y/e [ms]',self.damptx*1e3,self.dampty*1e3,self.dampte*1e3)
-        string += '{0:28s}: {1:^20.2e}\n'.format('Energy Spread',self.espread(self.nom_cur/self.nbun))
+        string += '{0:28s}: {1:^20.2e}\n'.format('Energy Spread',self.espread())
         string += '{0:28s}: {1:^20.2e}\n'.format('Bunch Length [mm]',self.sigma(self.nom_cur/self.nbun)*1e3)
         return string
 
+    def __getattr__(self,attr):
+        if attr in {'nus','sigma','emitx','emity','espread'}:
+            attr = '_' + attr
+            if isinstance(self.__dict__[attr],(float,_np.float)):
+                return self.__dict__[attr]
+            elif isinstance(self.__dict__[attr],type(lambda x:x)):
+                return self.__dict__[attr](self.nom_cur/self.nbun)
+            elif isinstance(self.__dict__[attr],(_np.ndarray,list,tuple)):
+                return _np.interp(self.nom_cur/self.nbun,xp=self.__dict__[attr],fp=self.cur_bun)
+        else:
+            return self.__dict__[attr]
+
     def __setattr__(self,attr,value):
-        if attr not in _TYPES.keys():
-            raise TypeError(attr+' not an attribute of '+self.__module__+'.'
-                            +self.__class__.__name__+' object')
-        if not isinstance(value,_TYPES[attr]):
-            raise TypeError(attr+' must be '+
-                  ', '.join(['{0.__name__}'.format(t) for t in _TYPES[attr]])+
-                  ', not '+ type(value).__name__+'.')
-        self.__dict__[attr] = value
+        if attr in {'nus','sigma','emitx','emity','espread',}:
+            if isinstance(value,(_np.ndarray,list,tuple)) and len(value) != len(self.cur_bun):
+                raise Exception('Length of input must match length of self.cur_bun.')
+            self.__dict__['_'+attr] = value
+        else:
+            self.__dict__[attr] = value
 
     def loss_factor(self,budget=None, element=None, w=None, Zl=None, sigma=None):
         """ Calculate the loss factor and effective impedance.
@@ -203,7 +263,7 @@ class Ring:
         """
 
         assert m > 0, 'azimuthal mode m must be greater than zero.'
-        nus  = self.nus
+        nus  = self.nus()
         w0   = self.w0
         eta  = self.mom_cmpct
         E    = self.E
@@ -237,7 +297,7 @@ class Ring:
 
         deltaw = transverse_cbi(w,Z, sigma, nb, w0, nus, nut, chrom, eta, m, E, I_tot)
         """
-        nus  = self.nus
+        nus  = self.nus()
         w0   = self.w0
         eta  = self.mom_cmpct
         E    = self.E
@@ -332,7 +392,7 @@ class Ring:
         I_b   = self.cur_bun
         E     = self.E
         w0    = self.w0
-        nus   = self.nus
+        nus   = self.nus()
         eta   = self.mom_cmpct
         nb    = self.nbun
 
@@ -401,7 +461,7 @@ class Ring:
         I_b   = self.cur_bun
         E     = self.E
         w0    = self.w0
-        nus   = self.nus
+        nus   = self.nus()
         eta   = self.mom_cmpct
         nb    = self.nbun
         if mu >= nb:

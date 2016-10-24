@@ -18,7 +18,7 @@ _TITLE = {'Zll':'Longitudinal Impedance',
           'Zdx':'Driving Horizontal Impedance',
           'Zqy':'Detuning Vertical Impedance',
           'Zqx':'Detuning Horizontal Impedance'}
-_FACTOR ={'Zll':1, 'Zdy':1e-3, 'Zdx':1e-3, 'Zqy':1e-3, 'Zqx':1e-3,
+_FACTOR ={'Zll':1e-3, 'Zdy':1e-3, 'Zdx':1e-3, 'Zqy':1e-3, 'Zqx':1e-3,
           'Wll':1e-3, 'Wdy':1e-6, 'Wdx':1e-6, 'Wqy':1e-6, 'Wqx':1e-6}
 _BETA   ={'Zll' :lambda x:1,
           'Zdy':lambda x:x.betay,
@@ -138,7 +138,7 @@ class Element:
 
 class Budget(list):
 
-    _YLABEL ={'Zll':r'$Z_l [\Omega]$',
+    _YLABEL ={'Zll':r'$Z_l [k\Omega]$',
               'Zdy':r'$\beta_yZ_y^D [k\Omega]$',
               'Zdx':r'$\beta_xZ_x^D [k\Omega]$',
               'Zqy':r'$\beta_yZ_y^Q [k\Omega]$',
