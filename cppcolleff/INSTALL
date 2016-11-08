@@ -20,14 +20,13 @@ the local compiled versions with 'make develop'.
 
 
 
-trackcpp
+cppcolleff
 ========
 
 
 REQUIREMENTS
 
 - a C++ compiler with C++11 support (tested with GCC 4.8)
-- pthread
 - blas
 - gsl (GNU Scientific Library)
 
@@ -51,7 +50,7 @@ REQUIREMENTS
 - a C++ compiler with C++11 support (tested with GCC 4.8)
 - blas
 - gsl (GNU Scientific Library)
-- SWIG 2 (tested with SWIG 2.0.11)
+- SWIG 3 (tested with SWIG 3.0.2)
 - Python 3 (tested with Python 3.4) with header files
 - Python setuptools (>=16.0)
 - libcppcolleff.a (see previous section)

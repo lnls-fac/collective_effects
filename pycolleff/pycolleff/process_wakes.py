@@ -14,10 +14,14 @@ _rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
 #_rc('font',**{'family':'serif','serif':['Palatino']})
 _rc('text', usetex=True)
 from mathphys.constants import light_speed as c
-from pyaccel import naff as _naff
 from . import colleff as _colleff
 from . import sirius as _sirius
 
+try:
+    from pyaccel import naff as _naff
+    bool_pyaccel = True
+except Exception:
+    bool_pyaccel = False
 
 ## Trought the code I am assuming:
 # s positive means particle behind source -->  Wl, Wt = 0 s < 0
@@ -1154,67 +1158,68 @@ def calc_impedance(simul_data, use_win='phase', pl=None, cutoff=2, s_min=None, s
 
     if not silent: print('#'*60 + '\n')
 
-def calc_impedance_naff(simul_data, pl='ll', s_min = None,s_max = None, win = 1, nr_ff = 20):
+if bool_pyaccel:
+    def calc_impedance_naff(simul_data, pl='ll', s_min = None,s_max = None, win = 1, nr_ff = 20):
 
-    if pl not in PLANES:
-        raise Exception('Value of variable pl not accepted. Must be one of these: '+', '.join(PLANES))
+        if pl not in PLANES:
+            raise Exception('Value of variable pl not accepted. Must be one of these: '+', '.join(PLANES))
 
-    # Extracts Needed Variables
-    sigt    = simul_data.bunlen / c  # bunch time-length
-    spos    = simul_data.s.copy()
-    W    = getattr(simul_data,'W' + pl).copy()
-    sizeW = len(W)
-    if W is None or not len(W) or _np.all(W == 0):
-        raise Exception('No Data found.')
+        # Extracts Needed Variables
+        sigt    = simul_data.bunlen / c  # bunch time-length
+        spos    = simul_data.s.copy()
+        W    = getattr(simul_data,'W' + pl).copy()
+        sizeW = len(W)
+        if W is None or not len(W) or _np.all(W == 0):
+            raise Exception('No Data found.')
 
-    if s_min is None: s_min = spos[0]
-    if s_max is None: s_max = spos[-1]
+        if s_min is None: s_min = spos[0]
+        if s_max is None: s_max = spos[-1]
 
-    inds = _np.logical_and(spos >= s_min, spos <= s_max)
-    spos = spos[inds]
-    W    = W[inds]
-    dt   = (spos[1]-spos[0])/c
-    leng = len(W) - (len(W)-1)%6
-    spos = spos[-leng:]
-    W    = W[-leng:]
-    if 0.49 < win < 0.51:
-        W  *= _np.hanning(2*spos.shape[0])[spos.shape[0]:]
-        tu,a = _naff.naff_general(W,use_win=0, is_real=False, nr_ff=nr_ff)
-    elif isinstance(win,int):
-        tu,a = _naff.naff_general(W,use_win=win, is_real=False, nr_ff=nr_ff)
-    else:
-        raise Exception('Win must be 1/2 for half-hanning window or an integer for other windows(0 --> no window).')
+        inds = _np.logical_and(spos >= s_min, spos <= s_max)
+        spos = spos[inds]
+        W    = W[inds]
+        dt   = (spos[1]-spos[0])/c
+        leng = len(W) - (len(W)-1)%6
+        spos = spos[-leng:]
+        W    = W[-leng:]
+        if 0.49 < win < 0.51:
+            W  *= _np.hanning(2*spos.shape[0])[spos.shape[0]:]
+            tu,a = _naff.naff_general(W,use_win=0, is_real=False, nr_ff=nr_ff)
+        elif isinstance(win,int):
+            tu,a = _naff.naff_general(W,use_win=win, is_real=False, nr_ff=nr_ff)
+        else:
+            raise Exception('Win must be 1/2 for half-hanning window or an integer for other windows(0 --> no window).')
 
-    freq = tu/dt
-    w    = 2*_np.pi*freq
-    # Longitudinal position shift to match center of the bunch with zero z:
-    a   *= _np.exp(-1j*w*(spos[0])/c)
+        freq = tu/dt
+        w    = 2*_np.pi*freq
+        # Longitudinal position shift to match center of the bunch with zero z:
+        a   *= _np.exp(-1j*w*(spos[0])/c)
 
-    # Reconstruct the signal
-    S = _np.zeros(leng,dtype=complex)
-    for wi,ai in zip(w,a):
-        S += ai*_np.exp(1j*wi*spos/c)
-    S = S.real
+        # Reconstruct the signal
+        S = _np.zeros(leng,dtype=complex)
+        for wi,ai in zip(w,a):
+            S += ai*_np.exp(1j*wi*spos/c)
+        S = S.real
 
-    # Deconvolve the Transform with a gaussian bunch:
-    a   /= _np.exp(-(w*sigt)**2/2)
+        # Deconvolve the Transform with a gaussian bunch:
+        a   /= _np.exp(-(w*sigt)**2/2)
 
-    # Must multiply by the vector length due to difference in the meaning of the
-    # amplitune in the NAFF transform and the fourier transform
-    Z    = a*dt*sizeW
+        # Must multiply by the vector length due to difference in the meaning of the
+        # amplitune in the NAFF transform and the fourier transform
+        Z    = a*dt*sizeW
 
-    if pl =='ll':
-        # I have to take the conjugate of the fft because:
-        #fftt == \int exp(-i*2pi*f*t/n) G(t) dt
-        #while impedance, according to Chao and Ng, is given by:
-        #Z == \int exp(i*2pi*f*t/n) G(t) dt
-        Z = Z.conj()
-    else:
-        #the Transverse impedance, according to Chao and Ng, is given by:
-        #Z == i\int exp(i*2pi*f*t/n) G(t) dt
-        Z = 1j*Z.conj()
+        if pl =='ll':
+            # I have to take the conjugate of the fft because:
+            #fftt == \int exp(-i*2pi*f*t/n) G(t) dt
+            #while impedance, according to Chao and Ng, is given by:
+            #Z == \int exp(i*2pi*f*t/n) G(t) dt
+            Z = Z.conj()
+        else:
+            #the Transverse impedance, according to Chao and Ng, is given by:
+            #Z == i\int exp(i*2pi*f*t/n) G(t) dt
+            Z = 1j*Z.conj()
 
-    return freq, Z, leng, S
+        return freq, Z, leng, S
 
 def plot_wakes(simul_data,save_figs=False,pth2sv=None,show=False,pls=None):
 

@@ -12,6 +12,9 @@ REQUIREMENTS
 - numpy 1.8 (>=1.8.2)
 - mathphys 0.6 (>=0.6.0)
 - matplotlib 1.4 (>=1.4.2) [Optional for graphics and interactive modules]
+- pandas 0.19 (>=0.19.0)
+- scipy 0.18 (>=0.18.0)
+
 
 
 INSTALLATION
