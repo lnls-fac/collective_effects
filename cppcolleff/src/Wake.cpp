@@ -23,6 +23,7 @@ my_Dvector WakePl::get_wake_at_points(const my_Dvector& spos, const double& stre
                 if (spos[i] < 0.0) {continue;}
                 complex<double>&& kik = exp( -spos[i]*cpl_kr);
                 wakeF[i] += Amp * (1.0*kik.real() + 1.0*kik.imag()/(2*Ql));
+                if (abs(spos[i])<1e-13) { wakeF[i] /= 2; } //# a particle feels half of its wake
             }
         }
     }
@@ -146,7 +147,7 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren, const double be
         for (auto w=0;w<p.size();++w){ // Begin from the particle ahead
             if (Wl.wake_function) {
                 double&& kick = Wl.WF.get_y(0.0);
-                kick *= -stren * 0.5; // A particle see half of its potential.
+                kick *= -stren;
                 Wgl     += kick;
                 p[w].de += kick;
             }
