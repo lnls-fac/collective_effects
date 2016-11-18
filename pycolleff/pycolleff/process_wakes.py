@@ -568,20 +568,25 @@ def _GdfidL_load_data(simul_data,path,anal_pl,silent=False):
                     raise Exception('Transverse {0:s} dipolar wake files not found'.format(
                                     'Horizontal' if anal_pl=='dx' else 'Vertical'))
 
+
+            #If the simulation is not ready yet the lenghts may differ. This line
+            # is used to truncate the longer wake in the length of the shorter:
+            l1 = min( len(spos[0]), len(spos[1]) )
+
             delta = xd if anal_pl=='dx' else yd
             ndel  = yd if anal_pl=='dx' else xd
-            if not (_np.allclose(spos[0],spos[1],atol=0) and
+            if not (_np.allclose(spos[0][:l1],spos[1][:l1],atol=0) and
                     _np.allclose(sbun[0],sbun[1],atol=0) and
                     _np.allclose( bun[0], bun[1],atol=0) and
                     _np.allclose(ndel[0],ndel[1],atol=0)):
                 if not silent: print('There is a mismatch between the paramenters of the'
                             'simulation in the {0:s}dpl and {0:s}dmi folders.'.format(anal_pl))
                 raise Exception('Mismatch of the parameters of the simulation in the subfolders.')
-            simul_data.s      = spos[0]
+            simul_data.s      = spos[0][:l1]
             simul_data.bun    = bun[0]
             simul_data.sbun   = sbun[0]
             simul_data.bunlen = bunlen[0]
-            setattr(simul_data,'W'+anal_pl, (wake[0]-wake[1])/(delta[0]-delta[1])) # V/C/m
+            setattr(simul_data,'W'+anal_pl, (wake[0][:l1]-wake[1][:l1])/(delta[0]-delta[1])) # V/C/m
         else:
             if elec_symm: path = elec_fol
             spos, wake, sbun, bun, bunlen, xd, yd = _get_longitudinal_info(path,f_match,pl=anal_pl)
