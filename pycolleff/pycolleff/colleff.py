@@ -289,6 +289,7 @@ class Ring:
         E    = self.E
         nb   = self.nbun
         I_tot= self.nom_cur
+        alpe = 1/self.dampte/nus/w0
 
         if sigma is None: sigma = self.sigma(I_tot/nb)
         w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zl')
@@ -307,7 +308,7 @@ class Ring:
         Zl_eff = (interpol_Z/wp * h).sum(1)
 
         #Returns the relative Tune Shift:
-        deltaw = 1j*abs(m)* I_tot*w0*eta/(2*_np.pi)/(nus*w0)**2/E/(sigma/_c)**2 * Zl_eff
+        deltaw = -1j*abs(m)*alpe + 1j*abs(m)* I_tot*w0*eta/(2*_np.pi)/(nus*w0)**2/E/(sigma/_c)**2 * Zl_eff
         return deltaw
 
     def transverse_cbi(self, budget=None, element=None, w=None, Zt=None, sigma=None, m=0,  plane='y'):
@@ -323,13 +324,17 @@ class Ring:
         E    = self.E
         nb   = self.nbun
         I_tot= self.nom_cur
+        taue = self.dampte
         if plane.lower().startswith(('x','h')):
-            nut, chrom, imp   = self.nux, self.chromx, 'Zdx'
+            taut, nut, chrom, imp   = self.damptx, self.nux, self.chromx, 'Zdx'
         else:
-            nut, chrom, imp   = self.nuy, self.chromy, 'Zdy'
+            taut, nut, chrom, imp   = self.dampty, self.nuy, self.chromy, 'Zdy'
 
         if sigma is None: sigma = self.sigma(I_tot/nb)
         w, Zt = self._prepare_input_impedance(budget,element,w,Zt,imp)
+
+        alpe = 1/taue/w0/nus
+        alpt = 1/taut/w0/nus
 
         ## Calculate Effective Impedance
         nucro = chrom/eta
@@ -348,7 +353,7 @@ class Ring:
 
         ## Calculate Coupled_bunch Instability
         #Returns the relative Tune Shift:
-        deltaw = -1j*I_tot*w0/(4*_np.pi)/(nus*w0)/E * Zt_eff
+        deltaw = -1j*(alpt + abs(m)*alpe) - 1j*I_tot*w0/(4*_np.pi)/(nus*w0)/E * Zt_eff
         return deltaw
 
     def calc_spectrum(self,wp,sigma,n_rad=4,n_azi=3,only=False):
@@ -376,7 +381,7 @@ class Ring:
 
     def longitudinal_mode_coupling(self, budget=None, element=None, w=None, Zl=None, sigma=None, n_azi=10, n_rad=12,mu=0):
 
-        def calc_M(interpol_Z, wp, sigma, n_azi=7, n_rad=6):
+        def calc_M(interpol_Z, wp, sigma, alpe, n_azi=7, n_rad=6):
             def fill_M(m,k,n,l,Mmknl):
                 M[n_azi+m, k, n_azi+n, l] =              m*Mmknl
                 M[n_azi-m, k, n_azi+n, l] =      -       m*Mmknl
@@ -393,8 +398,8 @@ class Ring:
             for k in range(n_rad+1):
                 for m in range(n_azi+1):
                     Imk = spectrum[(abs(m),k)]
-                    A[n_azi+m, k, n_azi+m, k] =  m
-                    A[n_azi-m, k, n_azi-m, k] = -m
+                    A[n_azi+m, k, n_azi+m, k] =  m - 1j*(abs(m)+2*k)*alpe
+                    A[n_azi-m, k, n_azi-m, k] = -m - 1j*(abs(m)+2*k)*alpe
                     for n in range(m,n_azi+1):
                         Inl =  spectrum[(abs(n),k)]
                         Mmknl = 1j*(1j)**(m-n)*_np.dot(interpol_Z/wp,Imk*Inl)
@@ -415,6 +420,7 @@ class Ring:
         nus   = self.nus()
         eta   = self.mom_cmpct
         nb    = self.nbun
+        alpe  = 1/self.dampte/nus/w0
 
         if sigma is None: sigma = self.sigma(I_b)
         if isinstance(sigma,(float,_np.float_)): sigma = [sigma]
@@ -433,20 +439,20 @@ class Ring:
         delta = _np.zeros([len(I_b),(n_rad+1)*(2*n_azi+1)],dtype=complex)
         if not len(sigma)==1:
             for ii in range(len(I_b)):
-                A, M = calc_M(interpol_Z, wp, sigma[ii], n_azi, n_rad)
-                K    = I_b[ii]*nb*w0*eta/(2*_np.pi)/(nus*w0)**2/E/(sigma[ii]/_c)**2
+                A, M = calc_M(interpol_Z, wp, sigma[ii], alpe, n_azi, n_rad)
+                K    = I_b[ii]*nb*w0*eta/(2*_np.pi)/(self.nus(I_b[ii])*w0)**2/E/(sigma[ii]/_c)**2
                 B    = A + K*M
                 delta[ii,:] = _np.linalg.eigvals(B)
         else:
-            A, M = calc_M(interpol_Z, wp, sigma[0], n_azi, n_rad)
+            A, M = calc_M(interpol_Z, wp, sigma[0], alpe, n_azi, n_rad)
             for ii in range(len(I_b)):
-                K = I_b[ii]*nb*w0*eta/(2*_np.pi)/(nus*w0)**2/E/(sigma[0]/_c)**2
+                K = I_b[ii]*nb*w0*eta/(2*_np.pi)/(self.nus(I_b[ii])*w0)**2/E/(sigma[0]/_c)**2
                 B = A + K*M
                 delta[ii,:] = _np.linalg.eigvals(B)
         return delta
 
     def transverse_mode_coupling(self, budget=None, element=None, w=None, Zt=None, sigma=None, plane='y', n_azi=3, n_rad=4, mu=0):
-        def calc_M(interpol_Z, wpcro, sigma, n_azi, n_rad):
+        def calc_M(interpol_Z, wpcro, sigma, alpt, alpe, n_azi, n_rad):
             def fill_M(m,k,n,l,Mmknl):
                 M[n_azi+m, k, n_azi+n, l] =             Mmknl
                 M[n_azi-m, k, n_azi+n, l] =             Mmknl
@@ -462,8 +468,8 @@ class Ring:
             for k in range(n_rad+1):
                 for m in range(n_azi+1):
                     Imk = spectrum[(abs(m),k)]
-                    A[n_azi+m, k, n_azi+m, k] =  m
-                    A[n_azi-m, k, n_azi-m, k] = -m
+                    A[n_azi+m, k, n_azi+m, k] =  m - 1j*( alpt + (abs(m)+2*k)*alpe )
+                    A[n_azi-m, k, n_azi-m, k] = -m - 1j*( alpt + (abs(m)+2*k)*alpe )
                     for n in range(m,n_azi+1):
                         Inl =  spectrum[(abs(n),k)]
                         Mmknl = -1j*(1j)**(m-n)*_np.dot(interpol_Z,Imk*Inl)
@@ -484,14 +490,18 @@ class Ring:
         nus   = self.nus()
         eta   = self.mom_cmpct
         nb    = self.nbun
+        taue  = self.dampte
         if mu >= nb:
             mu = 0
             print('Coupled Bunch Mode greater than Number of Bunchs.\n',
                   'Reseting mu to 0.')
         if plane.lower().startswith(('x','h')):
-            nut, chrom, imp = self.nux, self.chromx, 'Zdx'
+            taut, nut, chrom, imp = self.damptx, self.nux, self.chromx, 'Zdx'
         else:
-            nut, chrom, imp = self.nuy, self.chromy, 'Zdy'
+            taut, nut, chrom, imp = self.dampty, self.nuy, self.chromy, 'Zdy'
+
+        alpe = 1/taue/w0/nus
+        alpt = 1/taut/w0/nus
 
         if sigma is None: sigma = self.sigma(I_b)
         if isinstance(sigma,(float,_np.float_)): sigma = [sigma]
@@ -512,14 +522,14 @@ class Ring:
         delta = _np.zeros([len(I_b),(n_rad+1)*(2*n_azi+1)],dtype=complex)
         if not len(sigma)==1:
             for ii in range(len(I_b)):
-                A, M = calc_M(interpol_Z, wpcro, sigma[ii], n_azi, n_rad)
-                K    = I_b[ii]*nb*w0/(4*_np.pi)/(nus*w0)/E
+                A, M = calc_M(interpol_Z, wpcro, sigma[ii], alpt, alpe, n_azi, n_rad)
+                K    = I_b[ii]*nb*w0/(4*_np.pi)/(self.nus(I_b[ii])*w0)/E
                 B    = A + K*M
                 delta[ii,:] = _np.linalg.eigvals(B)
         else:
-            A, M = calc_M(interpol_Z, wpcro, sigma[0], n_azi, n_rad)
+            A, M = calc_M(interpol_Z, wpcro, sigma[0], alpt, alpe, n_azi, n_rad)
             for ii in range(len(I_b)):
-                K = I_b[ii]*nb*w0/(4*_np.pi)/(nus*w0)/E
+                K = I_b[ii]*nb*w0/(4*_np.pi)/(self.nus(I_b[ii])*w0)/E
                 B = A + K*M
                 delta[ii,:] = _np.linalg.eigvals(B)
         return delta
