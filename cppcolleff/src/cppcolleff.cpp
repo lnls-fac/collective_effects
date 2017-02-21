@@ -79,9 +79,13 @@ static double get_residue(const my_Dvector& spos, const my_Dvector& distr)
 	for (int i=0;i<spos.size();++i){res += distr[i] * distr[i] * ds;}
 	return res;
 }
-static my_Dvector _const_espread_iteration_Haissinski(const Ring_t ring, const my_Dvector KickF, const int niter)
+static my_Dvector _const_espread_iteration_Haissinski(
+	const Ring_t ring,
+	const my_Dvector KickF,
+	const int niter,
+	const my_Dvector distr_ini)
 {
-	my_Dvector distr_old (ring.get_distribution());
+	my_Dvector distr_old (distr_ini);
 	auto& cav_s = ring.cav.ref_to_xi();
 	auto& cav_V = ring.cav.ref_to_yi();
 	double residue_old (get_residue(cav_s,distr_old));
@@ -110,23 +114,44 @@ static my_Dvector _const_espread_iteration_Haissinski(const Ring_t ring, const m
 	}
 }
 
-static my_Dvector _const_espread_iteration_Haissinski(const Ring_t ring, const my_Dvector KickF)
+static my_Dvector _const_espread_iteration_Haissinski(
+	const Ring_t ring,
+	const my_Dvector KickF)
 {
 	int niter = 100;
-	return _const_espread_iteration_Haissinski(ring, KickF, niter);
+	my_Dvector distr_ini (ring.get_distribution());
+	return _const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini);
 }
+static my_Dvector _const_espread_iteration_Haissinski(
+	const Ring_t ring,
+	const my_Dvector KickF,
+	const int niter)
+{
+	my_Dvector distr_ini (ring.get_distribution());
+	return _const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini);
+}
+static my_Dvector _const_espread_iteration_Haissinski(
+	const Ring_t ring,
+	const my_Dvector KickF,
+	const my_Dvector distr_ini)
+{
+	int niter = 100;
+	return _const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini);
+}
+
 
 my_Dvector solve_Haissinski_get_potential(
 	const Wake_t& wake,
 	const Ring_t& ring,
 	const double& Ib,
-	const int niter)
+	const int niter,
+	const my_Dvector distr_ini)
 {
 	// get the wake function at the cavity longitudinal points (actually it is the kick)
 	auto& cav_s = ring.cav.ref_to_xi();
 	my_Dvector&& KickF = wake.Wl.get_wake_at_points(cav_s, -Ib * ring.T0 / ring.energy);
 
-	return _const_espread_iteration_Haissinski(ring, KickF, niter);
+	return _const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini);
 }
 my_Dvector solve_Haissinski_get_potential(
 	const Wake_t& wake,
@@ -134,20 +159,40 @@ my_Dvector solve_Haissinski_get_potential(
 	const double& Ib)
 {
 	int niter (100);
-	return solve_Haissinski_get_potential(wake, ring, Ib, niter);
+	my_Dvector distr_ini (ring.get_distribution());
+	return solve_Haissinski_get_potential(wake, ring, Ib, niter, distr_ini);
+}
+my_Dvector solve_Haissinski_get_potential(
+	const Wake_t& wake,
+	const Ring_t& ring,
+	const double& Ib,
+	const int niter)
+{
+	my_Dvector distr_ini (ring.get_distribution());
+	return solve_Haissinski_get_potential(wake, ring, Ib, niter, distr_ini);
+}
+my_Dvector solve_Haissinski_get_potential(
+	const Wake_t& wake,
+	const Ring_t& ring,
+	const double& Ib,
+	const my_Dvector distr_ini)
+{
+	int niter (100);
+	return solve_Haissinski_get_potential(wake, ring, Ib, niter, distr_ini);
 }
 
 double find_equilibrium_energy_spread(
 	const Wake_t& wake,
 	Ring_t& ring,
 	const double& Ib,
-	const int niter)
+	const int niter,
+	const my_Dvector distr_ini)
 {
 	// get the wake function at the cavity longitudinal points (actually it is the kick)
 	auto& cav_s = ring.cav.ref_to_xi();
 	my_Dvector&& KickF = wake.Wl.get_wake_at_points(cav_s, -Ib * ring.T0 / ring.energy);
 
-	my_Dvector V (_const_espread_iteration_Haissinski(ring, KickF, niter));
+	my_Dvector V (_const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini));
 
 	// Now use bissection to get the equilibrium distribution if needed
 	double final_espread (ring.espread);
@@ -169,7 +214,7 @@ double find_equilibrium_energy_spread(
 				ring.espread -= delta_spread;
 			}
 			// fprintf(stdout,"ok\n");
-			V = _const_espread_iteration_Haissinski(ring, KickF, niter);
+			V = _const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini);
 			// fprintf(stdout,"ok2\n");
 		}
 		ring.espread = init_espread;
@@ -183,7 +228,26 @@ double find_equilibrium_energy_spread(
 	const double& Ib)
 {
 	int niter = 100;
-	return find_equilibrium_energy_spread(wake, ring, Ib, niter);
+	my_Dvector distr_ini (ring.get_distribution());
+	return find_equilibrium_energy_spread(wake, ring, Ib, niter, distr_ini);
+}
+double find_equilibrium_energy_spread(
+	const Wake_t& wake,
+	Ring_t& ring,
+	const double& Ib,
+	const int niter)
+{
+	my_Dvector distr_ini (ring.get_distribution());
+	return find_equilibrium_energy_spread(wake, ring, Ib, niter, distr_ini);
+}
+double find_equilibrium_energy_spread(
+	const Wake_t& wake,
+	Ring_t& ring,
+	const double& Ib,
+	const my_Dvector distr_ini)
+{
+	int niter = 100;
+	return find_equilibrium_energy_spread(wake, ring, Ib, niter, distr_ini);
 }
 
 void single_bunch_tracking(

@@ -250,6 +250,9 @@ class Ring_t(_object):
     __swig_setmethods__["espread"] = _cppcolleff.Ring_t_espread_set
     __swig_getmethods__["espread"] = _cppcolleff.Ring_t_espread_get
     if _newclass:espread = _swig_property(_cppcolleff.Ring_t_espread_get, _cppcolleff.Ring_t_espread_set)
+    __swig_setmethods__["en_lost_rad"] = _cppcolleff.Ring_t_en_lost_rad_set
+    __swig_getmethods__["en_lost_rad"] = _cppcolleff.Ring_t_en_lost_rad_get
+    if _newclass:en_lost_rad = _swig_property(_cppcolleff.Ring_t_en_lost_rad_get, _cppcolleff.Ring_t_en_lost_rad_set)
     __swig_setmethods__["cav"] = _cppcolleff.Ring_t_cav_set
     __swig_getmethods__["cav"] = _cppcolleff.Ring_t_cav_get
     if _newclass:cav = _swig_property(_cppcolleff.Ring_t_cav_get, _cppcolleff.Ring_t_cav_set)

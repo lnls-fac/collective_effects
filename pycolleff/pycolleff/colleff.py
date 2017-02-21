@@ -25,7 +25,7 @@ _TYPES = dict(version = str,
           nom_cur     = (float,_np.float_),
           nus         = (float,_np.float_,type(lambda x:x)),
           espread     = type(lambda x:x),
-          sigma       = type(lambda x:x),
+          bunlen      = type(lambda x:x),
           emitx       = type(lambda x:x),
           emity       = type(lambda x:x),
           damptx      = (float,_np.float_),
@@ -56,7 +56,7 @@ class Ring:
         self.nom_cur     = 0.00 # total current [A]
         self._nus         = 0.00 # synchrotron tune
         self._espread     = lambda x:0.0+0*x
-        self._sigma       = lambda x:0.0+0*x # bunch length in [m]
+        self._bunlen       = lambda x:0.0+0*x # bunch length in [m]
         self._emitx       = lambda x:0.0+0*x
         self._emity       = lambda x:0.0+0*x
         self.damptx      = 0.0 # horizontal damping time in [s]
@@ -90,21 +90,21 @@ class Ring:
             if I is None:
                 return _np.interp(self.nom_cur/self.nbun,fp=self._espread,xp=self.cur_bun)
             else:
-                return _np.interp(I,fp=self._esprea,xp=self.cur_bun)
+                return _np.interp(I,fp=self._espread,xp=self.cur_bun)
 
-    def sigma(self,I=None):
-        if isinstance(self._sigma,(int,_np.int,float,_np.float)):
-            return self._sigma
-        elif isinstance(self._sigma,type(lambda x:x)):
+    def bunlen(self,I=None):
+        if isinstance(self._bunlen,(int,_np.int,float,_np.float)):
+            return self._bunlen
+        elif isinstance(self._bunlen,type(lambda x:x)):
             if I is None:
-                return self._sigma(self.nom_cur/self.nbun)
+                return self._bunlen(self.nom_cur/self.nbun)
             else:
-                return self._sigma(I)
-        elif isinstance(self._sigma,(_np.ndarray,list,tuple)):
+                return self._bunlen(I)
+        elif isinstance(self._bunlen,(_np.ndarray,list,tuple)):
             if I is None:
-                return _np.interp(self.nom_cur/self.nbun,fp=self._sigma,xp=self.cur_bun)
+                return _np.interp(self.nom_cur/self.nbun,fp=self._bunlen,xp=self.cur_bun)
             else:
-                return _np.interp(I,fp=self._sigma,xp=self.cur_bun)
+                return _np.interp(I,fp=self._bunlen,xp=self.cur_bun)
 
     def emitx(self,I=None):
         if isinstance(self._emitx,(int,_np.int,float,_np.float)):
@@ -149,11 +149,11 @@ class Ring:
         string += '{0:28s}: {1:>9.3f}/{2:<10.3f}\n'.format('Tunes x/y',self.nux,self.nuy)
         string += '{0:28s}: {1:>6.1f}/{2:^6.1f}/{3:<6.1f}\n'.format('Damping Times x/y/e [ms]',self.damptx*1e3,self.dampty*1e3,self.dampte*1e3)
         string += '{0:28s}: {1:^20.2e}\n'.format('Energy Spread',self.espread())
-        string += '{0:28s}: {1:^20.2e}\n'.format('Bunch Length [mm]',self.sigma(self.nom_cur/self.nbun)*1e3)
+        string += '{0:28s}: {1:^20.2e}\n'.format('Bunch Length [mm]',self.bunlen(self.nom_cur/self.nbun)*1e3)
         return string
 
     def __getattr__(self,attr):
-        if attr in {'nus','sigma','emitx','emity','espread'}:
+        if attr in {'nus','bunlen','emitx','emity','espread'}:
             attr = '_' + attr
             if isinstance(self.__dict__[attr],(float,_np.float)):
                 return self.__dict__[attr]
@@ -165,14 +165,14 @@ class Ring:
             return self.__dict__[attr]
 
     def __setattr__(self,attr,value):
-        if attr in {'nus','sigma','emitx','emity','espread',}:
+        if attr in {'nus','bunlen','emitx','emity','espread',}:
             if isinstance(value,(_np.ndarray,list,tuple)) and len(value) != len(self.cur_bun):
                 raise Exception('Length of input must match length of self.cur_bun.')
             self.__dict__['_'+attr] = value
         else:
             self.__dict__[attr] = value
 
-    def loss_factor(self,budget=None, element=None, w=None, Zl=None, sigma=None):
+    def loss_factor(self,budget=None, element=None, w=None, Zl=None, bunlen=None):
         """ Calculate the loss factor and effective impedance.
 
         Inputs:
@@ -183,7 +183,7 @@ class Ring:
           w  = angular frequency [rad/s]
           Zl = Longitudinal Impedance [Ohm]
 
-          (optional) sigma = Longitudinal beamsize [m]
+          (optional) bunlen = Longitudinal beamsize [m]
 
         Outputs:
           lossf  = Loss factor in V/C
@@ -195,7 +195,7 @@ class Ring:
 
         w0 = self.w0
         nb = self.nbun
-        sigma = sigma or self.sigma(self.nom_cur/nb)
+        bunlen = bunlen or self.bunlen(self.nom_cur/nb)
 
         w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zll')
 
@@ -204,8 +204,8 @@ class Ring:
         p = _np.arange(pmin, pmax+1)
         wp = w0*p*nb
 
-        # h = _np.exp(-(wp*sigma/_c)**2)
-        specs = self.calc_spectrum(wp,sigma,n_rad=0,n_azi=1)
+        # h = _np.exp(-(wp*bunlen/_c)**2)
+        specs = self.calc_spectrum(wp,bunlen,n_rad=0,n_azi=1)
         h = specs[(0,0)]**2
         interpol_Z = _np.interp(wp,w,Zl.real)
 
@@ -221,7 +221,7 @@ class Ring:
 
         return lossf, Pl, Zl_eff, wp, lossfp
 
-    def kick_factor(self,budget=None, element=None, w=None, Z=None, sigma=None, Imp='Zdy'):
+    def kick_factor(self,budget=None, element=None, w=None, Z=None, bunlen=None, Imp='Zdy'):
         """ Calculate the kick factor, tune shift and effective impedance.
 
         Inputs:
@@ -232,7 +232,7 @@ class Ring:
           w  = angular frequency [rad/s]
           Zl = Longitudinal Impedance [Ohm]
 
-          (optional) sigma = Longitudinal beamsize [m]
+          (optional) bunlen = Longitudinal beamsize [m]
           (optional) Imp   = string with type of impedance to consider from element or budget
                              options: Zll(default), Zdy, Zqy, Zdx, Zqx
 
@@ -244,7 +244,7 @@ class Ring:
 
         w0 = self.w0
         nb = self.nbun
-        sigma = sigma or self.sigma(self.nom_cur/nb)
+        bunlen = bunlen or self.bunlen(self.nom_cur/nb)
 
         w, Z = self._prepare_input_impedance(budget,element,w,Z,Imp)
 
@@ -253,7 +253,7 @@ class Ring:
         p = _np.arange(pmin, pmax+1)
         wp = w0*p*nb
 
-        specs = self.calc_spectrum(wp,sigma,n_rad=0,n_azi=1)
+        specs = self.calc_spectrum(wp,bunlen,n_rad=0,n_azi=1)
         h = specs[(0,0)]**2
         interpol_Z = _np.interp(wp,w,Z.imag)
 
@@ -277,7 +277,7 @@ class Ring:
         else:
             raise Exception('Incorrect impedance input.')
 
-    def longitudinal_cbi(self, budget=None, element=None, w=None, Zl=None, sigma=None, m=0):
+    def longitudinal_cbi(self, budget=None, element=None, w=None, Zl=None, bunlen=None, m=0):
         """Calculate the complex coeherent frequency shifts of the beam for all the oscilation modes,
         considering a Gaussian beam and only azimuthal mode k=0;
         """
@@ -291,7 +291,7 @@ class Ring:
         I_tot= self.nom_cur
         alpe = 1/self.dampte/nus/w0
 
-        if sigma is None: sigma = self.sigma(I_tot/nb)
+        if bunlen is None: bunlen = self.bunlen(I_tot/nb)
         w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zl')
 
         # Calculate Effective Impedance
@@ -301,22 +301,22 @@ class Ring:
         p = _np.arange(pmin,pmax+1)
         wp = w0*(nb*p[None,:] + _np.arange(0,nb)[:,None] + m*nus)
 
-        h = self.calc_spectrum(wp,sigma,n_rad=0,n_azi=m,only=True)**2
+        h = self.calc_spectrum(wp,bunlen,n_rad=0,n_azi=m,only=True)**2
         # Complex interpolation is ill-defined
         interpol_Z  = 1j*_np.interp(wp, w, Zl.imag) # imaginary must come first
         interpol_Z +=    _np.interp(wp, w, Zl.real)
         Zl_eff = (interpol_Z/wp * h).sum(1)
 
         #Returns the relative Tune Shift:
-        deltaw = -1j*abs(m)*alpe + 1j*abs(m)* I_tot*w0*eta/(2*_np.pi)/(nus*w0)**2/E/(sigma/_c)**2 * Zl_eff
+        deltaw = -1j*abs(m)*alpe + 1j*abs(m)* I_tot*w0*eta/(2*_np.pi)/(nus*w0)**2/E/(bunlen/_c)**2 * Zl_eff
         return deltaw
 
-    def transverse_cbi(self, budget=None, element=None, w=None, Zt=None, sigma=None, m=0,  plane='y'):
+    def transverse_cbi(self, budget=None, element=None, w=None, Zt=None, bunlen=None, m=0,  plane='y'):
         """Calcula a impedância transversal efetiva dos nb modos de oscilacao,
         considerando um feixe gaussiano, para o modo azimutal m e radial k=0;
         E calcula as instabilidades de Coupled_bunch a partir dela.
 
-        deltaw = transverse_cbi(w,Z, sigma, nb, w0, nus, nut, chrom, eta, m, E, I_tot)
+        deltaw = transverse_cbi(w,Z, bunlen, nb, w0, nus, nut, chrom, eta, m, E, I_tot)
         """
         nus  = self.nus()
         w0   = self.w0
@@ -330,7 +330,7 @@ class Ring:
         else:
             taut, nut, chrom, imp   = self.dampty, self.nuy, self.chromy, 'Zdy'
 
-        if sigma is None: sigma = self.sigma(I_tot/nb)
+        if bunlen is None: bunlen = self.bunlen(I_tot/nb)
         w, Zt = self._prepare_input_impedance(budget,element,w,Zt,imp)
 
         alpe = 1/taue/w0/nus
@@ -345,7 +345,7 @@ class Ring:
         wp = w0*(nb*p[None,:] + _np.arange(0,nb)[:,None] + nut + m*nus)
         wpcro = wp - nucro*w0
 
-        h = self.calc_spectrum(wpcro,sigma,n_rad=0,n_azi=m,only=True)**2
+        h = self.calc_spectrum(wpcro,bunlen,n_rad=0,n_azi=m,only=True)**2
         # Complex interpolation is ill-defined
         interpol_Z  = 1j*_np.interp(wp, w, Zt.imag) # imaginary must come first
         interpol_Z +=    _np.interp(wp, w, Zt.real)
@@ -356,7 +356,7 @@ class Ring:
         deltaw = -1j*(alpt + abs(m)*alpe) - 1j*I_tot*w0/(4*_np.pi)/(nus*w0)/E * Zt_eff
         return deltaw
 
-    def calc_spectrum(self,wp,sigma,n_rad=4,n_azi=3,only=False):
+    def calc_spectrum(self,wp,bunlen,n_rad=4,n_azi=3,only=False):
         def my_pow(vetor,n):
             res = _np.ones(vetor.shape)
             for _ in range(n): res *= vetor
@@ -364,7 +364,7 @@ class Ring:
 
         n_azi0, n_rad0 = 0, 0
         if only: n_azi0, n_rad0 = n_azi, n_rad
-        sigW = wp*sigma/_c/_np.sqrt(2)
+        sigW = wp*bunlen/_c/_np.sqrt(2)
         spectrum = dict()
         spect    = dict()
         expo     = _np.exp(-my_pow(sigW,2))
@@ -379,9 +379,49 @@ class Ring:
         if only: spectrum = spectrum[chave]
         return spectrum
 
-    def longitudinal_mode_coupling(self, budget=None, element=None, w=None, Zl=None, sigma=None, n_azi=10, n_rad=12,mu=0):
+    def longitudinal_mode_coupling(self,
+                                   budget=None,  element=None,
+                                   w=None,  Zl=None,
+                                   bunlen=None,
+                                   n_azi=10,  n_rad=12,
+                                   mu=0,
+                                   use_fokker=True):
 
-        def calc_M(interpol_Z, wp, sigma, alpe, n_azi=7, n_rad=6):
+        def calc_Fokker_Planck(alpe, n_azi, n_rad, use_fokker):
+            F = _np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
+            if use_fokker:
+                for l in range(n_rad+1):
+                    for m in range(-n_azi,n_azi+1):
+                        F[n_azi+m, l, n_azi+m, l] = - alpe*(abs(m) + 2*l)
+                        if m <=-2:
+                            if abs(m-2)<=n_azi and l-1 >= 0:
+                                F[n_azi+m, l, n_azi+m-2, l-1] =  -alpe*_np.sqrt((l+1-m)*l)
+                            if abs(m+2)<=n_azi and l+1 <= n_rad:
+                                F[n_azi+m, l, n_azi+m+2, l+1] =  -alpe*_np.sqrt((l-m)*(l+1))
+                        if m ==-1:
+                            if abs(m-2)<=n_azi and l-1 >= 0:
+                                F[n_azi+m, l, n_azi+m-2, l-1] =  -alpe*_np.sqrt((l+2)*l)
+                            if abs(m+2)<=n_azi and l <= n_rad:
+                                F[n_azi+m, l, n_azi+m+2, l]   =   alpe*(l+1)
+                        if m == 0:
+                            if abs(m-2)<=n_azi and l-1 >= 0:
+                                F[n_azi+m, l, n_azi+m-2, l-1] =  -alpe*_np.sqrt((l+1)*l)
+                            if abs(m+2)<=n_azi and l-1 >= 0:
+                                F[n_azi+m, l, n_azi+m+2, l]   =  -alpe*_np.sqrt(l*(l+1))
+                        if m == 1:
+                            if abs(m-2)<=n_azi and l <= n_rad:
+                                F[n_azi+m, l, n_azi+m-2, l] =    alpe*(l+1)
+                            if abs(m+2)<=n_azi and l-1 >= 0:
+                                F[n_azi+m, l, n_azi+m+2, l-1] =  -alpe*_np.sqrt((l+2)*l)
+                        if m >= 2:
+                            if abs(m-2)<=n_azi and l+1 <= n_rad:
+                                F[n_azi+m, l, n_azi+m-2, l+1] =  -alpe*_np.sqrt((l+m)*(l+1))
+                            if abs(m+2)<=n_azi and l-1 >= 0:
+                                F[n_azi+m, l, n_azi+m+2, l-1] =  -alpe*_np.sqrt((l+1+m)*l)
+
+            return F.swapaxes(0,3).swapaxes(1,2).reshape([(1+2*n_azi)*(1+n_rad),(1+2*n_azi)*(1+n_rad)]).transpose()
+
+        def calc_Vlasov(interpol_Z, wp, bunlen, n_azi, n_rad):
             def fill_M(m,k,n,l,Mmknl):
                 M[n_azi+m, k, n_azi+n, l] =              m*Mmknl
                 M[n_azi-m, k, n_azi+n, l] =      -       m*Mmknl
@@ -394,22 +434,22 @@ class Ring:
 
             A = _np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
             M = _np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
-            spectrum = self.calc_spectrum(wp,sigma,n_rad,n_azi)
+            spectrum = self.calc_spectrum(wp,bunlen,n_rad,n_azi)
             for k in range(n_rad+1):
                 for m in range(n_azi+1):
                     Imk = spectrum[(abs(m),k)]
-                    A[n_azi+m, k, n_azi+m, k] =  m - 1j*(abs(m)+2*k)*alpe
-                    A[n_azi-m, k, n_azi-m, k] = -m - 1j*(abs(m)+2*k)*alpe
+                    A[n_azi+m, k, n_azi+m, k] =  m
+                    A[n_azi-m, k, n_azi-m, k] = -m
                     for n in range(m,n_azi+1):
                         Inl =  spectrum[(abs(n),k)]
-                        Mmknl = 1j*(1j)**(m-n)*_np.dot(interpol_Z/wp,Imk*Inl)
+                        Mmknl = (1j)**(m-n)*_np.dot(interpol_Z/wp,Imk*Inl)
                         fill_M(m,k,n,k,Mmknl)
                 for l in range(k+1,n_rad+1):
                     for m in range(n_azi+1):
                         Imk =  spectrum[(abs(m),k)]
                         for n in range(n_azi+1):
                             Inl =  spectrum[(abs(n),l)]
-                            Mmknl = 1j*(1j)**(m-n)*_np.dot(interpol_Z/wp,Imk*Inl)
+                            Mmknl = (1j)**(m-n)*_np.dot(interpol_Z/wp,Imk*Inl)
                             fill_M(m,k,n,l,Mmknl)
             return (A.swapaxes(0,3).swapaxes(1,2).reshape([(1+2*n_azi)*(1+n_rad),(1+2*n_azi)*(1+n_rad)]).transpose(),
                     M.swapaxes(0,3).swapaxes(1,2).reshape([(1+2*n_azi)*(1+n_rad),(1+2*n_azi)*(1+n_rad)]).transpose())
@@ -417,18 +457,19 @@ class Ring:
         I_b   = self.cur_bun
         E     = self.E
         w0    = self.w0
-        nus   = self.nus()
+        nus   = self.nus(0.0)
         eta   = self.mom_cmpct
         nb    = self.nbun
-        alpe  = 1/self.dampte/nus/w0
+        alpe  = 1/self.dampte
 
-        if sigma is None: sigma = self.sigma(I_b)
-        if isinstance(sigma,(float,_np.float_)): sigma = [sigma]
+        F     = calc_Fokker_Planck(alpe, n_azi, n_rad,use_fokker)
+        if bunlen is None: bunlen = self.bunlen(I_b)
+        if isinstance(bunlen,(float,_np.float_)): bunlen = [bunlen]
 
-        w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zl')
+        w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zll')
 
-        pmin = _np.ceil( (w[0] -(mu + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a +infinito
-        pmax = _np.floor((w[-1]-(mu + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a -infinito
+        pmin  = _np.ceil( (w[0] -(mu + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a +infinito
+        pmax  = _np.floor((w[-1]-(mu + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a -infinito
 
         p = _np.arange(pmin,pmax+1)
         wp = w0*(p*nb + mu + 1*nus)
@@ -437,22 +478,63 @@ class Ring:
         interpol_Z +=    _np.interp(wp, w, Zl.real)
 
         delta = _np.zeros([len(I_b),(n_rad+1)*(2*n_azi+1)],dtype=complex)
-        if not len(sigma)==1:
+        if not len(bunlen)==1:
             for ii in range(len(I_b)):
-                A, M = calc_M(interpol_Z, wp, sigma[ii], alpe, n_azi, n_rad)
-                K    = I_b[ii]*nb*w0*eta/(2*_np.pi)/(self.nus(I_b[ii])*w0)**2/E/(sigma[ii]/_c)**2
-                B    = A + K*M
+                A, M = calc_Vlasov(interpol_Z, wp, bunlen[ii], n_azi, n_rad)
+                K    = I_b[ii]*nb*w0*eta/(2*_np.pi)/(self.nus(I_b[ii])*w0)**2/E/(bunlen[ii]/_c)**2
+                B    = A + 1j*K*M + 1j*F/w0/self.nus(I_b[ii])
                 delta[ii,:] = _np.linalg.eigvals(B)
         else:
-            A, M = calc_M(interpol_Z, wp, sigma[0], alpe, n_azi, n_rad)
+            A, M = calc_Vlasov(interpol_Z, wp, bunlen[0], n_azi, n_rad)
             for ii in range(len(I_b)):
-                K = I_b[ii]*nb*w0*eta/(2*_np.pi)/(self.nus(I_b[ii])*w0)**2/E/(sigma[0]/_c)**2
-                B = A + K*M
+                K = I_b[ii]*nb*w0*eta/(2*_np.pi)/(self.nus(I_b[ii])*w0)**2/E/(bunlen[0]/_c)**2
+                B = A + 1j*K*M + 1j*F/w0/self.nus(I_b[ii])
                 delta[ii,:] = _np.linalg.eigvals(B)
         return delta
 
-    def transverse_mode_coupling(self, budget=None, element=None, w=None, Zt=None, sigma=None, plane='y', n_azi=3, n_rad=4, mu=0):
-        def calc_M(interpol_Z, wpcro, sigma, alpt, alpe, n_azi, n_rad):
+    def transverse_mode_coupling(self,
+                                 budget=None,  element=None,
+                                 w=None,  Zt=None,
+                                 bunlen=None, plane='y',
+                                 n_azi=3,  n_rad=4,
+                                 mu=0,
+                                 use_fokker = True):
+
+        def calc_Fokker_Planck(alpt, alpe, n_azi, n_rad, use_fokker):
+            F = _np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
+            if use_fokker:
+                for l in range(n_rad+1):
+                    for m in range(-n_azi,n_azi+1):
+                        F[n_azi+m, l, n_azi+m, l] = - alpt - alpe*(abs(m) + 2*l)
+                        if m <=-2:
+                            if abs(m-2)<=n_azi and l-1 >= 0:
+                                F[n_azi+m, l, n_azi+m-2, l-1] =  -alpe*_np.sqrt((l+1-m)*l)
+                            if abs(m+2)<=n_azi and l+1 <= n_rad:
+                                F[n_azi+m, l, n_azi+m+2, l+1] =  -alpe*_np.sqrt((l-m)*(l+1))
+                        if m ==-1:
+                            if abs(m-2)<=n_azi and l-1 >= 0:
+                                F[n_azi+m, l, n_azi+m-2, l-1] =  -alpe*_np.sqrt((l+2)*l)
+                            if abs(m+2)<=n_azi and l <= n_rad:
+                                F[n_azi+m, l, n_azi+m+2, l]   =   alpe*(l+1)
+                        if m == 0:
+                            if abs(m-2)<=n_azi and l-1 >= 0:
+                                F[n_azi+m, l, n_azi+m-2, l-1] =  -alpe*_np.sqrt((l+1)*l)
+                            if abs(m+2)<=n_azi and l-1 >= 0:
+                                F[n_azi+m, l, n_azi+m+2, l]   =  -alpe*_np.sqrt(l*(l+1))
+                        if m == 1:
+                            if abs(m-2)<=n_azi and l <= n_rad:
+                                F[n_azi+m, l, n_azi+m-2, l] =    alpe*(l+1)
+                            if abs(m+2)<=n_azi and l-1 >= 0:
+                                F[n_azi+m, l, n_azi+m+2, l-1] =  -alpe*_np.sqrt((l+2)*l)
+                        if m >= 2:
+                            if abs(m-2)<=n_azi and l+1 <= n_rad:
+                                F[n_azi+m, l, n_azi+m-2, l+1] =  -alpe*_np.sqrt((l+m)*(l+1))
+                            if abs(m+2)<=n_azi and l-1 >= 0:
+                                F[n_azi+m, l, n_azi+m+2, l-1] =  -alpe*_np.sqrt((l+1+m)*l)
+
+            return F.swapaxes(0,3).swapaxes(1,2).reshape([(1+2*n_azi)*(1+n_rad),(1+2*n_azi)*(1+n_rad)]).transpose()
+
+        def calc_Vlasov(interpol_Z, wpcro, bunlen, n_azi, n_rad):
             def fill_M(m,k,n,l,Mmknl):
                 M[n_azi+m, k, n_azi+n, l] =             Mmknl
                 M[n_azi-m, k, n_azi+n, l] =             Mmknl
@@ -464,47 +546,46 @@ class Ring:
                 M[n_azi-n, l, n_azi-m, k] = (-1)**(m-n)*Mmknl
             A = _np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
             M = _np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
-            spectrum = self.calc_spectrum(wpcro,sigma,n_rad,n_azi)
+            spectrum = self.calc_spectrum(wpcro,bunlen,n_rad,n_azi)
             for k in range(n_rad+1):
                 for m in range(n_azi+1):
                     Imk = spectrum[(abs(m),k)]
-                    A[n_azi+m, k, n_azi+m, k] =  m - 1j*( alpt + (abs(m)+2*k)*alpe )
-                    A[n_azi-m, k, n_azi-m, k] = -m - 1j*( alpt + (abs(m)+2*k)*alpe )
+                    A[n_azi+m, k, n_azi+m, k] =  m
+                    A[n_azi-m, k, n_azi-m, k] = -m
                     for n in range(m,n_azi+1):
                         Inl =  spectrum[(abs(n),k)]
-                        Mmknl = -1j*(1j)**(m-n)*_np.dot(interpol_Z,Imk*Inl)
+                        Mmknl = -(1j)**(m-n)*_np.dot(interpol_Z,Imk*Inl)
                         fill_M(m,k,n,k,Mmknl)
                 for l in range(k+1,n_rad+1):
                     for m in range(n_azi+1):
                         Imk =  spectrum[(abs(m),k)]
                         for n in range(n_azi+1):
                             Inl =  spectrum[(abs(n),l)]
-                            Mmknl = -1j*(1j)**(m-n)*_np.dot(interpol_Z,Imk*Inl)
+                            Mmknl = -(1j)**(m-n)*_np.dot(interpol_Z,Imk*Inl)
                             fill_M(m,k,n,l,Mmknl)
+
             return (A.swapaxes(0,3).swapaxes(1,2).reshape([(1+2*n_azi)*(1+n_rad),(1+2*n_azi)*(1+n_rad)]).transpose(),
                     M.swapaxes(0,3).swapaxes(1,2).reshape([(1+2*n_azi)*(1+n_rad),(1+2*n_azi)*(1+n_rad)]).transpose())
 
         I_b   = self.cur_bun
         E     = self.E
         w0    = self.w0
-        nus   = self.nus()
+        nus   = self.nus(0.0)
         eta   = self.mom_cmpct
         nb    = self.nbun
-        taue  = self.dampte
+        alpe  = 1/self.dampte
         if mu >= nb:
             mu = 0
             print('Coupled Bunch Mode greater than Number of Bunchs.\n',
                   'Reseting mu to 0.')
         if plane.lower().startswith(('x','h')):
-            taut, nut, chrom, imp = self.damptx, self.nux, self.chromx, 'Zdx'
+            alpt, nut, chrom, imp = 1/self.damptx, self.nux, self.chromx, 'Zdx'
         else:
-            taut, nut, chrom, imp = self.dampty, self.nuy, self.chromy, 'Zdy'
+            alpt, nut, chrom, imp = 1/self.dampty, self.nuy, self.chromy, 'Zdy'
 
-        alpe = 1/taue/w0/nus
-        alpt = 1/taut/w0/nus
-
-        if sigma is None: sigma = self.sigma(I_b)
-        if isinstance(sigma,(float,_np.float_)): sigma = [sigma]
+        F = calc_Fokker_Planck(alpt, alpe, n_azi, n_rad, use_fokker)
+        if bunlen is None: bunlen = self.bunlen(I_b)
+        if isinstance(bunlen,(float,_np.float_)): bunlen = [bunlen]
 
         w, Zt = self._prepare_input_impedance(budget,element,w,Zt,imp)
 
@@ -520,17 +601,17 @@ class Ring:
         wpcro = wp - nucro*w0
 
         delta = _np.zeros([len(I_b),(n_rad+1)*(2*n_azi+1)],dtype=complex)
-        if not len(sigma)==1:
+        if not len(bunlen)==1:
             for ii in range(len(I_b)):
-                A, M = calc_M(interpol_Z, wpcro, sigma[ii], alpt, alpe, n_azi, n_rad)
+                A, M = calc_Vlasov(interpol_Z, wpcro, bunlen[ii], n_azi, n_rad)
                 K    = I_b[ii]*nb*w0/(4*_np.pi)/(self.nus(I_b[ii])*w0)/E
-                B    = A + K*M
+                B    = A + 1j*K*M  + 1j*F/w0/self.nus(I_b[ii])
                 delta[ii,:] = _np.linalg.eigvals(B)
         else:
-            A, M = calc_M(interpol_Z, wpcro, sigma[0], alpt, alpe, n_azi, n_rad)
+            A, M = calc_Vlasov(interpol_Z, wpcro, bunlen[0], n_azi, n_rad)
             for ii in range(len(I_b)):
                 K = I_b[ii]*nb*w0/(4*_np.pi)/(self.nus(I_b[ii])*w0)/E
-                B = A + K*M
+                B = A + 1j*K*M + 1j*F/w0/self.nus(I_b[ii])
                 delta[ii,:] = _np.linalg.eigvals(B)
         return delta
 

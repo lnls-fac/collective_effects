@@ -17,23 +17,43 @@ my_Dvector solve_Haissinski_get_potential(
     const Wake_t& wake,
     const Ring_t& ring,
     const double& Ib,
-    const int niter);
-
+    const int niter,
+    const my_Dvector distr_ini);
 my_Dvector solve_Haissinski_get_potential(
     const Wake_t& wake,
     const Ring_t& ring,
     const double& Ib);
+my_Dvector solve_Haissinski_get_potential(
+    const Wake_t& wake,
+    const Ring_t& ring,
+    const double& Ib,
+    const int niter);
+my_Dvector solve_Haissinski_get_potential(
+    const Wake_t& wake,
+    const Ring_t& ring,
+    const double& Ib,
+    const my_Dvector distr_ini);
 
 double find_equilibrium_energy_spread(
     const Wake_t& wake,
     Ring_t& ring, // Only changes the energy spread internally;
     const double& Ib,
-    const int niter);
-
+    const int niter,
+    const my_Dvector distr_ini);
 double find_equilibrium_energy_spread(
 	const Wake_t& wake,
 	Ring_t& ring, // Only changes the energy spread internally;
 	const double& Ib);
+double find_equilibrium_energy_spread(
+    const Wake_t& wake,
+    Ring_t& ring, // Only changes the energy spread internally;
+    const double& Ib,
+    const int niter);
+double find_equilibrium_energy_spread(
+    const Wake_t& wake,
+    Ring_t& ring, // Only changes the energy spread internally;
+    const double& Ib,
+    const my_Dvector distr_ini);
 
 void single_bunch_tracking(
     const Ring_t& ring,

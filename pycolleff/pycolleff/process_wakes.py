@@ -138,19 +138,19 @@ class EMSimulData:
         setattr(self,'_kck'+pl+'W', kW)
         return kW
 
-    def klossZ(self,sigma=2.65e-3,n=1):
+    def klossZ(self,bunlen=2.65e-3,n=1):
         _si.nbun = n
-        klossZ,*_ = _si.loss_factor(w = self.freq*2*_np.pi, Zl = self.Zll, sigma=sigma)
+        klossZ,*_ = _si.loss_factor(w = self.freq*2*_np.pi, Zl = self.Zll, bunlen=bunlen)
         return klossZ
-    def kick_factorZ(self,pl='dy',sigma=2.65e-3,n=1):
+    def kick_factorZ(self,pl='dy',bunlen=2.65e-3,n=1):
         _si.nbun = n
         Z = getattr(self,'Z'+pl)
         if Z is None or _np.all(Z==0): return None
-        kckZ,*_ = _si.kick_factor(w = self.freq*2*_np.pi, Z = Z, sigma=sigma)
+        kckZ,*_ = _si.kick_factor(w = self.freq*2*_np.pi, Z = Z, bunlen=bunlen)
         return kckZ
-    def PlossZ(self,sigma=2.65e-3,n=1):
+    def PlossZ(self,bunlen=2.65e-3,n=1):
         _si.nbun = n
-        _,PlossZ,*_ = _si.loss_factor(w = self.freq*2*_np.pi, Zl = self.Zll, sigma=sigma)
+        _,PlossZ,*_ = _si.loss_factor(w = self.freq*2*_np.pi, Zl = self.Zll, bunlen=bunlen)
         return PlossZ
 
 
@@ -170,7 +170,7 @@ def _ACE3P_load_data(simpar):
     if m==0: wake = -loadres[:,1]
     else: wake = loadres[:,1]
 
-    spos = spos - nsigmas* sigma   # Performs displacement over s axis
+    spos = spos - nsigmas* bunlen   # Performs displacement over s axis
     return spos, wake
 
 def _CST_load_data(simpar):
@@ -1314,7 +1314,7 @@ def plot_losskick_factors(simul_data,save_figs=False,pth2sv=None,show=False,pls=
             for i in range(fill_pat.shape[0]):
                 kZi = _np.zeros(sigi.shape[0])
                 for j in range(sigi.shape[0]):
-                    kZi[j] = simul_data.klossZ(sigma=sigi[j],n=fill_pat[i]) * 1e-12 #V/pC
+                    kZi[j] = simul_data.klossZ(bunlen=sigi[j],n=fill_pat[i]) * 1e-12 #V/pC
                 ax.semilogy(sigi * 1e3, kZi * 1e3, 'o',markersize=4,label=r'$n = {0:03d}$'.format(fill_pat[i]))
                 if not i: kZ = kZi[0]
             # Calculates klossW
@@ -1332,7 +1332,7 @@ def plot_losskick_factors(simul_data,save_figs=False,pth2sv=None,show=False,pls=
             kZvec = _np.zeros(sigvec.shape[0])
             labels = []
             for i in range(sigvec.shape[0]):
-                kZvec[i] = simul_data.klossZ(sigma=sigvec[i], n=_si.harm_num) #V/C
+                kZvec[i] = simul_data.klossZ(bunlen=sigvec[i], n=_si.harm_num) #V/C
                 labels.append(r'$\sigma = {0:05.2f}$ mm'.format(sigvec[i]*1e3))
             Plossvec = kZvec[None,:] * Ivec[:,None]**2 * _si.T0/_si.harm_num
             ax.semilogy(Ivec*1e3, Plossvec,markersize=4)
@@ -1348,7 +1348,7 @@ def plot_losskick_factors(simul_data,save_figs=False,pth2sv=None,show=False,pls=
             for i in range(fill_pat.shape[0]):
                 kZi = _np.zeros(sigi.shape[0])
                 for j in range(sigi.shape[0]):
-                    kZi[j] = simul_data.kick_factorZ(pl=pl,sigma=sigi[j],n=fill_pat[i]) * 1e-12 #V/pC/m
+                    kZi[j] = simul_data.kick_factorZ(pl=pl,bunlen=sigi[j],n=fill_pat[i]) * 1e-12 #V/pC/m
                 ax.plot(sigi*1e3, kZi, 'o',markersize=4,label=r'n = {0:03d}'.format(fill_pat[i]))
                 if not i: kickZ = kZi[0]
             # Calculates kickW:

@@ -28,7 +28,7 @@ def create_ring():
     ring.nom_cur     = 0.100       # total current [A]
     ring.nus         = 0.0067     # synchrotron tune
     ring.espread     = lambda x:7.64e-4 +0*x
-    ring.sigma       = lambda x:3.5e-3  +0*x
+    ring.bunlen       = lambda x:3.5e-3  +0*x
     ring.emitx       = lambda x:271e-12 +0*x
     ring.emity       = lambda x:2.71e-12+0*x
     ring.damptx      = 55.3e-3
