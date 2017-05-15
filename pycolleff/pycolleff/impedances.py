@@ -209,6 +209,9 @@ class Budget(list):
             Imp2 = getattr(self,prop)
             if not _np.isclose(Imp2,0).all():
                 setattr(ele,prop,Imp2.copy())
+        ele.betax = 1.0
+        ele.betay = 1.0
+        ele.quantity = 1
         return ele
 
     def save(self):

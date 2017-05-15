@@ -625,22 +625,22 @@ class Ring:
             'TuShdx', 'TuShdy', 'TuShqx', 'TuShqy', 'TuShx', 'TuShy'],
             index=props),
         unit=pd.Series([
-            '[mV/pC]', '[mOhm]', '[W]', '[kV/pC]', '[kV/pC]', '[kV/pC]', '[kV/pC]',
+            '[V/pC]', '[mOhm]', '[W]', '[kV/pC]', '[kV/pC]', '[kV/pC]', '[kV/pC]',
             '[kV/pC]', '[kV/pC]', '1/10^3',  '1/10^3',  '1/10^3',  '1/10^3',  '1/10^3',  '1/10^3'],
             index=props),
         latex_unit=pd.Series([
-            r'[mV/pC]', r'[m$\Omega$]', r'[W]', r'[kV/pC]', r'[kV/pC]', r'[kV/pC]', r'[kV/pC]', r'[kV/pC]',
+            r'[V/pC]', r'[$m\Omega$]', r'[W]', r'[kV/pC]', r'[kV/pC]', r'[kV/pC]', r'[kV/pC]', r'[kV/pC]',
             r'[kV/pC]', r'$10^{-3}$',  r'$10^{-3}$',  r'$10^{-3}$',  r'$10^{-3}$',  r'$10^{-3}$',  r'$10^{-3}$'],
             index=props),
         latex_name=pd.Series([
             '$\kappa_{Loss}$', '$Z_L/n|_{eff}$', '$P_{Loss}$',
-            r'$\kappa_x^D$', r'$\kappa_y^D$', r'$\kappa_x^Q$', r'$\kappa_y^Q$',r'$\kappa_x$', r'$\kappa_y$',
+            r'$\beta_x\kappa_x^D$', r'$\beta_y\kappa_y^D$', r'$\beta_x\kappa_x^Q$', r'$\beta_y\kappa_y^Q$',r'$\beta_x\kappa_x$', r'$\beta_y\kappa_y$',
             r'$\Delta\nu_x^D$', r'$\Delta\nu_y^D$', r'$\Delta\nu_x^Q$', r'$\Delta\nu_y^Q$', r'$\Delta\nu_x$', r'$\Delta\nu_y$'],
             index=props)
         ))
 
         convert = dict(
-                lsf=1e-9, zln=1e3, pls=1, kdx=1e-15, kdy=1e-15, kqx=1e-15, kqy=1e-15,
+                lsf=1e-12, zln=1e3, pls=1, kdx=1e-15, kdy=1e-15, kqx=1e-15, kqy=1e-15,
                 ktx=1e-15, kty=1e-15, ndx=1e3, ndy=1e3, nqx=1e3, nqy=1e3, ntx=1e3, nty=1e3
                 )
 
