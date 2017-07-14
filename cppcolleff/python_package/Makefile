@@ -22,7 +22,7 @@ COMP_FLAGS = $(MACHINE) $(OPT_FLAG) $(GEN_FLAG) $(DFLAGS)
 LDFLAGS    = $(MACHINE) $(GEN_FLAG) $(DFLAGS)
 LIBS = -lgsl -lblas -L../build -lcppcolleff
 CPPCOLLEFFLIB = ../build/libcppcolleff.a
-INC = -I../include -I/usr/include/$(PYTHON) -I/usr/local/include/$(PYTHON)
+INC = -I../include -I/usr/include/$(PYTHON) -I/usr/local/include/$(PYTHON)m
 
 SETUPARGS =
 
