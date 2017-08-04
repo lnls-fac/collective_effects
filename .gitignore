@@ -8,10 +8,12 @@ __pycache_/_
 *.ko
 *.obj
 *.elf
+*.depend
 
 # Precompiled Headers
 *.gch
 *.pch
+*.cxx
 
 # Libraries
 *.lib
@@ -36,3 +38,5 @@ __pycache_/_
 # Debug files
 *.dSYM/
 *~
+
+build/
