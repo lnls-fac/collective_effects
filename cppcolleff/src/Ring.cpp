@@ -92,16 +92,22 @@ void Ring_t::track_one_turn(Bunch_t& bun) const
   #endif
     for (int i=0;i<p.size();++i){
         // Longitudinal tracking:
-        p[i].de += cav.get_y(p[i].ss);//The potential is already normilized by the energy!
+        // The potential is already normilized by the energy!
+        p[i].de += cav.get_y(p[i].ss);
         p[i].ss += circum * mom_comp * p[i].de;
-        //Transverse tracking:
-        p[i].xx -= etax  * p[i].de; // subtract the energy dependent fixed point;
+        // Transverse tracking:
+
+        // subtract the energy dependent fixed point;
+        p[i].xx -= etax  * p[i].de;
         p[i].xl -= etaxl * p[i].de;
+
         // calculate the invariant and the phase advance
         double&& phix  = TWOPI*(
             tunex +
             chromx*p[i].de +
-            tunex_shift*(gammax*p[i].xx*p[i].xx + 2*alphax*p[i].xx*p[i].xl + betax*p[i].xl*p[i].xl) //Jx
+            tunex_shift*(gammax*p[i].xx*p[i].xx +
+                         2*alphax*p[i].xx*p[i].xl +
+                         betax*p[i].xl*p[i].xl)  //Jx
         );
         double&& sinx  = sin(phix);
         double&& cosx  = cos(phix);
