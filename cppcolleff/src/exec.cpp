@@ -73,7 +73,7 @@ int main()
 
     cout << ring.en_lost_rad << endl;
 
-    const long num_part = 10000000;
+    const long num_part = 100000;
     const long nturns   = 2000;
     Bunch_t bun (num_part,1e-3); //number of particles and current in A;
     generate_bunch(ring, bun);
@@ -93,13 +93,13 @@ int main()
     // wake.Wl.resonator = false;
     // wake.Wd.wake_function  = true;
     Feedback_t fb;
-    Results_t results (nturns, 10);
+    Results_t results (nturns, 1);
 
     typedef std::chrono::high_resolution_clock clock_;
     typedef std::chrono::duration<double, std::ratio<1> > s_;
     // my_Dvector&& dist = ring.get_distribution();
     std::chrono::time_point<clock_> beg_ = clock_::now();
-    NumThreads::set_num_threads(32);
+    NumThreads::set_num_threads(2);
     single_bunch_tracking(ring,wake,fb,bun,results);
     // for (double i=1;i<=10;++i) {
     //     double espread (find_equilibrium_energy_spread(wake,ring, 1e-3 * i));

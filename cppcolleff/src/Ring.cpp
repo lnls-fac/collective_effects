@@ -143,7 +143,8 @@ void Ring_t::track_one_turn(Bunch_t& bun, const unsigned int seed) const
 
 	  for (int i=0;i<nr_th-1;++i){
 		    ths.push_back(
-              thread(&Ring_t::_track_one_turn, this, ref(p), seed+i, lims[i], lims[i+1]));
+              thread(&Ring_t::_track_one_turn, this, ref(p),
+                     seed+i, lims[i], lims[i+1]));
 	  }
 	  _track_one_turn(ref(p), seed+nr_th-1, lims[nr_th-1], lims[nr_th]);
 	  for(auto& th:ths) th.join();

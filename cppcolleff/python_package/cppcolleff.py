@@ -285,9 +285,6 @@ class Ring_t(_object):
     __swig_getmethods__ = {}
     __getattr__ = lambda self, name: _swig_getattr(self, Ring_t, name)
     __repr__ = _swig_repr
-
-    def _track_one_turn(self, p, seed, init, final_):
-        return _cppcolleff.Ring_t__track_one_turn(self, p, seed, init, final_)
     __swig_setmethods__["harm_num"] = _cppcolleff.Ring_t_harm_num_set
     __swig_getmethods__["harm_num"] = _cppcolleff.Ring_t_harm_num_get
     if _newclass:
@@ -376,8 +373,8 @@ class Ring_t(_object):
     def get_integrated_distribution(self, *args):
         return _cppcolleff.Ring_t_get_integrated_distribution(self, *args)
 
-    def track_one_turn(self, bun):
-        return _cppcolleff.Ring_t_track_one_turn(self, bun)
+    def track_one_turn(self, bun, seed):
+        return _cppcolleff.Ring_t_track_one_turn(self, bun, seed)
 Ring_t_swigregister = _cppcolleff.Ring_t_swigregister
 Ring_t_swigregister(Ring_t)
 

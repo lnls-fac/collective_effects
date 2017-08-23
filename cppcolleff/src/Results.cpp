@@ -1,6 +1,6 @@
 #include <cppcolleff/Results.h>
 
-void Results_t::dump_bunch_to_file(const Bunch_t& bun, const char* filename) const
+void Results_t::write_bunch_to_file(const Bunch_t& bun, const char* filename) const
 {
     FILE* fp = fopen(filename,"w");
     fprintf(fp,"#%20s %20s %20s %20s\n","xx [m]", "xl [m]", "de", "ss [m]");
@@ -13,7 +13,7 @@ void Results_t::dump_bunch_to_file(const Bunch_t& bun, const char* filename) con
 
 double Results_t::calc_stats(const Bunch_t& bun, const long turn)
 {
-    if (this_turn(turn)) { // this_turn is a private method of class Results_t
+    if (calc_this_turn(turn)) {
         ave.push_back(Particle_t (0.0));     auto& rave = ave.back();
         std.push_back(Particle_t (0.0));     auto& rstd = std.back();
       #ifdef OPENMP
@@ -58,20 +58,20 @@ double Results_t::calc_stats(const Bunch_t& bun, const long turn)
         rstd.ss = sqrt(rstd.ss - rave.ss * rave.ss);
 
 
-        if (to_file) {
+        if (dump_bunch_to_file && dump_this_turn(turn)) {
             char filename[50];
             sprintf(filename,"turn%07lu.txt",turn);
-            dump_bunch_to_file(bun, filename);
+            write_bunch_to_file(bun, filename);
         }
 
-        if (print_screen) {
+        if (print_in_screen) {
             if (turn == 0) {
                 fprintf(stdout,"%7s %12s %12s   %12s %12s   %12s %12s   %12s %12s \n","turn",
                         "<xx> [um]","std(xx) [um]","<xl> [urad]","std(xl) [urad]",
                         "<de> [%]","std(de) [%]","<ss> [mm]","std(ss) [mm]"
                     );
             }
-            if (this_turn_print(turn)){
+            if (print_this_turn(turn)){
                 fprintf(stdout,"%07lu %12.6f %12.6f   %12.6f %12.6f   %12.6f %12.6f   %12.6f %12.6f \n",turn,
                         1e6*ave.back().xx,1e6*std.back().xx,
                         1e6*ave.back().xl,1e6*std.back().xl,
@@ -84,24 +84,24 @@ double Results_t::calc_stats(const Bunch_t& bun, const long turn)
         return rave.xx;
     } else {
         double ave_xx = 0;
-      #ifdef OPENMP
+        #ifdef OPENMP
         const my_PartVector& par = bun.particles;
         #pragma omp parallel for
         for (int i=0;i<par.size();++i){ ave_xx += par[i].xx;}
-      #else
+        #else
         for (const auto& p:bun.particles){ ave_xx += p.xx;}
-      #endif
+        #endif
         return ave_xx/bun.num_part;
     }
 }
 
 void Results_t::register_FBkick(const long turn, const double& kik)
 {
-    if (FB && this_turn(turn)) {FBkick.push_back(kik);}
+    if (FB && calc_this_turn(turn)) {FBkick.push_back(kik);}
 }
 
 void Results_t::register_Wkicks(const long turn, const my_Dvector& kik)
 {
-    if (Wl && this_turn(turn)) {Wlkick.push_back(kik[0]);}
-    if (Wd && this_turn(turn)) {Wdkick.push_back(kik[1]);}
+    if (Wl && calc_this_turn(turn)) {Wlkick.push_back(kik[0]);}
+    if (Wd && calc_this_turn(turn)) {Wdkick.push_back(kik[1]);}
 }
