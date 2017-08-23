@@ -1,6 +1,7 @@
 #ifndef _RING_H
 #define _RING_H
 
+#include <random>  //std::generator and some distributions
 #include <cmath> // std::sin std::cos
 #include <cppcolleff/essentials.h>
 #include <cppcolleff/Bunch.h>
@@ -15,6 +16,7 @@ class Ring_t{
     double betax, alphax, etax, etaxl,         // optical functions
            tunex, chromx, tunex_shift,         // tune related parameters
            circum, mom_comp, T0, energy,       // general ring parameters
+           damp_nume, damp_numx,               // equilibrium parameters
            emitx, espread, en_lost_rad;        // equilibrium parameters
     Interpola_t cav;                           // cavity parameters
 

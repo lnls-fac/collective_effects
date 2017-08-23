@@ -87,10 +87,18 @@ void Ring_t::track_one_turn(Bunch_t& bun) const
     // then the magnetic elements and finally the wake-field.*/
     my_PartVector& p = bun.particles;
 
+    // For damping and quantum excitation calculations
+    Fde = (1 + damp_nume) * en_lost_rad
+    Fxl = 1 + (damp_numx-1) * en_lost_rad
+    Srde = sqrt( 1 - Fde*Fde) * espread
+    Srxl = sqrt( 1 - (1 + damp_numx*en_lost_rad) * (1 + damp_numx*en_lost_rad)) * emitx / betax
+    default_random_engine generator(19880419);
+    normal_distribution<double> distribution(0.0,1.0);
+
   #ifdef OPENMP
     #pragma omp parallel for schedule(guided,1)
   #endif
-    for (int i=0;i<p.size();++i){
+    for (int i=0; i<p.size(); ++i){
         // Longitudinal tracking:
         // The potential is already normilized by the energy!
         p[i].de += cav.get_y(p[i].ss);
@@ -98,25 +106,29 @@ void Ring_t::track_one_turn(Bunch_t& bun) const
         // Transverse tracking:
 
         // subtract the energy dependent fixed point;
-        p[i].xx -= etax  * p[i].de;
+        p[i].xx -= etax * p[i].de;
         p[i].xl -= etaxl * p[i].de;
 
         // calculate the invariant and the phase advance
-        double&& phix  = TWOPI*(
-            tunex +
-            chromx*p[i].de +
-            tunex_shift*(gammax*p[i].xx*p[i].xx +
-                         2*alphax*p[i].xx*p[i].xl +
-                         betax*p[i].xl*p[i].xl)  //Jx
-        );
-        double&& sinx  = sin(phix);
-        double&& cosx  = cos(phix);
-        // double&& cosx  = sqrt(1-sinx*sinx);
+        double&& phix = TWOPI*(
+            tunex + chromx*p[i].de + tunex_shift*(gammax*p[i].xx*p[i].xx +
+                                                  2*alphax*p[i].xx*p[i].xl +
+                                                  betax*p[i].xl*p[i].xl)  //Jx
+            );
+        double&& sinx = sin(phix);
+        double&& cosx = cos(phix);
+        // double&& cosx = sqrt(1-sinx*sinx);
 
         // apply the one turn matrix
-        double&& x_tmp  = p[i].xx*(cosx + alphax*sinx) + betax*p[i].xl*sinx;
-        p[i].xl       =-p[i].xx*gammax*sinx + p[i].xl*(cosx - alphax*sinx);
-        p[i].xx  = x_tmp;
+        double&& x_tmp = p[i].xx*(cosx + alphax*sinx) + betax*p[i].xl*sinx;
+        p[i].xl = -p[i].xx*gammax*sinx + p[i].xl*(cosx - alphax*sinx);
+        p[i].xx = x_tmp;
+
+        // Damping and Quantum excitation simulations:
+        p[i].xl *= Fxl;
+        p[i].xl += Srxl * distribution(generator);
+        p[i].de *= Fde;
+        p[i].de += Srde * distribution(generator);
 
         p[i].xx += etax  * p[i].de; // add the energy dependent fixed point;
         p[i].xl += etaxl * p[i].de;
