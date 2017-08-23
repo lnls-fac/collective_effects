@@ -79,26 +79,25 @@ Interpola_t Ring_t::get_integrated_distribution(const my_Dvector& spos, const my
 	return _get_integrated_distribution(spos,V);
 }
 
-
-void Ring_t::track_one_turn(Bunch_t& bun) const
+void Ring_t::_track_one_turn(
+    my_PartVector& p,
+    const unsigned int seed,
+    const int init,
+    const int final_) const
 {
+  // the ring model is composed by one cavity,
+  // then the magnetic elements and finally the wake-field.*/
     double gammax ((1+alphax*alphax)/betax);
-    // the ring model is composed by one cavity,
-    // then the magnetic elements and finally the wake-field.*/
-    my_PartVector& p = bun.particles;
 
     // For damping and quantum excitation calculations
-    Fde = (1 + damp_nume) * en_lost_rad
-    Fxl = 1 + (damp_numx-1) * en_lost_rad
-    Srde = sqrt( 1 - Fde*Fde) * espread
-    Srxl = sqrt( 1 - (1 + damp_numx*en_lost_rad) * (1 + damp_numx*en_lost_rad)) * emitx / betax
-    default_random_engine generator(19880419);
+    double Fde (1 - damp_nume * en_lost_rad);
+    double Fxl (1 - damp_numx * en_lost_rad);  //with rf contribution
+    double Srde (sqrt( 1 - Fde*Fde) * espread);
+    double Srxl (sqrt(( 1 - Fxl*Fxl) * emitx / betax));
+    default_random_engine generator(seed);
     normal_distribution<double> distribution(0.0,1.0);
 
-  #ifdef OPENMP
-    #pragma omp parallel for schedule(guided,1)
-  #endif
-    for (int i=0; i<p.size(); ++i){
+    for (int i=init;i<final_;++i){
         // Longitudinal tracking:
         // The potential is already normilized by the energy!
         p[i].de += cav.get_y(p[i].ss);
@@ -111,9 +110,9 @@ void Ring_t::track_one_turn(Bunch_t& bun) const
 
         // calculate the invariant and the phase advance
         double&& phix = TWOPI*(
-            tunex + chromx*p[i].de + tunex_shift*(gammax*p[i].xx*p[i].xx +
-                                                  2*alphax*p[i].xx*p[i].xl +
-                                                  betax*p[i].xl*p[i].xl)  //Jx
+            tunex + chromx*p[i].de + tunex_shift*(gammax * p[i].xx*p[i].xx +
+                                                  2*alphax * p[i].xx*p[i].xl +
+                                                  betax * p[i].xl*p[i].xl)  //Jx
             );
         double&& sinx = sin(phix);
         double&& cosx = cos(phix);
@@ -133,4 +132,19 @@ void Ring_t::track_one_turn(Bunch_t& bun) const
         p[i].xx += etax  * p[i].de; // add the energy dependent fixed point;
         p[i].xl += etaxl * p[i].de;
     }
+}
+
+void Ring_t::track_one_turn(Bunch_t& bun, const unsigned int seed) const
+{
+    my_PartVector& p = bun.particles;
+    int nr_th = NumThreads::get_num_threads();
+	  my_Ivector lims (bounds_for_threads(nr_th,0,p.size()));
+	  vector<thread> ths;
+
+	  for (int i=0;i<nr_th-1;++i){
+		    ths.push_back(
+              thread(&Ring_t::_track_one_turn, this, ref(p), seed+i, lims[i], lims[i+1]));
+	  }
+	  _track_one_turn(ref(p), seed+nr_th-1, lims[nr_th-1], lims[nr_th]);
+	  for(auto& th:ths) th.join();
 }

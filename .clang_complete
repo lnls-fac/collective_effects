@@ -1,1 +1,5 @@
--Iinclude/cppcolleff
+-I/home/fac_files/lnls-fac/collective_effects/cppcolleff/include/cppcolleff
+-fopenmp
+-pthread
+-std=c++11
+-fPIC

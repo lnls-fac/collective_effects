@@ -8,54 +8,52 @@ static void _generate_bunch_thread(
 	const int init,
 	const int final)
 {
-	const my_Dvector& idist = idistr_interpol.ref_to_xi();
-	normal_distribution<double> espread_dist(0.0,ring.espread);
-	exponential_distribution<double> emitx_dist(1/(2*ring.emitx));
-	uniform_real_distribution<double> phix_dist(0.0,TWOPI);
-	uniform_real_distribution<double> ss_dist(idist.front(),idist.back());
-	default_random_engine gen(seed);
+		const my_Dvector& idist = idistr_interpol.ref_to_xi();
+		normal_distribution<double> espread_dist(0.0,ring.espread);
+		exponential_distribution<double> emitx_dist(1/(2*ring.emitx));
+		uniform_real_distribution<double> phix_dist(0.0,TWOPI);
+		uniform_real_distribution<double> ss_dist(idist.front(),idist.back());
+		default_random_engine gen(seed);
 
-	for (int i=init;i<final;++i){
-		double&& emitx = emitx_dist(gen);
-		double&& phix  = phix_dist(gen);
-		double&& Ax    = sqrt(emitx/ring.betax);
-		double&& Acosx = Ax*cos(phix);
-		double&& Asinx = Ax*sin(phix);
-		p[i].de = espread_dist(gen);
-		p[i].ss = idistr_interpol.get_y(ss_dist(gen));
-		p[i].xx =  Acosx*ring.betax          + ring.etax *p[i].de;
-		p[i].xl = -Acosx*ring.alphax - Asinx + ring.etaxl*p[i].de;
-	}
+  	for (int i=init;i<final;++i){
+	  		double&& emitx = emitx_dist(gen);
+	  		double&& phix  = phix_dist(gen);
+	  		double&& Ax    = sqrt(emitx/ring.betax);
+	  		double&& Acosx = Ax*cos(phix);
+	  		double&& Asinx = Ax*sin(phix);
+	  		p[i].de = espread_dist(gen);
+	  		p[i].ss = idistr_interpol.get_y(ss_dist(gen));
+	  		p[i].xx =  Acosx*ring.betax          + ring.etax *p[i].de;
+	  		p[i].xl = -Acosx*ring.alphax - Asinx + ring.etaxl*p[i].de;
+  	}
 }
 static void _generate_bunch(const Ring_t& ring, Bunch_t& bun, unsigned int seed)
 {
-	Interpola_t idistr_interpol (ring.get_integrated_distribution());
-	my_PartVector& p = bun.particles;
+	  Interpola_t idistr_interpol (ring.get_integrated_distribution());
+	  my_PartVector& p = bun.particles;
 
-	int nr_th = NumThreads::get_num_threads();
-	my_Ivector lims (bounds_for_threads(nr_th,0,p.size()));
-	vector<thread> ths;
+	  int nr_th = NumThreads::get_num_threads();
+	  my_Ivector lims (bounds_for_threads(nr_th,0,p.size()));
+	  vector<thread> ths;
 
-	for (int i=0;i<nr_th-1;++i){
-		ths.push_back(thread(
-			_generate_bunch_thread, ref(ring),ref(p),seed+i,
-									ref(idistr_interpol), lims[i], lims[i+1]
-		));
-	}
-	_generate_bunch_thread(ring, p, seed+nr_th-1, idistr_interpol,
-						   lims[nr_th-1], lims[nr_th]);
-	for(auto& th:ths) th.join();
+	  for (int i=0;i<nr_th-1;++i){
+		    ths.push_back(thread(_generate_bunch_thread, ref(ring),ref(p),seed+i,
+									           ref(idistr_interpol), lims[i], lims[i+1]));
+	  }
+	  _generate_bunch_thread(ring, p, seed+nr_th-1, idistr_interpol,
+		             				   lims[nr_th-1], lims[nr_th]);
+	  for(auto& th:ths) th.join();
 
-	bun.is_sorted = false;
+	  bun.is_sorted = false;
 }
 void generate_bunch(const Ring_t& ring, Bunch_t& bun)
 {
-	unsigned int seed(19880419);
-	_generate_bunch(ring,bun,seed);
+	  unsigned int seed(19880419);
+	  _generate_bunch(ring,bun,seed);
 }
 void generate_bunch(const Ring_t& ring, Bunch_t& bun, unsigned int seed)
 {
-	_generate_bunch(ring,bun,seed);
+	  _generate_bunch(ring,bun,seed);
 }
 
 
@@ -257,6 +255,7 @@ void single_bunch_tracking(
     Bunch_t& bun,
     Results_t& results)
 {
+	unsigned int seed(0);
     //current dependent strength of the kick:
     const double kick_stren = ring.T0 / ring.energy * bun.Ib / bun.num_part;
 
@@ -264,7 +263,8 @@ void single_bunch_tracking(
         double&& xx_ave = results.calc_stats(bun,n);
         /* convention: positive ss, means particle behind the sinchronous particle;
          First do single particle tracking:*/
-        ring.track_one_turn(bun);
+        ring.track_one_turn(bun, seed);
+		seed += 50;
 
         results.register_Wkicks(n, wake.apply_kicks(bun,kick_stren, ring.betax));
         results.register_FBkick(n,   fb.apply_kick(bun, xx_ave,     ring.betax));

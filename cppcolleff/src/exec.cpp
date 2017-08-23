@@ -69,35 +69,37 @@ int main()
         V.push_back(V0*sin(phi0 + krf*s) - U0);
     }
     ring.cav.set_xy(ss,V);
+    ring.en_lost_rad = U0;
+
+    cout << ring.en_lost_rad << endl;
 
     const long num_part = 10000000;
-    const long nturns   = 200;
+    const long nturns   = 2000;
     Bunch_t bun (num_part,1e-3); //number of particles and current in A;
     generate_bunch(ring, bun);
     bun.sort();
 
 
     Wake_t wake;
-    wake.Wl.resonator = true;
-    wake.Wl.wr.push_back(30e9*TWOPI);
-    wake.Wl.Rs.push_back(1e4);
-    wake.Wl.Q.push_back(1);
+    // wake.Wl.resonator = false;
+    // wake.Wl.wr.push_back(30e9*TWOPI);
+    // wake.Wl.Rs.push_back(1e4);
+    // wake.Wl.Q.push_back(1);
 
-    my_Dvector x;
-    for (long i=0; i<=50000; i++){x.push_back(2e-5 * 5e-2 * i); }
-    my_Dvector y(wake.Wd.get_wake_at_points(x,1));
-    wake.Wl.WF.set_xy(x,y);
+    // my_Dvector x;
+    // for (long i=0; i<=50000; i++){x.push_back(2e-5 * 5e-2 * i); }
+    // my_Dvector y(wake.Wd.get_wake_at_points(x,1));
+    // wake.Wl.WF.set_xy(x,y);
     // wake.Wl.resonator = false;
     // wake.Wd.wake_function  = true;
     Feedback_t fb;
-    Results_t results (nturns);
-
+    Results_t results (nturns, 10);
 
     typedef std::chrono::high_resolution_clock clock_;
     typedef std::chrono::duration<double, std::ratio<1> > s_;
     // my_Dvector&& dist = ring.get_distribution();
     std::chrono::time_point<clock_> beg_ = clock_::now();
-    NumThreads::set_num_threads(8);
+    NumThreads::set_num_threads(32);
     single_bunch_tracking(ring,wake,fb,bun,results);
     // for (double i=1;i<=10;++i) {
     //     double espread (find_equilibrium_energy_spread(wake,ring, 1e-3 * i));
