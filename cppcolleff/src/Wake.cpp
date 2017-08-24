@@ -130,8 +130,8 @@ void W_res_kick(
 }
 my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren, const double betax) const
 {
-    my_Dvector Wkick (2,0.0);
-    double Wgl(0.0), Wgd(0.0);
+    my_Dvector Wkick (3,0.0);
+    double Wgl(0.0), Wgd(0.0), Wgq(0.0);
     auto& p = bun.particles;
     double&& strenT = stren / betax;
 
@@ -171,7 +171,7 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren, const double be
                 if (Wq.wake_function) {
                     double&& kick = Wq.WF.get_y(ds);
                     kick *= -p[w].xx * strenT; // The kick is the negative of the wake;
-                    Wgd     += kick;
+                    Wgq     += kick;
                     p[w].xl += kick;
                 }
             }
@@ -181,7 +181,7 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren, const double be
     //pw --> witness particle   ps --> source particle
     if (Wd.wake_potential || Wq.wake_potential || Wl.wake_potential){
       #ifdef OPENMP
-        #pragma omp parallel for schedule(guided,1) reduction(+:Wgl,Wgd)
+        #pragma omp parallel for schedule(guided,1) reduction(+:Wgl,Wgd,Wgq)
       #endif
         for (auto w=0;w<p.size();++w){ // Begin from the particle ahead
             for (auto s=p.size();s>=0;--s){ // loop over all particles.
@@ -220,9 +220,10 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren, const double be
     }
     if (Wq.resonator){
         int Ktype(2);
-        for (int r=0; r<Wq.wr.size(); r++) W_res_kick(p, Wq, Ktype,strenT, Wgd, r, lims);
+        for (int r=0; r<Wq.wr.size(); r++) W_res_kick(p, Wq, Ktype,strenT, Wgq, r, lims);
     }
     Wkick[0] = Wgl;
     Wkick[1] = Wgd;
+    Wkick[2] = Wgq;
     return Wkick;
 }

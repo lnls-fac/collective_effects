@@ -104,4 +104,5 @@ void Results_t::register_Wkicks(const long turn, const my_Dvector& kik)
 {
     if (Wl && calc_this_turn(turn)) {Wlkick.push_back(kik[0]);}
     if (Wd && calc_this_turn(turn)) {Wdkick.push_back(kik[1]);}
+    if (Wq && calc_this_turn(turn)) {Wqkick.push_back(kik[2]);}
 }

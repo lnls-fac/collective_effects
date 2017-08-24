@@ -10,7 +10,7 @@
 class Results_t {
     private:
         unsigned long calc_every, print_every, dump_every, nturns;
-        bool FB, Wd, Wl;
+        bool FB, Wd, Wl, Wq;
 
         bool calc_this_turn(const long n) const
         {
@@ -37,6 +37,7 @@ class Results_t {
             std.reserve(np);
             if (FB) FBkick.reserve(np); else FBkick.reserve(0);
             if (Wd) Wdkick.reserve(np); else Wdkick.reserve(0);
+            if (Wq) Wqkick.reserve(np); else Wqkick.reserve(0);
             if (Wl) Wlkick.reserve(np); else Wlkick.reserve(0);
         }
     public:
@@ -45,23 +46,25 @@ class Results_t {
         my_PartVector std;
         my_Dvector Wlkick;
         my_Dvector Wdkick;
+        my_Dvector Wqkick;
         my_Dvector FBkick;
         Results_t (const unsigned long nt):
             calc_every(1L), print_every(10L), dump_every(0L),
             nturns(nt), dump_bunch_to_file(false), print_in_screen(true),
-            FB(false), Wd(false), Wl(false)      {reserve_memory();}
+            FB(false), Wd(false), Wq(false), Wl(false)      {reserve_memory();}
         Results_t (const unsigned long nt, const unsigned long eve):
             calc_every(eve), print_every(10L), dump_every(0L),
             nturns(nt), dump_bunch_to_file(false), print_in_screen(true),
-            FB(false), Wd(false), Wl(false)      {reserve_memory();}
+            FB(false), Wd(false), Wq(false), Wl(false)      {reserve_memory();}
         Results_t (const unsigned long nt, const unsigned long eve, const bool kicks):
             calc_every(eve), print_every(10L), dump_every(0L),
             nturns(nt), dump_bunch_to_file(false), print_in_screen(true),
-            FB(kicks), Wd(kicks), Wl(kicks)      {reserve_memory();}
+            FB(kicks), Wd(kicks), Wq(false), Wl(kicks)      {reserve_memory();}
         ~Results_t() = default;
 
         void set_keepFB(const bool keep)    {FB = keep; reserve_memory();}
         void set_keepWd(const bool keep)    {Wd = keep; reserve_memory();}
+        void set_keepWq(const bool keep)    {Wq = keep; reserve_memory();}
         void set_keepWl(const bool keep)    {Wl = keep; reserve_memory();}
         void set_nturns(const long nt){nturns = nt; reserve_memory();}
         void set_calc_every(const unsigned long eve){calc_every = eve; reserve_memory();}
