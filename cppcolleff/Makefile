@@ -104,6 +104,9 @@ $(OBJDIR)/libcppcolleff.a: $(LIBOBJECTS)
 $(OBJDIR)/cppcolleff: libcppcolleff $(BINOBJECTS)
 	$(CXX) $(LDFLAGS) $(WL_FLAGS) $(BINOBJECTS) $(OBJDIR)/libcppcolleff.a $(LIBS) -o $@
 
+tests: libcppcolleff
+	$(CXX) $(LDFLAGS) $(WL_FLAGS) src/tests.cpp $(OBJDIR)/libcppcolleff.a $(LIBS) -o tests.x
+
 $(LIBOBJECTS): | $(OBJDIR)
 
 $(BINOBJECTS): | $(OBJDIR)
