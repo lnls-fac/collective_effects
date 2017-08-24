@@ -1,6 +1,6 @@
 #include <cppcolleff/Wake.h>
 
-ThreadVars ThreadInfo ();
+static ThreadVars ThreadInfo(false);
 
 my_Dvector WakePl::get_wake_at_points(const my_Dvector& spos, const double& stren) const
 {
@@ -201,15 +201,15 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren, const double be
                 if (Wq.wake_potential) {
                     double&& kick = Wq.WP.get_y(ds);
                     kick *= -p[w].xx * strenT; // The kick is the negative of the wake;
-                    Wgd     += kick;
+                    Wgq     += kick;
                     p[w].xl += kick;
                 }
             }
         }
     }
 
-
-    my_Ivector lims (ThreadInfo.bounds(0,p.size())); //Determine the bounds of for loops in each thread
+    //Determine the bounds of for loops in each thread
+    my_Ivector lims (ThreadInfo.get_bounds(0,p.size()));
     if (Wl.resonator){
         int Ktype(0);
         for (int r=0; r<Wl.wr.size(); r++) W_res_kick(p, Wl, Ktype, stren, Wgl, r, lims);

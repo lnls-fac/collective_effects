@@ -1,6 +1,6 @@
 #include <cppcolleff/cppcolleff.h>
 
-ThreadVars ThreadInfo ();
+static ThreadVars ThreadInfo(false);
 
 static void _generate_bunch_thread(
 	const Ring_t& ring,
@@ -34,7 +34,7 @@ void generate_bunch(const Ring_t& ring, Bunch_t& bun)
 	my_PartVector& p = bun.particles;
 
 	int nr_th = ThreadInfo.get_num_threads();
-	my_Ivector lims (ThreadInfo.bounds(0,p.size()));
+	my_Ivector lims (ThreadInfo.get_bounds(0,p.size()));
 	vector<thread> ths;
 
 	for (unsigned int i=0;i<nr_th-1;++i){

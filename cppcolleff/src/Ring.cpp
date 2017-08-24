@@ -1,7 +1,7 @@
 
 #include <cppcolleff/Ring.h>
 
-static ThreadVars ThreadInfo();
+static ThreadVars ThreadInfo(false);
 
 my_Dvector Ring_t::_get_distribution(const my_Dvector& spos, const my_Dvector& V) const
 {
@@ -137,7 +137,7 @@ void Ring_t::track_one_turn(Bunch_t& bun) const
 {
     my_PartVector& p = bun.particles;
     unsigned int nr_th = ThreadInfo.get_num_threads();
-	my_Ivector lims (ThreadInfo.bounds(0,p.size()));
+	my_Ivector lims (ThreadInfo.get_bounds(0,p.size()));
 	vector<thread> ths;
 
 	for (unsigned int i=0;i<nr_th-1;++i){

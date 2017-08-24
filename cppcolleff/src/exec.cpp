@@ -7,49 +7,10 @@
 #include <iostream> //std::
 #include <cppcolleff/cppcolleff.h>
 
-ThreadVars ThreadInfo ();
-
-// int main()
-// {
-//     const long num_part = 10000000;
-//     const long nturns   = 100;
-//
-//     Ring_t ring;
-//     ring.energy      = 3e9;
-//     ring.tunex       = 0.13;
-//     ring.emitx       = 250e-12;
-//     ring.espread     = 8e-4;
-//     ring.circum      = 518.396;
-//     ring.T0          = 518.396/light_speed;
-//     ring.mom_comp    = 1.7e-4;
-//     ring.harm_num    = 864;
-//     ring.betax       = 19;
-//
-//     my_Dvector ss ;
-//     my_Dvector V  ;
-//     double phi0 (171.24/360*TWOPI), V0 (3e6), krf (TWOPI*ring.harm_num/ring.circum);
-//     double U0 (V0*sin(phi0));
-//     for (long i=-10000; i<=10000; i++){
-//         double&& s = 1e-4 * 10e-2 * i;
-//         ss.push_back(s);
-//         V.push_back(V0*sin(phi0 + krf*s) - U0);
-//     }
-//     ring.cav.set_xy(ss,V);
-//
-//     Bunch_t bun (num_part,1e-3); //number of particles and current in A;
-//
-//     set_num_threads(8);
-//     generate_bunch(ring, bun);
-//     typedef std::chrono::high_resolution_clock clock_;
-//     typedef std::chrono::duration<double, std::ratio<1> > s_;
-//     std::chrono::time_point<clock_> beg1_ = clock_::now();
-//     bun.sort();
-//     cout << chrono::duration_cast<s_> (clock_::now()-beg1_).count() << endl;
-// }
+ThreadVars ThreadInfo (false);
 
 int main()
 {
-
     Ring_t ring;
     ring.energy      = 3e9;
     ring.tunex       = 0.13;

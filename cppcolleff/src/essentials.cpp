@@ -1,24 +1,14 @@
 #include <cppcolleff/essentials.h>
 
-static void ThreadVars::_set_seed_num_threads(
-    const unsigned long s,
-    const int nr)
-{
-    num_threads = nr;
-    omp_set_num_threads(nr);
-    seed = s;
-    gens.clear();
-    for (int i=0; i<nr; ++i){
-        default_random_engine gen (s + i);
-        gens.push_back(gen);
-    }
-}
+unsigned long ThreadVars::seed = 1;
+int ThreadVars::num_threads = 1;
+my_RndVector ThreadVars::gens (1, default_random_engine (ThreadVars::seed));
 
-my_Ivector ThreadVars::get_bounds(const int ini, const int final)
+my_Ivector ThreadVars::get_bounds(const int ini, const int fin)
 {
     my_Ivector bounds (num_threads+1,0);
-    int incr = (final-ini) / num_threads;
-    int rem  = (final-ini) % num_threads;
+    int incr = (fin-ini) / num_threads;
+    int rem  = (fin-ini) % num_threads;
     int ad   = 0;
     int N = ini;
     for (auto& bnd:bounds) {
@@ -28,9 +18,6 @@ my_Ivector ThreadVars::get_bounds(const int ini, const int final)
     }
     return bounds;
 }
-
-static unsigned int _tmp = omp_get_num_threads();
-ThreadVars ThreadInfo (_tmp);
 
 void Interpola_t::check_consistency()
 {

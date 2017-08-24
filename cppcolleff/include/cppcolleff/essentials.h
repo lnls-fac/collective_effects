@@ -17,26 +17,35 @@ using namespace std;
 typedef vector<int> my_Ivector;
 typedef vector<double> my_Dvector;
 typedef vector<complex<double>> my_Cvector;
+typedef vector<default_random_engine> my_RndVector;
 
 class ThreadVars
 {
     private:
-        static int num_threads (1);
-        static unsigned long seed (1UL);
-        static void _set_seed_num_threads(const unsigned long se, const int nr);
-        static vector<default_random_engine> gens;
+        static int num_threads;
+        static unsigned long seed;
+        static void _set_seed_num_threads(const unsigned long s, const int nr)
+        {
+            num_threads = nr;
+            omp_set_num_threads(nr);
+            seed = s;
+            gens.clear();
+            for (int i=0;i<nr;++i) gens.push_back(default_random_engine(s + i));
+        }
     public:
-
-        ThreadVars(const unsigned long nr): {set_num_threads(nr);}
-        ThreadVars(const unsigned long nr): {}
+        static my_RndVector gens;
+        ThreadVars(const bool init)
+                            {if (init) set_num_threads(omp_get_num_threads());}
         ~ThreadVars() = default;
 
-        void set_seed(unsigned long s){_set_seed_num_threads(s, num_threads);}
-        unsigned long get_seed(){return seed;}
-        void set_num_threads(const int nr){_set_seed_num_threads(seed, nr);}
-        int get_num_threads(){return num_threads;}
+        static void set_seed(const unsigned long s)
+                                        {_set_seed_num_threads(s, num_threads);}
+        static unsigned long get_seed(){return seed;}
+        static void set_num_threads(const int nr)
+                                            {_set_seed_num_threads(seed, nr);}
+        static int get_num_threads(){return num_threads;}
 
-        my_Ivector bounds(const int ini, const int final);
+        static my_Ivector get_bounds(const int ini, const int fin);
 };
 
 struct Particle_t {
