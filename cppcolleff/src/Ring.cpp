@@ -1,6 +1,8 @@
 
 #include <cppcolleff/Ring.h>
 
+static ThreadVars ThreadInfo();
+
 my_Dvector Ring_t::_get_distribution(const my_Dvector& spos, const my_Dvector& V) const
 {
     double scale (mom_comp * circum * espread*espread); //The potential is already normalized by the energy;
@@ -81,32 +83,32 @@ Interpola_t Ring_t::get_integrated_distribution(const my_Dvector& spos, const my
 
 void Ring_t::_track_one_turn(
     my_PartVector& p,
-    const unsigned int seed,
+    const unsigned int th,
     const int init,
     const int final_) const
 {
-  // the ring model is composed by one cavity,
-  // then the magnetic elements and finally the wake-field.*/
+  // the ring model is composed by the magnetic elements,
+  // then one cavity and finally the wake-field.*/
     double gammax ((1+alphax*alphax)/betax);
 
     // For damping and quantum excitation calculations
     double Fde (1 - damp_nume * en_lost_rad);
     double Fxl (1 - damp_numx * en_lost_rad);  //with rf contribution
-    double Srde (sqrt( 1 - Fde*Fde) * espread);
-    double Srxl (sqrt(( 1 - Fxl*Fxl) * emitx / betax));
-    default_random_engine generator(seed);
+    double Srde (sqrt(1 - Fde*Fde) * espread);
+    double Srxl (sqrt((1 - Fxl*Fxl) * emitx / betax));
     normal_distribution<double> distribution(0.0,1.0);
 
     for (int i=init;i<final_;++i){
-        // Longitudinal tracking:
-        // The potential is already normilized by the energy!
-        p[i].de += cav.get_y(p[i].ss);
-        p[i].ss += circum * mom_comp * p[i].de;
-        // Transverse tracking:
-
         // subtract the energy dependent fixed point;
         p[i].xx -= etax * p[i].de;
         p[i].xl -= etaxl * p[i].de;
+
+        // Longitudinal tracking:
+        p[i].ss += circum * mom_comp * p[i].de;
+        p[i].de *= Fde;  // Damping
+        p[i].de += Srde * distribution(ThreadInfo.gens[th]);  // Quantum excitation
+        p[i].de += cav.get_y(p[i].ss);  // Already normalized by the energy!
+        // Transverse tracking:
 
         // calculate the invariant and the phase advance
         double&& phix = TWOPI*(
@@ -122,30 +124,26 @@ void Ring_t::_track_one_turn(
         double&& x_tmp = p[i].xx*(cosx + alphax*sinx) + betax*p[i].xl*sinx;
         p[i].xl = -p[i].xx*gammax*sinx + p[i].xl*(cosx - alphax*sinx);
         p[i].xx = x_tmp;
-
         // Damping and Quantum excitation simulations:
         p[i].xl *= Fxl;
-        p[i].xl += Srxl * distribution(generator);
-        p[i].de *= Fde;
-        p[i].de += Srde * distribution(generator);
+        p[i].xl += Srxl * distribution(ThreadInfo.gens[th]);
 
         p[i].xx += etax  * p[i].de; // add the energy dependent fixed point;
         p[i].xl += etaxl * p[i].de;
     }
 }
 
-void Ring_t::track_one_turn(Bunch_t& bun, const unsigned int seed) const
+void Ring_t::track_one_turn(Bunch_t& bun) const
 {
     my_PartVector& p = bun.particles;
-    int nr_th = NumThreads::get_num_threads();
-	  my_Ivector lims (bounds_for_threads(nr_th,0,p.size()));
-	  vector<thread> ths;
+    unsigned int nr_th = ThreadInfo.get_num_threads();
+	my_Ivector lims (ThreadInfo.bounds(0,p.size()));
+	vector<thread> ths;
 
-	  for (int i=0;i<nr_th-1;++i){
-		    ths.push_back(
-              thread(&Ring_t::_track_one_turn, this, ref(p),
-                     seed+i, lims[i], lims[i+1]));
-	  }
-	  _track_one_turn(ref(p), seed+nr_th-1, lims[nr_th-1], lims[nr_th]);
-	  for(auto& th:ths) th.join();
+	for (unsigned int i=0;i<nr_th-1;++i){
+	    ths.push_back(
+            thread(&Ring_t::_track_one_turn, this, ref(p), i, lims[i], lims[i+1]));
+	}
+	_track_one_turn(ref(p), nr_th-1, lims[nr_th-1], lims[nr_th]);
+	for(auto& th:ths) th.join();
 }

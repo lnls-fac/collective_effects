@@ -53,16 +53,51 @@ void Bunch_t::sort(){
 	is_sorted = true;
 }
 
-void Bunch_t::generate_bunch()
+void Bunch_t::add_offsets(const double xx, const double de,
+						  const double xl, const double ss)
 {
-	default_random_engine generator(19880419);
-  	normal_distribution<double> distribution(0.0,1.0e-3);
-
-	for (auto& p:particles){
-		p.xx = distribution(generator);
-		p.xl = distribution(generator);
-		p.de = distribution(generator);
-		p.ss = distribution(generator);
+	my_PartVector& p = particles;
+	#ifdef OPENMP
+	#pragma omp parallel for schedule(guided,1)
+	#endif
+	for (int i=0;i<p.size();++i){
+		p[i].xx += xx;
+		p[i].xl += xl;
+		p[i].de += de;
+		p[i].ss += ss;
 	}
-	is_sorted = false;
+}
+void Bunch_t::add_offsets(const double xx, const double de)
+{
+	double xl(0.0), ss(0.0);
+	add_offsets(xx, de, xl, ss);
+}
+void Bunch_t::add_offsets(const double xx)
+{
+	double xl(0.0), de(0.0), ss(0.0);
+	add_offsets(xx, de, xl, ss);
+}
+
+void Bunch_t::scale_longitudinal(const double scale)
+{
+	my_PartVector& p = particles;
+	#ifdef OPENMP
+	#pragma omp parallel for schedule(guided,1)
+	#endif
+	for (int i=0;i<p.size();++i){
+		p[i].de *= scale;
+		p[i].ss *= scale;
+	}
+}
+
+void Bunch_t::scale_transverse(const double scale)
+{
+	my_PartVector& p = particles;
+	#ifdef OPENMP
+	#pragma omp parallel for schedule(guided,1)
+	#endif
+	for (int i=0;i<p.size();++i){
+		p[i].xx *= scale;
+		p[i].xl *= scale;
+	}
 }

@@ -4,6 +4,7 @@
 
 #include <vector>
 #include <iostream>
+#include <random>
 #include <thread>
 #include <cmath>
 #include <complex>
@@ -13,12 +14,29 @@ using namespace std;
 #define TWOPI  6.28318530717959
 #define light_speed 299792458.0         // [m/s]   - definition
 
-class NumThreads {
-  private:
-    static int num_threads;
-  public:
-    static void set_num_threads(int nr) {num_threads = nr; omp_set_num_threads(nr);}
-    static int get_num_threads(){return num_threads;}
+typedef vector<int> my_Ivector;
+typedef vector<double> my_Dvector;
+typedef vector<complex<double>> my_Cvector;
+
+class ThreadVars
+{
+    private:
+        static int num_threads (1);
+        static unsigned long seed (1UL);
+        static void _set_seed_num_threads(const unsigned long se, const int nr);
+        static vector<default_random_engine> gens;
+    public:
+
+        ThreadVars(const unsigned long nr): {set_num_threads(nr);}
+        ThreadVars(const unsigned long nr): {}
+        ~ThreadVars() = default;
+
+        void set_seed(unsigned long s){_set_seed_num_threads(s, num_threads);}
+        unsigned long get_seed(){return seed;}
+        void set_num_threads(const int nr){_set_seed_num_threads(seed, nr);}
+        int get_num_threads(){return num_threads;}
+
+        my_Ivector bounds(const int ini, const int final);
 };
 
 struct Particle_t {
@@ -28,9 +46,6 @@ struct Particle_t {
     ~Particle_t() = default;
 };
 
-typedef vector<int> my_Ivector;
-typedef vector<double> my_Dvector;
-typedef vector<complex<double>> my_Cvector;
 typedef vector<Particle_t> my_PartVector;
 
 class Interpola_t {
@@ -89,8 +104,6 @@ public:
     //     }
     // }
 };
-
-my_Ivector bounds_for_threads(const int parts, const int ini, const int final);
 
 my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2);
 my_Dvector convolution_full_orig(const my_Dvector& vec1, const my_Dvector& vec2);

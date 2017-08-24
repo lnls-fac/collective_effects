@@ -1,5 +1,7 @@
 #include <cppcolleff/Wake.h>
 
+ThreadVars ThreadInfo ();
+
 my_Dvector WakePl::get_wake_at_points(const my_Dvector& spos, const double& stren) const
 {
     my_Dvector wakeF(spos.size(),0.0);
@@ -79,7 +81,7 @@ void W_res_kick(
     my_Ivector& lims)
 {
     // First I get the number of threads to be used:
-    int nr_th = NumThreads::get_num_threads();
+    int nr_th = ThreadInfo.get_num_threads();
 
     // Now I calculate some important variables'
     double&& kr  = W.wr[r] / light_speed;
@@ -99,11 +101,12 @@ void W_res_kick(
 
     // submit the first round of threads:
     for(int i=1;i<nr_th;++i){
-        ths.push_back(thread(
-          W_res_kick_threads,ref(p),ref(Amp),ref(cpl_kr),ref(Ql),Ktype,ref(W_pot),ref(Kick),ref(lims),i,ch_W_pot
-        ));
+        ths.push_back(
+            thread(W_res_kick_threads, ref(p), ref(Amp), ref(cpl_kr), ref(Ql),
+                   Ktype, ref(W_pot), ref(Kick), ref(lims), i, ch_W_pot));
     }
-    W_res_kick_threads(p, Amp, cpl_kr,Ql, Ktype, W_pot, Kick, lims, 0, ch_W_pot);
+    W_res_kick_threads(p, Amp, cpl_kr, Ql, Ktype,
+                       W_pot, Kick, lims, 0, ch_W_pot);
 
     // Now I have to prepare the second round of threads.
     ch_W_pot = false; // I don't want the potential W_pot to be updated;
@@ -115,9 +118,9 @@ void W_res_kick(
         W_pot_sum += temp_var;
         Wk += Kick[i]; // update the total kick received by the particles
         Kick[i] = 0.0; // reset the temporary variable to be filled again
-        ths2.push_back(thread(
-          W_res_kick_threads,ref(p),ref(Amp),ref(cpl_kr),ref(Ql),Ktype,ref(W_pot),ref(Kick),ref(lims),i,ch_W_pot
-        ));
+        ths2.push_back(
+            thread(W_res_kick_threads, ref(p), ref(Amp), ref(cpl_kr), ref(Ql),
+                   Ktype, ref(W_pot), ref(Kick), ref(lims), i, ch_W_pot));
     }
     // join the second round of threads and update the total kick received by the particles
     for (int i=0;i<ths2.size();++i){
@@ -206,7 +209,7 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren, const double be
     }
 
 
-    my_Ivector lims (bounds_for_threads(NumThreads::get_num_threads(),0,p.size())); //Determine the bounds of for loops in each thread
+    my_Ivector lims (ThreadInfo.bounds(0,p.size())); //Determine the bounds of for loops in each thread
     if (Wl.resonator){
         int Ktype(0);
         for (int r=0; r<Wl.wr.size(); r++) W_res_kick(p, Wl, Ktype, stren, Wgl, r, lims);

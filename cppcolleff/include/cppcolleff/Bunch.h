@@ -21,11 +21,17 @@ class Bunch_t {
     my_Dvector get_de() const;
     my_Dvector get_ss() const;
 
-    void generate_bunch();
     void general_sort();
     void insertion_sort();
     void selection_sort();
     void sort();
+
+    void add_offsets(const double xx, const double de,
+    		    	 const double xl, const double ss);
+    void add_offsets(const double xx, const double de);
+    void add_offsets(const double xx);
+    void scale_longitudinal(const double scale);
+    void scale_transverse(const double scale);
 };
 
 #endif

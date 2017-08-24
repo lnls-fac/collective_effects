@@ -1,6 +1,36 @@
 #include <cppcolleff/essentials.h>
 
-int NumThreads::num_threads = omp_get_num_threads();
+static void ThreadVars::_set_seed_num_threads(
+    const unsigned long s,
+    const int nr)
+{
+    num_threads = nr;
+    omp_set_num_threads(nr);
+    seed = s;
+    gens.clear();
+    for (int i=0; i<nr; ++i){
+        default_random_engine gen (s + i);
+        gens.push_back(gen);
+    }
+}
+
+my_Ivector ThreadVars::get_bounds(const int ini, const int final)
+{
+    my_Ivector bounds (num_threads+1,0);
+    int incr = (final-ini) / num_threads;
+    int rem  = (final-ini) % num_threads;
+    int ad   = 0;
+    int N = ini;
+    for (auto& bnd:bounds) {
+        bnd = N;
+        if (rem-- > 0) {ad = 1;} else {ad = 0;}
+        N += incr + ad;
+    }
+    return bounds;
+}
+
+static unsigned int _tmp = omp_get_num_threads();
+ThreadVars ThreadInfo (_tmp);
 
 void Interpola_t::check_consistency()
 {
@@ -20,22 +50,6 @@ void Interpola_t::check_consistency()
         if (abs(ds - ds0) > abs(ds0)*1e-10) {equally_spaced = false;}
     }
 }
-
-
-my_Ivector bounds_for_threads(const int parts, const int ini, const int final){
-    my_Ivector bounds(parts+1,0);
-    int incr = (final-ini) / parts;
-    int rem  = (final-ini) % parts;
-    int ad   = 0;
-    int N = ini;
-    for (auto& bnd:bounds) {
-        bnd = N;
-        if (rem-- > 0) {ad = 1;} else {ad = 0;}
-        N += incr + ad;
-    }
-    return bounds;
-}
-
 
 // this function follows matlab's convention of same, not numpy's.
 my_Dvector convolution_same_orig(const my_Dvector& vec1, const my_Dvector& vec2)

@@ -96,37 +96,42 @@ TWOPI = _cppcolleff.TWOPI
 
 _cppcolleff.light_speed_swigconstant(_cppcolleff)
 light_speed = _cppcolleff.light_speed
-class NumThreads(_object):
+class ThreadVars(_object):
     __swig_setmethods__ = {}
-    __setattr__ = lambda self, name, value: _swig_setattr(self, NumThreads, name, value)
+    __setattr__ = lambda self, name, value: _swig_setattr(self, ThreadVars, name, value)
     __swig_getmethods__ = {}
-    __getattr__ = lambda self, name: _swig_getattr(self, NumThreads, name)
+    __getattr__ = lambda self, name: _swig_getattr(self, ThreadVars, name)
     __repr__ = _swig_repr
-    __swig_getmethods__["set_num_threads"] = lambda x: _cppcolleff.NumThreads_set_num_threads
+    __swig_setmethods__["gens"] = _cppcolleff.ThreadVars_gens_set
+    __swig_getmethods__["gens"] = _cppcolleff.ThreadVars_gens_get
     if _newclass:
-        set_num_threads = staticmethod(_cppcolleff.NumThreads_set_num_threads)
-    __swig_getmethods__["get_num_threads"] = lambda x: _cppcolleff.NumThreads_get_num_threads
-    if _newclass:
-        get_num_threads = staticmethod(_cppcolleff.NumThreads_get_num_threads)
+        gens = _swig_property(_cppcolleff.ThreadVars_gens_get, _cppcolleff.ThreadVars_gens_set)
 
-    def __init__(self):
-        this = _cppcolleff.new_NumThreads()
+    def __init__(self, nr):
+        this = _cppcolleff.new_ThreadVars(nr)
         try:
             self.this.append(this)
         except Exception:
             self.this = this
-    __swig_destroy__ = _cppcolleff.delete_NumThreads
+    __swig_destroy__ = _cppcolleff.delete_ThreadVars
     __del__ = lambda self: None
-NumThreads_swigregister = _cppcolleff.NumThreads_swigregister
-NumThreads_swigregister(NumThreads)
 
-def NumThreads_set_num_threads(nr):
-    return _cppcolleff.NumThreads_set_num_threads(nr)
-NumThreads_set_num_threads = _cppcolleff.NumThreads_set_num_threads
+    def set_seed(self, s):
+        return _cppcolleff.ThreadVars_set_seed(self, s)
 
-def NumThreads_get_num_threads():
-    return _cppcolleff.NumThreads_get_num_threads()
-NumThreads_get_num_threads = _cppcolleff.NumThreads_get_num_threads
+    def get_seed(self):
+        return _cppcolleff.ThreadVars_get_seed(self)
+
+    def set_num_threads(self, nr):
+        return _cppcolleff.ThreadVars_set_num_threads(self, nr)
+
+    def get_num_threads(self):
+        return _cppcolleff.ThreadVars_get_num_threads(self)
+
+    def bounds(self, ini, final):
+        return _cppcolleff.ThreadVars_bounds(self, ini, final)
+ThreadVars_swigregister = _cppcolleff.ThreadVars_swigregister
+ThreadVars_swigregister(ThreadVars)
 
 class Particle_t(_object):
     __swig_setmethods__ = {}
@@ -199,10 +204,6 @@ Interpola_t_swigregister = _cppcolleff.Interpola_t_swigregister
 Interpola_t_swigregister(Interpola_t)
 
 
-def bounds_for_threads(parts, ini, final):
-    return _cppcolleff.bounds_for_threads(parts, ini, final)
-bounds_for_threads = _cppcolleff.bounds_for_threads
-
 def convolution_full(vec1, vec2):
     return _cppcolleff.convolution_full(vec1, vec2)
 convolution_full = _cppcolleff.convolution_full
@@ -262,9 +263,6 @@ class Bunch_t(_object):
     def get_ss(self):
         return _cppcolleff.Bunch_t_get_ss(self)
 
-    def generate_bunch(self):
-        return _cppcolleff.Bunch_t_generate_bunch(self)
-
     def general_sort(self):
         return _cppcolleff.Bunch_t_general_sort(self)
 
@@ -276,6 +274,15 @@ class Bunch_t(_object):
 
     def sort(self):
         return _cppcolleff.Bunch_t_sort(self)
+
+    def add_offsets(self, *args):
+        return _cppcolleff.Bunch_t_add_offsets(self, *args)
+
+    def scale_longitudinal(self, scale):
+        return _cppcolleff.Bunch_t_scale_longitudinal(self, scale)
+
+    def scale_transverse(self, scale):
+        return _cppcolleff.Bunch_t_scale_transverse(self, scale)
 Bunch_t_swigregister = _cppcolleff.Bunch_t_swigregister
 Bunch_t_swigregister(Bunch_t)
 
@@ -373,8 +380,8 @@ class Ring_t(_object):
     def get_integrated_distribution(self, *args):
         return _cppcolleff.Ring_t_get_integrated_distribution(self, *args)
 
-    def track_one_turn(self, bun, seed):
-        return _cppcolleff.Ring_t_track_one_turn(self, bun, seed)
+    def track_one_turn(self, bun):
+        return _cppcolleff.Ring_t_track_one_turn(self, bun)
 Ring_t_swigregister = _cppcolleff.Ring_t_swigregister
 Ring_t_swigregister(Ring_t)
 
@@ -384,14 +391,14 @@ class Results_t(_object):
     __swig_getmethods__ = {}
     __getattr__ = lambda self, name: _swig_getattr(self, Results_t, name)
     __repr__ = _swig_repr
-    __swig_setmethods__["to_file"] = _cppcolleff.Results_t_to_file_set
-    __swig_getmethods__["to_file"] = _cppcolleff.Results_t_to_file_get
+    __swig_setmethods__["dump_bunch_to_file"] = _cppcolleff.Results_t_dump_bunch_to_file_set
+    __swig_getmethods__["dump_bunch_to_file"] = _cppcolleff.Results_t_dump_bunch_to_file_get
     if _newclass:
-        to_file = _swig_property(_cppcolleff.Results_t_to_file_get, _cppcolleff.Results_t_to_file_set)
-    __swig_setmethods__["print_screen"] = _cppcolleff.Results_t_print_screen_set
-    __swig_getmethods__["print_screen"] = _cppcolleff.Results_t_print_screen_get
+        dump_bunch_to_file = _swig_property(_cppcolleff.Results_t_dump_bunch_to_file_get, _cppcolleff.Results_t_dump_bunch_to_file_set)
+    __swig_setmethods__["print_in_screen"] = _cppcolleff.Results_t_print_in_screen_set
+    __swig_getmethods__["print_in_screen"] = _cppcolleff.Results_t_print_in_screen_get
     if _newclass:
-        print_screen = _swig_property(_cppcolleff.Results_t_print_screen_get, _cppcolleff.Results_t_print_screen_set)
+        print_in_screen = _swig_property(_cppcolleff.Results_t_print_in_screen_get, _cppcolleff.Results_t_print_in_screen_set)
     __swig_setmethods__["ave"] = _cppcolleff.Results_t_ave_set
     __swig_getmethods__["ave"] = _cppcolleff.Results_t_ave_get
     if _newclass:
@@ -431,14 +438,29 @@ class Results_t(_object):
     def set_keepWl(self, keep):
         return _cppcolleff.Results_t_set_keepWl(self, keep)
 
-    def set_every(self, eve):
-        return _cppcolleff.Results_t_set_every(self, eve)
-
     def set_nturns(self, nt):
         return _cppcolleff.Results_t_set_nturns(self, nt)
 
+    def set_calc_every(self, eve):
+        return _cppcolleff.Results_t_set_calc_every(self, eve)
+
+    def set_print_every(self, eve):
+        return _cppcolleff.Results_t_set_print_every(self, eve)
+
+    def set_dump_to_file_every(self, eve):
+        return _cppcolleff.Results_t_set_dump_to_file_every(self, eve)
+
     def get_nturns(self):
         return _cppcolleff.Results_t_get_nturns(self)
+
+    def get_calc_every(self):
+        return _cppcolleff.Results_t_get_calc_every(self)
+
+    def get_print_every(self):
+        return _cppcolleff.Results_t_get_print_every(self)
+
+    def get_dump_every(self):
+        return _cppcolleff.Results_t_get_dump_every(self)
 
     def calc_stats(self, bun, turn):
         return _cppcolleff.Results_t_calc_stats(self, bun, turn)
@@ -449,8 +471,8 @@ class Results_t(_object):
     def register_FBkick(self, turn, kik):
         return _cppcolleff.Results_t_register_FBkick(self, turn, kik)
 
-    def dump_bunch_to_file(self, bun, filename):
-        return _cppcolleff.Results_t_dump_bunch_to_file(self, bun, filename)
+    def write_bunch_to_file(self, bun, filename):
+        return _cppcolleff.Results_t_write_bunch_to_file(self, bun, filename)
 Results_t_swigregister = _cppcolleff.Results_t_swigregister
 Results_t_swigregister(Results_t)
 
@@ -598,8 +620,8 @@ Wake_t_swigregister = _cppcolleff.Wake_t_swigregister
 Wake_t_swigregister(Wake_t)
 
 
-def generate_bunch(*args):
-    return _cppcolleff.generate_bunch(*args)
+def generate_bunch(ring, bun):
+    return _cppcolleff.generate_bunch(ring, bun)
 generate_bunch = _cppcolleff.generate_bunch
 
 def solve_Haissinski_get_potential(*args):

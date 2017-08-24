@@ -11,7 +11,6 @@
 #include <cppcolleff/Ring.h>
 
 void generate_bunch(const Ring_t& ring, Bunch_t& bun);
-void generate_bunch(const Ring_t& ring, Bunch_t& bun, unsigned int seed);
 
 my_Dvector solve_Haissinski_get_potential(
     const Wake_t& wake,

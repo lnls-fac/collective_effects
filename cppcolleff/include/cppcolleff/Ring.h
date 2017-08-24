@@ -37,7 +37,7 @@ class Ring_t{
         Interpola_t get_integrated_distribution(const my_Dvector& V) const;
         Interpola_t get_integrated_distribution(const my_Dvector& spos, const my_Dvector& V) const;
 
-        void track_one_turn(Bunch_t& bun, const unsigned int seed) const;
+        void track_one_turn(Bunch_t& bun) const;
 };
 
 #endif

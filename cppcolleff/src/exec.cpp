@@ -7,6 +7,8 @@
 #include <iostream> //std::
 #include <cppcolleff/cppcolleff.h>
 
+ThreadVars ThreadInfo ();
+
 // int main()
 // {
 //     const long num_part = 10000000;
@@ -58,6 +60,8 @@ int main()
     ring.mom_comp    = 1.7e-4;
     ring.harm_num    = 864;
     ring.betax       = 19;
+    ring.damp_nume   = 1.7;
+    ring.damp_numx   = 1.3;
 
     my_Dvector ss ;
     my_Dvector V  ;
@@ -74,7 +78,7 @@ int main()
     cout << ring.en_lost_rad << endl;
 
     const long num_part = 100000;
-    const long nturns   = 2000;
+    const long nturns   = 20000;
     Bunch_t bun (num_part,1e-3); //number of particles and current in A;
     generate_bunch(ring, bun);
     bun.sort();
@@ -99,7 +103,7 @@ int main()
     typedef std::chrono::duration<double, std::ratio<1> > s_;
     // my_Dvector&& dist = ring.get_distribution();
     std::chrono::time_point<clock_> beg_ = clock_::now();
-    NumThreads::set_num_threads(2);
+    ThreadInfo.set_num_threads(32);
     single_bunch_tracking(ring,wake,fb,bun,results);
     // for (double i=1;i<=10;++i) {
     //     double espread (find_equilibrium_energy_spread(wake,ring, 1e-3 * i));
