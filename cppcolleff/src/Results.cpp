@@ -15,21 +15,15 @@ void Results_t::write_bunch_to_file(const Bunch_t& bun, const char* filename) co
 
 int calc_moments(
     const my_PartVector& p,
-    my_Dvector& moms,
+    Particle_t& ave,
+    Particle_t& std,
     const int init,
     const int fin,
     const bool this_turn)
 {
     for (int i=init;i<fin;++i){
-        moms[0] += p[i].xx;
-        if (!this_turn) continue;
-        moms[1] += p[i].xl;
-        moms[2] += p[i].de;
-        moms[3] += p[i].ss;
-        moms[4] += p[i].xx*p[i].xx;
-        moms[5] += p[i].xl*p[i].xl;
-        moms[6] += p[i].de*p[i].de;
-        moms[7] += p[i].ss*p[i].ss;
+        ave += p[i];
+        if (this_turn) std += p[i]*p[i];
     }
     return 1;
 }
@@ -50,47 +44,30 @@ double Results_t::calc_stats(
 
     unsigned int nr_th = ThreadInfo.get_num_threads();
     my_Ivector lims (ThreadInfo.get_bounds(0,p.size()));
-    vector<vector<double>> moms (nr_th,vector<double>(8,0.0));
+    my_PartVector aves (nr_th,Particle_t());
+    my_PartVector stds (nr_th,Particle_t());
     std::vector< std::future<int> > res;
 
     for (unsigned int i=0;i<nr_th;++i){
-        res.emplace_back(pool.enqueue(calc_moments, ref(p), ref(moms[i]),
-                         lims[i], lims[i+1], this_turn));
+        res.emplace_back(pool.enqueue(calc_moments, ref(p), ref(aves[i]),
+                         ref(stds[i]), lims[i], lims[i+1], this_turn));
     }
 
     for(int i=0; i<nr_th; ++i){
         res[i].get();
-        rave.xx += moms[i][0];
-        if (!this_turn) continue;
-        rave.xl += moms[i][1];
-        rave.de += moms[i][2];
-        rave.ss += moms[i][3];
-        rstd.xx += moms[i][4];
-        rstd.xl += moms[i][5];
-        rstd.de += moms[i][6];
-        rstd.ss += moms[i][7];
+        rave += aves[i];
+        if (this_turn) rstd += stds[i];
     }
-    rave.xx /= bun.num_part;
+    rave /= bun.num_part;
     if (!this_turn) return rave.xx;
-    rave.xl /= bun.num_part;
-    rave.de /= bun.num_part;
-    rave.ss /= bun.num_part;
-    rstd.xx /= bun.num_part;
-    rstd.xl /= bun.num_part;
-    rstd.de /= bun.num_part;
-    rstd.ss /= bun.num_part;
-    rstd.xx = sqrt(rstd.xx - rave.xx * rave.xx);
-    rstd.xl = sqrt(rstd.xl - rave.xl * rave.xl);
-    rstd.de = sqrt(rstd.de - rave.de * rave.de);
-    rstd.ss = sqrt(rstd.ss - rave.ss * rave.ss);
-
+    rstd /= bun.num_part;
+    rstd = sqrt(rstd - rave * rave);
 
     if (dump_bunch_to_file && dump_this_turn(turn)) {
         char filename[50];
         sprintf(filename,"turn%07lu.txt",turn);
         write_bunch_to_file(bun, filename);
     }
-
     if (print_in_screen) {
         if (turn == 0) {
             fprintf(stdout,"%7s %12s %12s   %12s %12s   %12s %12s   %12s %12s \n","turn",

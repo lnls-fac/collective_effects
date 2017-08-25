@@ -48,12 +48,98 @@ class ThreadVars
         static my_Ivector get_bounds(const int ini, const int fin);
 };
 
-struct Particle_t {
+class Particle_t {
+public:
     double xx, xl, de, ss;
     Particle_t():xx(0.0),xl(0.0),de(0.0),ss(0.0) {};
     Particle_t(double ini): xx(ini),xl(ini),de(ini),ss(ini) {};
     ~Particle_t() = default;
+    Particle_t operator += (const Particle_t& b);
+    Particle_t operator -= (const Particle_t& b);
+    Particle_t operator *= (const Particle_t& b);
+    Particle_t operator /= (const Particle_t& b);
+    Particle_t operator += (const double& b);
+    Particle_t operator -= (const double& b);
+    Particle_t operator *= (const double& b);
+    Particle_t operator /= (const double& b);
+    Particle_t operator += (const long& b);
+    Particle_t operator -= (const long& b);
+    Particle_t operator *= (const long& b);
+    Particle_t operator /= (const long& b);
+    Particle_t operator += (const int& b);
+    Particle_t operator -= (const int& b);
+    Particle_t operator *= (const int& b);
+    Particle_t operator /= (const int& b);
+    Particle_t operator + (const Particle_t& b);
+    Particle_t operator - (const Particle_t& b);
+    Particle_t operator * (const Particle_t& b);
+    Particle_t operator / (const Particle_t& b);
+    Particle_t operator + (const long& b);
+    Particle_t operator - (const long& b);
+    Particle_t operator * (const long& b);
+    Particle_t operator / (const long& b);
+    Particle_t operator + (const int& b);
+    Particle_t operator - (const int& b);
+    Particle_t operator * (const int& b);
+    Particle_t operator / (const int& b);
 };
+
+Particle_t Particle_t::operator += (const Particle_t& b)
+                        {xx += b.xx; xl += b.xl; de += b.de; ss += b.ss;}
+Particle_t Particle_t::operator -= (const Particle_t& b)
+                        {xx -= b.xx; xl -= b.xl; de -= b.de; ss -= b.ss;}
+Particle_t Particle_t::operator *= (const Particle_t& b)
+                        {xx *= b.xx; xl *= b.xl; de *= b.de; ss *= b.ss;}
+Particle_t Particle_t::operator /= (const Particle_t& b)
+                        {xx /= b.xx; xl /= b.xl; de /= b.de; ss /= b.ss;}
+Particle_t Particle_t::operator += (const double& b)
+                        {xx += b; xl += b; de += b; ss += b;}
+Particle_t Particle_t::operator -= (const double& b)
+                        {xx -= b; xl -= b; de -= b; ss -= b;}
+Particle_t Particle_t::operator *= (const double& b)
+                        {xx *= b; xl *= b; de *= b; ss *= b;}
+Particle_t Particle_t::operator /= (const double& b)
+                        {xx /= b; xl /= b; de /= b; ss /= b;}
+Particle_t Particle_t::operator += (const long& b)
+                        {xx += b; xl += b; de += b; ss += b;}
+Particle_t Particle_t::operator -= (const long& b)
+                        {xx -= b; xl -= b; de -= b; ss -= b;}
+Particle_t Particle_t::operator *= (const long& b)
+                        {xx *= b; xl *= b; de *= b; ss *= b;}
+Particle_t Particle_t::operator /= (const long& b)
+                        {xx /= b; xl /= b; de /= b; ss /= b;}
+Particle_t Particle_t::operator += (const int& b)
+                        {xx += b; xl += b; de += b; ss += b;}
+Particle_t Particle_t::operator -= (const int& b)
+                        {xx -= b; xl -= b; de -= b; ss -= b;}
+Particle_t Particle_t::operator *= (const int& b)
+                        {xx *= b; xl *= b; de *= b; ss *= b;}
+Particle_t Particle_t::operator /= (const int& b)
+                        {xx /= b; xl /= b; de /= b; ss /= b;}
+Particle_t Particle_t::operator + (const Particle_t& b)
+                        {Particle_t c= *this; c += b; return c;}
+Particle_t Particle_t::operator - (const Particle_t& b)
+                        {Particle_t c= *this; c -= b; return c;}
+Particle_t Particle_t::operator * (const Particle_t& b)
+                        {Particle_t c= *this; c *= b; return c;}
+Particle_t Particle_t::operator / (const Particle_t& b)
+                        {Particle_t c= *this; c /= b; return c;}
+Particle_t Particle_t::operator + (const long& b)
+                        {Particle_t c= *this; c += b; return c;}
+Particle_t Particle_t::operator - (const long& b)
+                        {Particle_t c= *this; c -= b; return c;}
+Particle_t Particle_t::operator * (const long& b)
+                        {Particle_t c= *this; c *= b; return c;}
+Particle_t Particle_t::operator / (const long& b)
+                        {Particle_t c= *this; c /= b; return c;}
+Particle_t Particle_t::operator + (const int& b)
+                        {Particle_t c= *this; c += b; return c;}
+Particle_t Particle_t::operator - (const int& b)
+                        {Particle_t c= *this; c -= b; return c;}
+Particle_t Particle_t::operator * (const int& b)
+                        {Particle_t c= *this; c *= b; return c;}
+Particle_t Particle_t::operator / (const int& b)
+                        {Particle_t c= *this; c /= b; return c;}
 
 typedef vector<Particle_t> my_PartVector;
 

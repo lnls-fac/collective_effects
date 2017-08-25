@@ -13,7 +13,7 @@ class Ring_t{
         Interpola_t _get_integrated_distribution(const my_Dvector& spos, const my_Dvector& V) const;
         int _track_one_turn(my_PartVector& p,
                              const unsigned int seed,
-                             const int init, const int final_, default_random_engine& gen1) const;
+                             const int init, const int final_) const;
     public:
         int harm_num;                              // harmonic number
         double betax, alphax, etax, etaxl,         // optical functions

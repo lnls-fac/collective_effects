@@ -85,8 +85,7 @@ int Ring_t::_track_one_turn(
     my_PartVector& p,
     const unsigned int th,
     const int init,
-    const int final_,
-    default_random_engine& gen1) const
+    const int final_) const
 {
   // the ring model is composed by the magnetic elements,
   // then one cavity and finally the wake-field.*/
@@ -98,7 +97,7 @@ int Ring_t::_track_one_turn(
     double Srde (sqrt(1 - Fde*Fde) * espread);
     double Srxl (sqrt((1 - Fxl*Fxl) * emitx / betax));
     normal_distribution<double> distribution(0.0,1.0);
-    // default_random_engine gen1(th);
+    default_random_engine gen1(th);
 
     for (int i=init;i<final_;++i){
         // subtract the energy dependent fixed point;
@@ -147,7 +146,7 @@ void Ring_t::track_one_turn(Bunch_t& bun, ThreadPool& pool, int n) const
     for (unsigned int i=0;i<nr_th;++i){
         results.emplace_back(
             pool.enqueue(
-                &Ring_t::_track_one_turn, this, ref(p), n*nr_th + i, lims[i], lims[i+1], ref(pool.gens[i])
+                &Ring_t::_track_one_turn, this, ref(p), n*nr_th + i, lims[i], lims[i+1]
             )
         );
     }

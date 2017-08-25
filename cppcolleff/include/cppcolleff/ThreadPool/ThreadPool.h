@@ -5,7 +5,6 @@
 #include <queue>
 #include <memory>
 #include <thread>
-#include <random>
 #include <mutex>
 #include <condition_variable>
 #include <future>
@@ -19,7 +18,6 @@ public:
     auto enqueue(F&& f, Args&&... args)
         -> std::future<typename std::result_of<F(Args...)>::type>;
     ~ThreadPool();
-    std::vector< std::default_random_engine > gens;
 private:
     // need to keep track of threads so we can join them
     std::vector< std::thread > workers;
@@ -37,7 +35,6 @@ inline ThreadPool::ThreadPool(size_t threads)
     :   stop(false)
 {
     for(size_t i = 0;i<threads;++i)
-        gens.push_back(std::default_random_engine(i));
         workers.emplace_back(
             [this]
             {
