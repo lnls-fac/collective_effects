@@ -5,15 +5,15 @@
 #include <cmath> // std::sin std::cos
 #include <cppcolleff/essentials.h>
 #include <cppcolleff/Bunch.h>
-//#include <omp.h>
+#include <cppcolleff/ThreadPool/ThreadPool.h>
 
 class Ring_t{
     private:
         my_Dvector _get_distribution(const my_Dvector& spos, const my_Dvector& V) const;
         Interpola_t _get_integrated_distribution(const my_Dvector& spos, const my_Dvector& V) const;
-        void _track_one_turn(my_PartVector& p,
+        int _track_one_turn(my_PartVector& p,
                              const unsigned int seed,
-                             const int init, const int final_) const;
+                             const int init, const int final_, default_random_engine& gen1) const;
     public:
         int harm_num;                              // harmonic number
         double betax, alphax, etax, etaxl,         // optical functions
@@ -37,7 +37,7 @@ class Ring_t{
         Interpola_t get_integrated_distribution(const my_Dvector& V) const;
         Interpola_t get_integrated_distribution(const my_Dvector& spos, const my_Dvector& V) const;
 
-        void track_one_turn(Bunch_t& bun) const;
+        void track_one_turn(Bunch_t& bun, ThreadPool& pool, int n) const;
 };
 
 #endif

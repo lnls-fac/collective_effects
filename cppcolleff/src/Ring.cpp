@@ -81,11 +81,12 @@ Interpola_t Ring_t::get_integrated_distribution(const my_Dvector& spos, const my
 	return _get_integrated_distribution(spos,V);
 }
 
-void Ring_t::_track_one_turn(
+int Ring_t::_track_one_turn(
     my_PartVector& p,
     const unsigned int th,
     const int init,
-    const int final_) const
+    const int final_,
+    default_random_engine& gen1) const
 {
   // the ring model is composed by the magnetic elements,
   // then one cavity and finally the wake-field.*/
@@ -97,6 +98,7 @@ void Ring_t::_track_one_turn(
     double Srde (sqrt(1 - Fde*Fde) * espread);
     double Srxl (sqrt((1 - Fxl*Fxl) * emitx / betax));
     normal_distribution<double> distribution(0.0,1.0);
+    // default_random_engine gen1(th);
 
     for (int i=init;i<final_;++i){
         // subtract the energy dependent fixed point;
@@ -106,7 +108,7 @@ void Ring_t::_track_one_turn(
         // Longitudinal tracking:
         p[i].ss += circum * mom_comp * p[i].de;
         p[i].de *= Fde;  // Damping
-        p[i].de += Srde * distribution(ThreadInfo.gens[th]);  // Quantum excitation
+        p[i].de += Srde * distribution(gen1);  // Quantum excitation
         p[i].de += cav.get_y(p[i].ss);  // Already normalized by the energy!
         // Transverse tracking:
 
@@ -126,24 +128,28 @@ void Ring_t::_track_one_turn(
         p[i].xx = x_tmp;
         // Damping and Quantum excitation simulations:
         p[i].xl *= Fxl;
-        p[i].xl += Srxl * distribution(ThreadInfo.gens[th]);
+        p[i].xl += Srxl * distribution(gen1);
 
         p[i].xx += etax  * p[i].de; // add the energy dependent fixed point;
         p[i].xl += etaxl * p[i].de;
     }
+    return 1;
 }
 
-void Ring_t::track_one_turn(Bunch_t& bun) const
+void Ring_t::track_one_turn(Bunch_t& bun, ThreadPool& pool, int n) const
 {
     my_PartVector& p = bun.particles;
     unsigned int nr_th = ThreadInfo.get_num_threads();
 	my_Ivector lims (ThreadInfo.get_bounds(0,p.size()));
-	vector<thread> ths;
 
-	for (unsigned int i=0;i<nr_th-1;++i){
-	    ths.push_back(
-            thread(&Ring_t::_track_one_turn, this, ref(p), i, lims[i], lims[i+1]));
-	}
-	_track_one_turn(ref(p), nr_th-1, lims[nr_th-1], lims[nr_th]);
-	for(auto& th:ths) th.join();
+    std::vector< std::future<int> > results;
+
+    for (unsigned int i=0;i<nr_th;++i){
+        results.emplace_back(
+            pool.enqueue(
+                &Ring_t::_track_one_turn, this, ref(p), n*nr_th + i, lims[i], lims[i+1], ref(pool.gens[i])
+            )
+        );
+    }
+    for(auto && result: results) result.get();
 }

@@ -249,17 +249,18 @@ void single_bunch_tracking(
 {
     //current dependent strength of the kick:
     const double kick_stren = ring.T0 / ring.energy * bun.Ib / bun.num_part;
+	ThreadPool pool(ThreadInfo.get_num_threads());
 
     for (long n=0;n<results.get_nturns();n++){
-        double&& xx_ave = results.calc_stats(bun,n);
+        double&& xx_ave = results.calc_stats(bun, pool, n);
         /* convention: positive ss, means particle behind the sinchronous particle;
          First do single particle tracking:*/
-        ring.track_one_turn(bun);
+        ring.track_one_turn(bun, pool, n);
 
         results.register_Wkicks(n, wake.apply_kicks(bun,kick_stren, ring.betax));
         results.register_FBkick(n,   fb.apply_kick(bun, xx_ave,     ring.betax));
     }
-    results.calc_stats(bun,results.get_nturns());
+    results.calc_stats(bun, pool, results.get_nturns());
 }
 
 

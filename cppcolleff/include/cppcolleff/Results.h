@@ -6,6 +6,7 @@
 #include <string> //std::string.c_str()
 #include <cppcolleff/essentials.h>
 #include <cppcolleff/Bunch.h>
+#include <cppcolleff/ThreadPool/ThreadPool.h>
 
 class Results_t {
     private:
@@ -75,7 +76,7 @@ class Results_t {
         unsigned long get_calc_every() const {return calc_every;}
         unsigned long get_print_every() const {return print_every;}
         unsigned long get_dump_every() const {return dump_every;}
-        double calc_stats(const Bunch_t& bun, const long turn);
+        double calc_stats(const Bunch_t& bun, ThreadPool& pool, const long turn);
         void register_Wkicks(const long turn, const my_Dvector& kik);
         void register_FBkick(const long turn, const double& kik);
         void write_bunch_to_file(const Bunch_t& bun, const char* filename) const;

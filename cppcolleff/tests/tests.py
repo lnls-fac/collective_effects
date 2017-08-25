@@ -1,9 +1,10 @@
 #!/usr/bin/env python-sirius
 
+import time
 import math
 import cppcolleff as coll
 
-coll.ThreadVars.set_num_threads(2)
+coll.ThreadVars.set_num_threads(16)
 
 ring = coll.Ring_t()
 ring.energy = 3e9
@@ -34,18 +35,16 @@ for i in range(-10000, 10001):
 ring.cav.set_xy(ss, V)
 
 num_part = 100000
-nturns = 50000
+nturns = 10000
 bun = coll.Bunch_t(num_part, 1e-3)
 coll.generate_bunch(ring, bun)
 bun.sort()
 
 wake = coll.Wake_t()
-wake.Wl.resonator = True
+wake.Wl.resonator = False
 wake.Wl.wr.push_back(30e9*coll.TWOPI)
 wake.Wl.Rs.push_back(1e4)
 wake.Wl.Q.push_back(1)
-
-
 
 fb = coll.Feedback_t()
 
@@ -53,4 +52,6 @@ results = coll.Results_t(nturns, 100)
 
 # bun.scale_longitudinal(0.1)
 # bun.scale_transverse(0.1)
-# coll.single_bunch_tracking(ring, wake, fb, bun, results)
+t0 = time.time()
+coll.single_bunch_tracking(ring, wake, fb, bun, results)
+print('elapsed time: {0:15.4f}'.format(time.time()-t0))
