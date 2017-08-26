@@ -1,6 +1,7 @@
 #include <cppcolleff/cppcolleff.h>
 
-static ThreadVars ThreadInfo(false);
+ThreadPool pool;
+unsigned long seed;
 
 static void _generate_bunch_thread(
 	const Ring_t& ring,
@@ -10,20 +11,21 @@ static void _generate_bunch_thread(
 	const int init,
 	const int final)
 {
-		const my_Dvector& idist = idistr_interpol.ref_to_xi();
-		normal_distribution<double> espread_dist(0.0,ring.espread);
-		exponential_distribution<double> emitx_dist(1/(2*ring.emitx));
-		uniform_real_distribution<double> phix_dist(0.0,TWOPI);
-		uniform_real_distribution<double> ss_dist(idist.front(),idist.back());
+	const my_Dvector& idist = idistr_interpol.ref_to_xi();
+	normal_distribution<double> espread_dist(0.0,ring.espread);
+	exponential_distribution<double> emitx_dist(1/(2*ring.emitx));
+	uniform_real_distribution<double> phix_dist(0.0,TWOPI);
+	uniform_real_distribution<double> ss_dist(idist.front(),idist.back());
+	default_random_engine gen(seed + th);
 
   	for (int i=init;i<final;++i){
-	  		double&& emitx = emitx_dist(ThreadInfo.gens[th]);
-	  		double&& phix  = phix_dist(ThreadInfo.gens[th]);
+	  		double&& emitx = emitx_dist(gen);
+	  		double&& phix  = phix_dist(gen);
 	  		double&& Ax    = sqrt(emitx/ring.betax);
 	  		double&& Acosx = Ax*cos(phix);
 	  		double&& Asinx = Ax*sin(phix);
-	  		p[i].de = espread_dist(ThreadInfo.gens[th]);
-	  		p[i].ss = idistr_interpol.get_y(ss_dist(ThreadInfo.gens[th]));
+	  		p[i].de = espread_dist(gen);
+	  		p[i].ss = idistr_interpol.get_y(ss_dist(gen));
 	  		p[i].xx =  Acosx*ring.betax          + ring.etax *p[i].de;
 	  		p[i].xl = -Acosx*ring.alphax - Asinx + ring.etaxl*p[i].de;
   	}
@@ -33,8 +35,8 @@ void generate_bunch(const Ring_t& ring, Bunch_t& bun)
 	Interpola_t idistr_interpol (ring.get_integrated_distribution());
 	my_PartVector& p = bun.particles;
 
-	int nr_th = ThreadInfo.get_num_threads();
-	my_Ivector lims (ThreadInfo.get_bounds(0,p.size()));
+	int nr_th = get_num_threads();
+	my_Ivector lims (get_bounds(0,p.size()));
 	vector<thread> ths;
 
 	for (unsigned int i=0;i<nr_th-1;++i){
@@ -249,18 +251,17 @@ void single_bunch_tracking(
 {
     //current dependent strength of the kick:
     const double kick_stren = ring.T0 / ring.energy * bun.Ib / bun.num_part;
-	ThreadPool pool(ThreadInfo.get_num_threads());
 
     for (long n=0;n<results.get_nturns();n++){
-        double&& xx_ave = results.calc_stats(bun, pool, n);
+        double&& xx_ave = results.calc_stats(bun, n);
         /* convention: positive ss, means particle behind the sinchronous particle;
          First do single particle tracking:*/
-        ring.track_one_turn(bun, pool, n);
+        ring.track_one_turn(bun, n);
 
         results.register_Wkicks(n, wake.apply_kicks(bun,kick_stren, ring.betax));
         results.register_FBkick(n,   fb.apply_kick(bun, xx_ave,     ring.betax));
     }
-    results.calc_stats(bun, pool, results.get_nturns());
+    results.calc_stats(bun, results.get_nturns());
 }
 
 
