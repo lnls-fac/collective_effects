@@ -4,7 +4,7 @@ import time
 import math
 import cppcolleff as coll
 
-coll.ThreadVars.set_num_threads(16)
+coll.ThreadVars.set_num_threads(2)
 
 ring = coll.Ring_t()
 ring.energy = 3e9

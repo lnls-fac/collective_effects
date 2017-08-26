@@ -19,6 +19,16 @@ my_Ivector ThreadVars::get_bounds(const int ini, const int fin)
     return bounds;
 }
 
+Particle_t sqrt(const Particle_t& p)
+{
+    Particle_t c;
+    c.xx = sqrt(p.xx);
+    c.xl = sqrt(p.xl);
+    c.de = sqrt(p.de);
+    c.ss = sqrt(p.ss);
+    return c;
+}
+
 void Interpola_t::check_consistency()
 {
     if (xi.size() != yi.size()){
