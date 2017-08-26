@@ -4,6 +4,7 @@
 #include <thread>
 #include <cppcolleff/essentials.h>
 #include <cppcolleff/Bunch.h>
+#include <cppcolleff/ThreadPool/ThreadPool.h>
 
 struct WakePl
 {

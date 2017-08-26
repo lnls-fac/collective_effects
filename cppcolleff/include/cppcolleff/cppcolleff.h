@@ -12,6 +12,10 @@
 
 void generate_bunch(const Ring_t& ring, Bunch_t& bun);
 
+int get_num_threads();
+
+void set_seed_num(int nr);
+
 my_Dvector solve_Haissinski_get_potential(
     const Wake_t& wake,
     const Ring_t& ring,

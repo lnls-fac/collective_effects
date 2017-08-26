@@ -1,10 +1,21 @@
 #include <cppcolleff/essentials.h>
 
-unsigned long ThreadVars::seed = 1;
-int ThreadVars::num_threads = 1;
-my_RndVector ThreadVars::gens (1, default_random_engine (ThreadVars::seed));
+unsigned long seed = 1;
+int num_threads = 1;
+ThreadPool pool (1);
 
-my_Ivector ThreadVars::get_bounds(const int ini, const int fin)
+void set_num_threads(int nr)
+{
+    num_threads = nr;
+    omp_set_num_threads(nr);
+    pool.resize(nr);
+}
+
+int get_num_threads() { return num_threads;}
+
+void set_seed_num(int nr) {seed = nr;}
+
+my_Ivector get_bounds(const int ini, const int fin)
 {
     my_Ivector bounds (num_threads+1,0);
     int incr = (fin-ini) / num_threads;
@@ -17,16 +28,6 @@ my_Ivector ThreadVars::get_bounds(const int ini, const int fin)
         N += incr + ad;
     }
     return bounds;
-}
-
-Particle_t sqrt(const Particle_t& p)
-{
-    Particle_t c;
-    c.xx = sqrt(p.xx);
-    c.xl = sqrt(p.xl);
-    c.de = sqrt(p.de);
-    c.ss = sqrt(p.ss);
-    return c;
 }
 
 void Interpola_t::check_consistency()

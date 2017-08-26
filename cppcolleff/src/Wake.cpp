@@ -1,6 +1,6 @@
 #include <cppcolleff/Wake.h>
 
-static ThreadVars ThreadInfo(false);
+extern ThreadPool pool;
 
 my_Dvector WakePl::get_wake_at_points(const my_Dvector& spos, const double& stren) const
 {
@@ -81,7 +81,7 @@ void W_res_kick(
     my_Ivector& lims)
 {
     // First I get the number of threads to be used:
-    int nr_th = ThreadInfo.get_num_threads();
+    int nr_th = get_num_threads();
 
     // Now I calculate some important variables'
     double&& kr  = W.wr[r] / light_speed;
@@ -209,7 +209,7 @@ my_Dvector Wake_t::apply_kicks(Bunch_t& bun, const double stren, const double be
     }
 
     //Determine the bounds of for loops in each thread
-    my_Ivector lims (ThreadInfo.get_bounds(0,p.size()));
+    my_Ivector lims (get_bounds(0,p.size()));
     if (Wl.resonator){
         int Ktype(0);
         for (int r=0; r<Wl.wr.size(); r++) W_res_kick(p, Wl, Ktype, stren, Wgl, r, lims);

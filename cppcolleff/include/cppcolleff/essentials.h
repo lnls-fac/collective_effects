@@ -9,6 +9,8 @@
 #include <cmath>
 #include <complex>
 #include <omp.h>
+#include <cppcolleff/ThreadPool/ThreadPool.h>
+
 using namespace std;
 
 #define TWOPI  6.28318530717959
@@ -19,193 +21,56 @@ typedef vector<double> my_Dvector;
 typedef vector<complex<double>> my_Cvector;
 typedef vector<default_random_engine> my_RndVector;
 
-class ThreadVars
-{
-    private:
-        static int num_threads;
-        static unsigned long seed;
-        static void _set_seed_num_threads(const unsigned long s, const int nr)
-        {
-            num_threads = nr;
-            omp_set_num_threads(nr);
-            seed = s;
-            gens.clear();
-            for (int i=0;i<nr;++i) gens.push_back(default_random_engine(s + i));
-        }
-    public:
-        static my_RndVector gens;
-        ThreadVars(const bool init)
-                            {if (init) set_num_threads(omp_get_num_threads());}
-        ~ThreadVars() = default;
-
-        static void set_seed(const unsigned long s)
-                                        {_set_seed_num_threads(s, num_threads);}
-        static unsigned long get_seed(){return seed;}
-        static void set_num_threads(const int nr)
-                                            {_set_seed_num_threads(seed, nr);}
-        static int get_num_threads(){return num_threads;}
-
-        static my_Ivector get_bounds(const int ini, const int fin);
-};
-
 class Particle_t {
 public:
     double xx, xl, de, ss;
     Particle_t():xx(0.0),xl(0.0),de(0.0),ss(0.0) {};
     Particle_t(double ini): xx(ini),xl(ini),de(ini),ss(ini) {};
     ~Particle_t() = default;
-    // Particle_t& operator += (const Particle_t& b);
-    // Particle_t& operator -= (const Particle_t& b);
-    // Particle_t& operator *= (const Particle_t& b);
-    // Particle_t& operator /= (const Particle_t& b);
     Particle_t& operator += (const Particle_t& b)
-                            {xx += b.xx; xl += b.xl; de += b.de; ss += b.ss; return *this;}
+                {xx += b.xx; xl += b.xl; de += b.de; ss += b.ss; return *this;}
     Particle_t& operator -= (const Particle_t& b)
-                            {xx -= b.xx; xl -= b.xl; de -= b.de; ss -= b.ss; return *this;}
+                {xx -= b.xx; xl -= b.xl; de -= b.de; ss -= b.ss; return *this;}
     Particle_t& operator *= (const Particle_t& b)
-                            {xx *= b.xx; xl *= b.xl; de *= b.de; ss *= b.ss; return *this;}
+                {xx *= b.xx; xl *= b.xl; de *= b.de; ss *= b.ss; return *this;}
     Particle_t& operator /= (const Particle_t& b)
-                            {xx /= b.xx; xl /= b.xl; de /= b.de; ss /= b.ss; return *this;}
-    // Particle_t& operator += (const double& b);
-    // Particle_t& operator -= (const double& b);
-    // Particle_t& operator *= (const double& b);
-    // Particle_t& operator /= (const double& b);
-    // Particle_t& operator += (const long& b);
-    // Particle_t& operator -= (const long& b);
-    // Particle_t& operator *= (const long& b);
-    // Particle_t& operator /= (const long& b);
-    // Particle_t& operator += (const int& b);
-    // Particle_t& operator -= (const int& b);
-    // Particle_t& operator *= (const int& b);
-    // Particle_t& operator /= (const int& b);
-    Particle_t& operator += (const double& b)
+                {xx /= b.xx; xl /= b.xl; de /= b.de; ss /= b.ss; return *this;}
+    template <class T> Particle_t& operator += (const T& b)
                             {xx += b; xl += b; de += b; ss += b; return *this;}
-    Particle_t& operator -= (const double& b)
+    template <class T> Particle_t& operator -= (const T& b)
                             {xx -= b; xl -= b; de -= b; ss -= b; return *this;}
-    Particle_t& operator *= (const double& b)
+    template <class T> Particle_t& operator *= (const T& b)
                             {xx *= b; xl *= b; de *= b; ss *= b; return *this;}
-    Particle_t& operator /= (const double& b)
+    template <class T> Particle_t& operator /= (const T& b)
                             {xx /= b; xl /= b; de /= b; ss /= b; return *this;}
-    Particle_t& operator += (const long& b)
-                            {xx += b; xl += b; de += b; ss += b; return *this;}
-    Particle_t& operator -= (const long& b)
-                            {xx -= b; xl -= b; de -= b; ss -= b; return *this;}
-    Particle_t& operator *= (const long& b)
-                            {xx *= b; xl *= b; de *= b; ss *= b; return *this;}
-    Particle_t& operator /= (const long& b)
-                            {xx /= b; xl /= b; de /= b; ss /= b; return *this;}
-    Particle_t& operator += (const int& b)
-                            {xx += b; xl += b; de += b; ss += b; return *this;}
-    Particle_t& operator -= (const int& b)
-                            {xx -= b; xl -= b; de -= b; ss -= b; return *this;}
-    Particle_t& operator *= (const int& b)
-                            {xx *= b; xl *= b; de *= b; ss *= b; return *this;}
-    Particle_t& operator /= (const int& b)
-                            {xx /= b; xl /= b; de /= b; ss /= b; return *this;}
-    // Particle_t operator + (const Particle_t& b) const;
-    // Particle_t operator - (const Particle_t& b) const;
-    // Particle_t operator * (const Particle_t& b) const;
-    // Particle_t operator / (const Particle_t& b) const;
-    // Particle_t operator + (const long& b) const;
-    // Particle_t operator - (const long& b) const;
-    // Particle_t operator * (const long& b) const;
-    // Particle_t operator / (const long& b) const;
-    // Particle_t operator + (const int& b) const;
-    // Particle_t operator - (const int& b) const;
-    // Particle_t operator * (const int& b) const;
-    // Particle_t operator / (const int& b) const;
-    Particle_t operator + (const Particle_t& b) const
-                            {Particle_t c; c += *this; c += b; return c;}
-    Particle_t operator - (const Particle_t& b) const
-                            {Particle_t c; c -= *this; c -= b; return c;}
-    Particle_t operator * (const Particle_t& b) const
-                            {Particle_t c; c *= *this; c *= b; return c;}
-    Particle_t operator / (const Particle_t& b) const
-                            {Particle_t c; c /= *this; c /= b; return c;}
-    Particle_t operator + (const long& b) const
-                            {Particle_t c; c += *this; c += b; return c;}
-    Particle_t operator - (const long& b) const
-                            {Particle_t c; c -= *this; c -= b; return c;}
-    Particle_t operator * (const long& b) const
-                            {Particle_t c; c *= *this; c *= b; return c;}
-    Particle_t operator / (const long& b) const
-                            {Particle_t c; c /= *this; c /= b; return c;}
-    Particle_t operator + (const int& b) const
-                            {Particle_t c; c += *this; c += b; return c;}
-    Particle_t operator - (const int& b) const
-                            {Particle_t c; c -= *this; c -= b; return c;}
-    Particle_t operator * (const int& b) const
-                            {Particle_t c; c *= *this; c *= b; return c;}
-    Particle_t operator / (const int& b) const
-                            {Particle_t c; c /= *this; c /= b; return c;}
+    template <class T> Particle_t operator + (const T& b) const
+                            {Particle_t c = *this; c += b; return c;}
+    template <class T> Particle_t operator - (const T& b) const
+                            {Particle_t c = *this; c -= b; return c;}
+    template <class T> Particle_t operator * (const T& b) const
+                            {Particle_t c = *this; c *= b; return c;}
+    template <class T> Particle_t operator / (const T& b) const
+                            {Particle_t c = *this; c /= b; return c;}
 };
 
-// Particle_t& Particle_t::operator += (const Particle_t& b)
-//                         {xx += b.xx; xl += b.xl; de += b.de; ss += b.ss; return *this;}
-// Particle_t& Particle_t::operator -= (const Particle_t& b)
-//                         {xx -= b.xx; xl -= b.xl; de -= b.de; ss -= b.ss; return *this;}
-// Particle_t& Particle_t::operator *= (const Particle_t& b)
-//                         {xx *= b.xx; xl *= b.xl; de *= b.de; ss *= b.ss; return *this;}
-// Particle_t& Particle_t::operator /= (const Particle_t& b)
-//                         {xx /= b.xx; xl /= b.xl; de /= b.de; ss /= b.ss; return *this;}
-// Particle_t& Particle_t::operator += (const double& b)
-//                         {xx += b; xl += b; de += b; ss += b; return *this;}
-// Particle_t& Particle_t::operator -= (const double& b)
-//                         {xx -= b; xl -= b; de -= b; ss -= b; return *this;}
-// Particle_t& Particle_t::operator *= (const double& b)
-//                         {xx *= b; xl *= b; de *= b; ss *= b; return *this;}
-// Particle_t& Particle_t::operator /= (const double& b)
-//                         {xx /= b; xl /= b; de /= b; ss /= b; return *this;}
-// Particle_t& Particle_t::operator += (const long& b)
-//                         {xx += b; xl += b; de += b; ss += b; return *this;}
-// Particle_t& Particle_t::operator -= (const long& b)
-//                         {xx -= b; xl -= b; de -= b; ss -= b; return *this;}
-// Particle_t& Particle_t::operator *= (const long& b)
-//                         {xx *= b; xl *= b; de *= b; ss *= b; return *this;}
-// Particle_t& Particle_t::operator /= (const long& b)
-//                         {xx /= b; xl /= b; de /= b; ss /= b; return *this;}
-// Particle_t& Particle_t::operator += (const int& b)
-//                         {xx += b; xl += b; de += b; ss += b; return *this;}
-// Particle_t& Particle_t::operator -= (const int& b)
-//                         {xx -= b; xl -= b; de -= b; ss -= b; return *this;}
-// Particle_t& Particle_t::operator *= (const int& b)
-//                         {xx *= b; xl *= b; de *= b; ss *= b; return *this;}
-// Particle_t& Particle_t::operator /= (const int& b)
-//                         {xx /= b; xl /= b; de /= b; ss /= b; return *this;}
-// Particle_t Particle_t::operator + (const Particle_t& b) const
-//                         {Particle_t c; c += *this; c += b; return c;}
-// Particle_t Particle_t::operator - (const Particle_t& b) const
-//                         {Particle_t c; c -= *this; c -= b; return c;}
-// Particle_t Particle_t::operator * (const Particle_t& b) const
-//                         {Particle_t c; c *= *this; c *= b; return c;}
-// Particle_t Particle_t::operator / (const Particle_t& b) const
-//                         {Particle_t c; c /= *this; c /= b; return c;}
-// Particle_t Particle_t::operator + (const long& b) const
-//                         {Particle_t c; c += *this; c += b; return c;}
-// Particle_t Particle_t::operator - (const long& b) const
-//                         {Particle_t c; c -= *this; c -= b; return c;}
-// Particle_t Particle_t::operator * (const long& b) const
-//                         {Particle_t c; c *= *this; c *= b; return c;}
-// Particle_t Particle_t::operator / (const long& b) const
-//                         {Particle_t c; c /= *this; c /= b; return c;}
-// Particle_t Particle_t::operator + (const int& b) const
-//                         {Particle_t c; c += *this; c += b; return c;}
-// Particle_t Particle_t::operator - (const int& b) const
-//                         {Particle_t c; c -= *this; c -= b; return c;}
-// Particle_t Particle_t::operator * (const int& b) const
-//                         {Particle_t c; c *= *this; c *= b; return c;}
-// Particle_t Particle_t::operator / (const int& b) const
-//                         {Particle_t c; c /= *this; c /= b; return c;}
+// Particle_t operator + (const Particle_t& p) {return p;}
+// Particle_t operator - (const Particle_t& p) {return p*(-1.0);}
+// template <class T> Particle_t operator + (const T& b, const Particle_t& p)
+//                         {return p + b;}
+// template <class T> Particle_t operator - (const T& b, const Particle_t& p)
+//                         {return p*(-1.0) + b;}
+// template <class T> Particle_t operator * (const T& b, const Particle_t& p)
+//                         {return p*b;}
 
-Particle_t sqrt(const Particle_t& p);
-// {
-//     Particle_t c;
-//     c.xx = sqrt(p.xx);
-//     c.xl = sqrt(p.xl);
-//     c.de = sqrt(p.de);
-//     c.ss = sqrt(p.ss);
-//     return c;
-// }
+inline Particle_t sqrt(const Particle_t& p)
+{
+    Particle_t c;
+    c.xx = sqrt(p.xx);
+    c.xl = sqrt(p.xl);
+    c.de = sqrt(p.de);
+    c.ss = sqrt(p.ss);
+    return c;
+}
 
 typedef vector<Particle_t> my_PartVector;
 

@@ -7,8 +7,6 @@
 #include <iostream> //std::
 #include <cppcolleff/cppcolleff.h>
 
-ThreadVars ThreadInfo (false);
-
 int main()
 {
     Ring_t ring;
@@ -64,7 +62,7 @@ int main()
     typedef std::chrono::duration<double, std::ratio<1> > s_;
     // my_Dvector&& dist = ring.get_distribution();
     std::chrono::time_point<clock_> beg_ = clock_::now();
-    ThreadInfo.set_num_threads(32);
+    set_num_threads(32);
     single_bunch_tracking(ring,wake,fb,bun,results);
     // for (double i=1;i<=10;++i) {
     //     double espread (find_equilibrium_energy_spread(wake,ring, 1e-3 * i));

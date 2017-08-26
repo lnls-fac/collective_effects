@@ -1,6 +1,6 @@
 #include <cppcolleff/Results.h>
 
-static ThreadVars ThreadInfo(false);
+ThreadPool pool;
 
 void Results_t::write_bunch_to_file(const Bunch_t& bun, const char* filename) const
 {
@@ -31,7 +31,6 @@ int calc_moments(
 
 double Results_t::calc_stats(
     const Bunch_t& bun,
-    ThreadPool& pool,
     const long turn)
 {
     const bool this_turn = calc_this_turn(turn);
@@ -42,8 +41,8 @@ double Results_t::calc_stats(
     //
     const my_PartVector& p = bun.particles;
 
-    unsigned int nr_th = ThreadInfo.get_num_threads();
-    my_Ivector lims (ThreadInfo.get_bounds(0,p.size()));
+    unsigned int nr_th = get_num_threads();
+    my_Ivector lims (get_bounds(0,p.size()));
     my_PartVector aves (nr_th,Particle_t());
     my_PartVector stds (nr_th,Particle_t());
     std::vector< std::future<int> > res;
