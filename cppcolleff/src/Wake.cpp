@@ -1,6 +1,10 @@
 #include <cppcolleff/Wake.h>
 
+<<<<<<< HEAD
 extern ThreadPool pool;
+=======
+ThreadPool pool;
+>>>>>>> 1baad9c658b22a11d36579379bf9813df643a0c5
 
 my_Dvector WakePl::get_wake_at_points(const my_Dvector& spos, const double& stren) const
 {
