@@ -4,7 +4,7 @@ import time
 import math
 import cppcolleff as coll
 
-coll.set_num_threads(25)
+coll.set_num_threads(2)
 
 ring = coll.Ring_t()
 ring.energy = 3e9
@@ -34,7 +34,7 @@ for i in range(-10000, 10001):
     V.push_back(V0*math.sin(phi0 + krf*s) - ring.en_lost_rad)
 ring.cav.set_xy(ss, V)
 
-num_part = 500000
+num_part = 5000000
 nturns = 10000
 bun = coll.Bunch_t(num_part, 1e-3)
 coll.generate_bunch(ring, bun)
@@ -53,5 +53,6 @@ results = coll.Results_t(nturns, 100)
 # bun.scale_longitudinal(0.1)
 # bun.scale_transverse(0.1)
 t0 = time.time()
-coll.single_bunch_tracking(ring, wake, fb, bun, results)
+# coll.single_bunch_tracking(ring, wake, fb, bun, results)
+dist = bun.calc_particles_distribution(ss)
 print('elapsed time: {0:15.4f}'.format(time.time()-t0))

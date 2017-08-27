@@ -101,3 +101,25 @@ void Bunch_t::scale_transverse(const double scale)
 		p[i].xl *= scale;
 	}
 }
+
+my_Dvector Bunch_t::calc_particles_distribution(
+	const my_Dvector& spos,
+	const int plane) const
+{
+	double delta (spos[1]-spos[0]);
+	my_Dvector distr (spos.size(), 0.0);
+
+	const my_PartVector& p = particles;
+	for (long&& i=0;i<p.size();++i){
+		int k;
+		if (plane==XX) k = (p[i].xx - spos[0]-delta) / delta;
+		else if (plane==XL) k = (p[i].xl - spos[0]-delta) / delta;
+		else if (plane==DE) k = (p[i].de - spos[0]-delta) / delta;
+		else if (plane==SS) k = (p[i].ss - spos[0]-delta) / delta;
+		if (k < 0) k=0;
+		if (k>=spos.size()) k = spos.size()-1;
+		distr[k]++;
+	}
+	for (long&& i=0;i<distr.size();++i){distr[i] /= delta*p.size();}
+	return distr;
+}
