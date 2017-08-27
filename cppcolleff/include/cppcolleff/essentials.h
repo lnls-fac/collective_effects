@@ -9,7 +9,9 @@
 #include <cmath>
 #include <complex>
 #include <omp.h>
+#ifndef SWIG
 #include <cppcolleff/ThreadPool/ThreadPool.h>
+#endif
 
 using namespace std;
 
@@ -19,7 +21,21 @@ using namespace std;
 typedef vector<int> my_Ivector;
 typedef vector<double> my_Dvector;
 typedef vector<complex<double>> my_Cvector;
-typedef vector<default_random_engine> my_RndVector;
+
+#ifdef SWIG
+extern my_Dvector pool;
+#else
+extern ThreadPool pool;
+#endif
+extern unsigned long seed;
+extern int num_threads;
+
+void set_num_threads(int nr);
+int get_num_threads();
+void set_seed_num(int nr);
+my_Ivector get_bounds(const int ini, const int fin);
+my_Ivector get_bounds(const int ini, const int fin, const int nr);
+
 
 class Particle_t {
 public:

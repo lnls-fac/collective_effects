@@ -42,3 +42,6 @@ cppcolleff.py
 *~
 
 build/
+
+# Data files
+*.txt

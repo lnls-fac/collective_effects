@@ -1,7 +1,12 @@
 
 #include <cppcolleff/Ring.h>
 
+#ifdef SWIG
+extern my_Dvector pool;
+#else
 extern ThreadPool pool;
+#endif
+extern unsigned long seed;
 
 my_Dvector Ring_t::_get_distribution(const my_Dvector& spos, const my_Dvector& V) const
 {
@@ -83,7 +88,7 @@ Interpola_t Ring_t::get_integrated_distribution(const my_Dvector& spos, const my
 
 int Ring_t::_track_one_turn(
     my_PartVector& p,
-    const unsigned int th,
+    const unsigned int inc_seed,
     const int init,
     const int final_) const
 {
@@ -96,8 +101,8 @@ int Ring_t::_track_one_turn(
     double Fxl (1 - damp_numx * en_lost_rad);  //with rf contribution
     double Srde (sqrt(1 - Fde*Fde) * espread);
     double Srxl (sqrt((1 - Fxl*Fxl) * emitx / betax));
-    normal_distribution<double> distribution(0.0,1.0);
-    default_random_engine gen1(th);
+    normal_distribution<double> Gauss(0.0,1.0);
+    default_random_engine gen1(seed + inc_seed);
 
     for (int i=init;i<final_;++i){
         // subtract the energy dependent fixed point;
@@ -107,7 +112,7 @@ int Ring_t::_track_one_turn(
         // Longitudinal tracking:
         p[i].ss += circum * mom_comp * p[i].de;
         p[i].de *= Fde;  // Damping
-        p[i].de += Srde * distribution(gen1);  // Quantum excitation
+        p[i].de += Srde * Gauss(gen1);  // Quantum excitation
         p[i].de += cav.get_y(p[i].ss);  // Already normalized by the energy!
         // Transverse tracking:
 
@@ -127,7 +132,7 @@ int Ring_t::_track_one_turn(
         p[i].xx = x_tmp;
         // Damping and Quantum excitation simulations:
         p[i].xl *= Fxl;
-        p[i].xl += Srxl * distribution(gen1);
+        p[i].xl += Srxl * Gauss(gen1);
 
         p[i].xx += etax  * p[i].de; // add the energy dependent fixed point;
         p[i].xl += etaxl * p[i].de;

@@ -5,7 +5,6 @@
 #include <cmath> // std::sin std::cos
 #include <cppcolleff/essentials.h>
 #include <cppcolleff/Bunch.h>
-#include <cppcolleff/ThreadPool/ThreadPool.h>
 
 class Ring_t{
     private:

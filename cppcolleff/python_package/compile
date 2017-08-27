@@ -9,6 +9,6 @@
 
 CXX=clang++
 INC="-I.. -I$PYTHONROOT/Headers"
-LIBS="-L$PYTHONROOT/lib -lpython3.4 -lgsl -lcblas"
+LIBS="-L$PYTHONROOT/lib -lpython3.6 -lgsl -lcblas"
 
 make CXX=$CXX INC="$INC" LIBS="$LIBS" -j all

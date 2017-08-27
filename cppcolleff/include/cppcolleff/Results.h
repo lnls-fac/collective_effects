@@ -6,7 +6,6 @@
 #include <string> //std::string.c_str()
 #include <cppcolleff/essentials.h>
 #include <cppcolleff/Bunch.h>
-#include <cppcolleff/ThreadPool/ThreadPool.h>
 
 class Results_t {
     private:

@@ -1,9 +1,13 @@
 #include <cppcolleff/cppcolleff.h>
 
-ThreadPool pool;
-unsigned long seed;
+#ifdef SWIG
+extern my_Dvector pool;
+#else
+extern ThreadPool pool;
+#endif
+extern unsigned long seed;
 
-static void _generate_bunch_thread(
+static int _generate_bunch_thread(
 	const Ring_t& ring,
 	my_PartVector& p,
 	const unsigned int th,
@@ -29,23 +33,24 @@ static void _generate_bunch_thread(
 	  		p[i].xx =  Acosx*ring.betax          + ring.etax *p[i].de;
 	  		p[i].xl = -Acosx*ring.alphax - Asinx + ring.etaxl*p[i].de;
   	}
+	return 1;
 }
 void generate_bunch(const Ring_t& ring, Bunch_t& bun)
 {
 	Interpola_t idistr_interpol (ring.get_integrated_distribution());
+
 	my_PartVector& p = bun.particles;
-
-	int nr_th = get_num_threads();
+    unsigned int nr_th = get_num_threads();
 	my_Ivector lims (get_bounds(0,p.size()));
-	vector<thread> ths;
+	std::vector< std::future<int> > results;
 
-	for (unsigned int i=0;i<nr_th-1;++i){
-		  ths.push_back(thread(_generate_bunch_thread, ref(ring),ref(p), i,
-							   ref(idistr_interpol), lims[i], lims[i+1]));
+	for (unsigned int i=0;i<nr_th;++i){
+		results.emplace_back(pool.enqueue(
+			_generate_bunch_thread, ref(ring),ref(p), i,
+  			ref(idistr_interpol), lims[i], lims[i+1]
+		));
 	}
-	_generate_bunch_thread(ring, p, nr_th-1, idistr_interpol,
-									 lims[nr_th-1], lims[nr_th]);
-	for(auto& th:ths) th.join();
+    for(auto && result: results) result.get();
 
 	bun.is_sorted = false;
 }

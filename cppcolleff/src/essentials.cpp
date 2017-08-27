@@ -2,7 +2,11 @@
 
 unsigned long seed = 1;
 int num_threads = 1;
+#ifdef SWIG
+my_Dvector pool (1,0.0);
+#else
 ThreadPool pool (1);
+#endif
 
 void set_num_threads(int nr)
 {
@@ -17,9 +21,14 @@ void set_seed_num(int nr) {seed = nr;}
 
 my_Ivector get_bounds(const int ini, const int fin)
 {
-    my_Ivector bounds (num_threads+1,0);
-    int incr = (fin-ini) / num_threads;
-    int rem  = (fin-ini) % num_threads;
+    return get_bounds(ini, fin, num_threads);
+}
+
+my_Ivector get_bounds(const int ini, const int fin, const int nr)
+{
+    my_Ivector bounds (nr+1,0);
+    int incr = (fin-ini) / nr;
+    int rem  = (fin-ini) % nr;
     int ad   = 0;
     int N = ini;
     for (auto& bnd:bounds) {
@@ -54,27 +63,53 @@ my_Dvector convolution_same_orig(const my_Dvector& vec1, const my_Dvector& vec2)
 {
     my_Dvector conv (vec1.size(),0.0);
     int init = vec2.size()/2;
-  #ifdef OPENMP
-    #pragma omp parallel for schedule(guided,1)
-  #endif
-    for (int i=0;i<conv.size();++i){
-        for (int j=0,k=(i+init);j<vec2.size() && k>=0;++j,--k){
-            if (k<vec1.size()){ conv[i] += vec1[k]*vec2[j];}
+
+    unsigned int nr_th = get_num_threads();
+    my_Ivector lims (get_bounds(0,conv.size()));
+    std::vector< std::future<int> > results;
+
+    //lambda function
+    auto func = [&](my_Dvector& v, int com, int ter)
+    {
+        for (int ii=com;ii<ter;++ii){
+            for (int j=0,k=(ii+init);j<vec2.size() && k>=0;++j,--k){
+                if (k<vec1.size()){ v[ii] += vec1[k]*vec2[j];}
+            }
         }
-    }
+        return 1;
+    }; //
+
+    for (unsigned int i=0;i<nr_th;++i) results.emplace_back(pool.enqueue(
+                        func, ref(conv), lims[i], lims[i+1]));
+
+    for(auto && result: results) result.get();
+
     return conv;
 }
 my_Dvector convolution_full_orig(const my_Dvector& vec1, const my_Dvector& vec2)
 {
     my_Dvector conv (vec1.size()+vec2.size()-1,0.0);
-  #ifdef OPENMP
-    #pragma omp parallel for schedule(guided,1)
-  #endif
-    for (int i=0;i<conv.size();++i){
-        for (int j=0,k=i;j<vec2.size() && k>=0;++j,--k){
-            if (k<vec1.size()){ conv[i] += vec1[k]*vec2[j];}
+
+    unsigned int nr_th = get_num_threads();
+	my_Ivector lims (get_bounds(0,conv.size()));
+	std::vector< std::future<int> > results;
+
+    //lambda function
+    auto func = [&](my_Dvector& v, int com, int ter)
+    {
+        for (int ii=com;ii<ter;++ii){
+            for (int j=0,k=ii;j<vec2.size() && k>=0;++j,--k){
+                if (k<vec1.size()){ v[ii] += vec1[k]*vec2[j];}
+            }
         }
-    }
+        return 1;
+    }; //
+
+	for (unsigned int i=0;i<nr_th;++i) results.emplace_back(pool.enqueue(
+                        func, ref(conv), lims[i], lims[i+1]));
+
+    for(auto && result: results) result.get();
+
     return conv;
 }
 
@@ -92,6 +127,7 @@ static void _trim_vec(const my_Dvector& vec, int& mini, int& maxi)
         if ((!minb) && (!maxb)) {break;}
     }
 }
+
 static void _convolution(const my_Dvector& vec1, const my_Dvector& vec2, my_Dvector& conv, int init)
 {
     // To do the convolution I trim the beginning and ending points if they are zero (1e-30);
@@ -104,15 +140,38 @@ static void _convolution(const my_Dvector& vec1, const my_Dvector& vec2, my_Dvec
     int ini = max(min1+min2-init,0);
     int fin = min(int(conv.size()), max1 + max2 - 1);
 
-  #ifdef OPENMP
-    #pragma omp parallel for schedule(guided,1)
-  #endif
-    for (int i=ini;i<fin;++i){
-        const int delta = max(i+init-min2-max1,0);
-        for (int j=min2+delta,k=(i+init-min2-delta);j<max2 && k>=min1;++j,--k){
-            conv[i] += vec1[k]*vec2[j];
-        }
-    }
+    #ifdef OPENMP
+      #pragma omp parallel for schedule(guided,1)
+    #endif
+      for (int i=ini;i<fin;++i){
+          const int delta = max(i+init-min2-max1,0);
+          for (int j=min2+delta,k=(i+init-min2-delta);j<max2 && k>=min1;++j,--k){
+              conv[i] += vec1[k]*vec2[j];
+          }
+      }
+
+
+    // unsigned int nr_th = (fin-ini) / 10;
+	// my_Ivector lims (get_bounds(ini,fin, nr_th));
+	// std::vector< std::future<int> > results;
+    //
+    // //lambda function
+    // auto func = [&](my_Dvector& v, int com, int ter)
+    // {
+    //     for (int ii=com;ii<ter;++ii){
+    //         const int delta = max(ii+init-min2-max1,0);
+    //         for (int j=min2+delta,k=(ii+init-min2-delta);j<max2 && k>=min1;++j,--k){
+    //             v[ii] += vec1[k]*vec2[j];
+    //         }
+    //     }
+    //     return 1;
+    // }; //
+    //
+	// for (unsigned int i=0;i<nr_th;++i) results.emplace_back(pool.enqueue(
+    //                     func, ref(conv), lims[i], lims[i+1]));
+    //
+    // for(auto && result: results) result.get();
+
 }
 // this function follows matlab's convention of same, not numpy's.
 my_Dvector convolution_same(const my_Dvector& vec1, const my_Dvector& vec2)

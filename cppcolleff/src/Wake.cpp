@@ -1,10 +1,10 @@
 #include <cppcolleff/Wake.h>
 
-<<<<<<< HEAD
+#ifdef SWIG
+extern my_Dvector pool;
+#else
 extern ThreadPool pool;
-=======
-ThreadPool pool;
->>>>>>> 1baad9c658b22a11d36579379bf9813df643a0c5
+#endif
 
 my_Dvector WakePl::get_wake_at_points(const my_Dvector& spos, const double& stren) const
 {
@@ -23,7 +23,7 @@ my_Dvector WakePl::get_wake_at_points(const my_Dvector& spos, const double& stre
             complex<double> cpl_kr (kr/(2*Q[r]), krl);
             complex<double> W_pot (0.0,0.0);
             #ifdef OPENMP
-              #pragma omp parallel for schedule(guided,1)
+            //   #pragma omp parallel for schedule(guided,1)
             #endif
             for (int i=0;i<spos.size();++i){
                 if (spos[i] < 0.0) {continue;}

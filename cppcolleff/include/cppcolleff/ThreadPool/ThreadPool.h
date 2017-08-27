@@ -14,21 +14,32 @@
 class ThreadPool {
 public:
     ThreadPool(size_t);
+    #ifndef SWIG
     template<class F, class... Args>
     auto enqueue(F&& f, Args&&... args)
         -> std::future<typename std::result_of<F(Args...)>::type>;
+    #endif
     ~ThreadPool();
-    void resize(int nThreads)
+    void resize(size_t nThreads)
     {
          if (!stop && tasks.empty()) {
              int oldNThreads = workers.size();
              if (oldNThreads <= nThreads) {  // if the number of threads is increased
-                 for (int i = oldNThreads; i < nThreads; ++i) add_thread();
+                 for (size_t i = oldNThreads; i < nThreads; ++i) add_thread();
              }
              else {  // the number of threads is decreased
+                 {
+                     std::unique_lock<std::mutex> lock(queue_mutex);
+                     stop = true;
+                 }
                  condition.notify_all();
-                 for (int i = oldNThreads - 1; i >= nThreads; --i) workers[i].join();
-                 workers.resize(nThreads);
+                 for (auto& work: workers) work.join();
+                 workers.clear();
+                 {
+                     std::unique_lock<std::mutex> lock(queue_mutex);
+                     stop = false;
+                 }
+                 for (size_t i = 0; i < nThreads; ++i) add_thread();
              }
          }
     }
@@ -79,6 +90,7 @@ inline ThreadPool::ThreadPool(size_t threads)
 }
 
 // add new work item to the pool
+#ifndef SWIG
 template<class F, class... Args>
 auto ThreadPool::enqueue(F&& f, Args&&... args)
     -> std::future<typename std::result_of<F(Args...)>::type>
@@ -102,7 +114,7 @@ auto ThreadPool::enqueue(F&& f, Args&&... args)
     condition.notify_one();
     return res;
 }
-
+#endif
 // the destructor joins all threads
 inline ThreadPool::~ThreadPool()
 {

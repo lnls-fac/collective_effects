@@ -1,6 +1,10 @@
 #include <cppcolleff/Results.h>
 
-ThreadPool pool;
+#ifdef SWIG
+extern my_Dvector pool;
+#else
+extern ThreadPool pool;
+#endif
 
 void Results_t::write_bunch_to_file(const Bunch_t& bun, const char* filename) const
 {
@@ -27,7 +31,6 @@ int calc_moments(
     }
     return 1;
 }
-
 
 double Results_t::calc_stats(
     const Bunch_t& bun,
