@@ -10,7 +10,7 @@ MACHINE   = -m64
 OPT_FLAG  = -O4
 SWIG_FLAGS= -c++ -python -threads
 GEN_FLAG  = -fopenmp -pthread -std=c++11 -fPIC
-DFLAGS    = -DOPENMP -DSWIG
+DFLAGS    = -DSWIG
 
 SOURCES_I = cppcolleff.i
 

@@ -9,9 +9,7 @@
 #include <cmath>
 #include <complex>
 #include <omp.h>
-#ifndef SWIG
 #include <cppcolleff/ThreadPool/ThreadPool.h>
-#endif
 
 using namespace std;
 
@@ -22,11 +20,6 @@ typedef vector<int> my_Ivector;
 typedef vector<double> my_Dvector;
 typedef vector<complex<double>> my_Cvector;
 
-#ifdef SWIG
-extern my_Dvector pool;
-#else
-extern ThreadPool pool;
-#endif
 extern unsigned long seed;
 extern int num_threads;
 
@@ -148,10 +141,14 @@ public:
 };
 
 my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2);
+my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2, ThreadPool& pool);
 my_Dvector convolution_full_orig(const my_Dvector& vec1, const my_Dvector& vec2);
+my_Dvector convolution_full_orig(const my_Dvector& vec1, const my_Dvector& vec2, ThreadPool& pool);
 
 // this function follows matlab's convention of same, not numpy's:
 my_Dvector convolution_same(const my_Dvector& vec1, const my_Dvector& vec2);
+my_Dvector convolution_same(const my_Dvector& vec1, const my_Dvector& vec2, ThreadPool& pool);
 my_Dvector convolution_same_orig(const my_Dvector& vec1, const my_Dvector& vec2);
+my_Dvector convolution_same_orig(const my_Dvector& vec1, const my_Dvector& vec2, ThreadPool& pool);
 
 #endif

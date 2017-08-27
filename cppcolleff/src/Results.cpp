@@ -1,11 +1,5 @@
 #include <cppcolleff/Results.h>
 
-#ifdef SWIG
-extern my_Dvector pool;
-#else
-extern ThreadPool pool;
-#endif
-
 void Results_t::write_bunch_to_file(const Bunch_t& bun, const char* filename) const
 {
     FILE* fp = fopen(filename,"w");
@@ -17,7 +11,7 @@ void Results_t::write_bunch_to_file(const Bunch_t& bun, const char* filename) co
     fclose(fp);
 }
 
-int calc_moments(
+double calc_moments(
     const my_PartVector& p,
     Particle_t& ave,
     Particle_t& std,
@@ -25,16 +19,30 @@ int calc_moments(
     const int fin,
     const bool this_turn)
 {
+    if (!this_turn) {
+        double avexx (0.0);
+        for (int i=init;i<fin;++i) avexx += p[i].xx;
+        return avexx;
+    }
     for (int i=init;i<fin;++i){
         ave += p[i];
-        if (this_turn) std += p[i]*p[i];
+        std += p[i]*p[i];
     }
-    return 1;
+    return ave.xx;
 }
 
 double Results_t::calc_stats(
     const Bunch_t& bun,
     const long turn)
+{
+    ThreadPool pool (get_num_threads());
+    return calc_stats(bun, turn, pool);
+}
+
+double Results_t::calc_stats(
+    const Bunch_t& bun,
+    const long turn,
+    ThreadPool& pool)
 {
     const bool this_turn = calc_this_turn(turn);
     ave.push_back(Particle_t (0.0));
@@ -48,20 +56,23 @@ double Results_t::calc_stats(
     my_Ivector lims (get_bounds(0,p.size()));
     my_PartVector aves (nr_th,Particle_t());
     my_PartVector stds (nr_th,Particle_t());
-    std::vector< std::future<int> > res;
+    std::vector< std::future<double> > res;
 
     for (unsigned int i=0;i<nr_th;++i){
         res.emplace_back(pool.enqueue(calc_moments, ref(p), ref(aves[i]),
                          ref(stds[i]), lims[i], lims[i+1], this_turn));
     }
-
+    if (!this_turn){
+        double avexx (0.0);
+        for(int i=0; i<nr_th; ++i) avexx += res[i].get();
+        return avexx /= bun.num_part;
+    }
     for(int i=0; i<nr_th; ++i){
         res[i].get();
         rave += aves[i];
-        if (this_turn) rstd += stds[i];
+        rstd += stds[i];
     }
     rave /= bun.num_part;
-    if (!this_turn) return rave.xx;
     rstd /= bun.num_part;
     rstd = sqrt(rstd - rave * rave);
 
@@ -86,7 +97,6 @@ double Results_t::calc_stats(
                 );
         }
     }
-
     return rave.xx;
 }
 

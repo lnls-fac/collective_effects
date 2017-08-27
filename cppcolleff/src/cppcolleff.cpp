@@ -1,12 +1,5 @@
 #include <cppcolleff/cppcolleff.h>
 
-#ifdef SWIG
-extern my_Dvector pool;
-#else
-extern ThreadPool pool;
-#endif
-extern unsigned long seed;
-
 static int _generate_bunch_thread(
 	const Ring_t& ring,
 	my_PartVector& p,
@@ -35,10 +28,11 @@ static int _generate_bunch_thread(
   	}
 	return 1;
 }
-void generate_bunch(const Ring_t& ring, Bunch_t& bun)
+void generate_bunch(const Ring_t& ring, Bunch_t& bun, ThreadPool& pool)
 {
 	Interpola_t idistr_interpol (ring.get_integrated_distribution());
 
+	extern unsigned long seed;
 	my_PartVector& p = bun.particles;
     unsigned int nr_th = get_num_threads();
 	my_Ivector lims (get_bounds(0,p.size()));
@@ -54,55 +48,68 @@ void generate_bunch(const Ring_t& ring, Bunch_t& bun)
 
 	bun.is_sorted = false;
 }
-
-
-static double get_residue(const my_Dvector& spos, const my_Dvector& distr, const my_Dvector& distr_old)
+void generate_bunch(const Ring_t& ring, Bunch_t& bun)
 {
-	double res = 0.0;
-	double ds = spos[1] - spos[0];
-	#ifdef OPENMP
-	  #pragma omp parallel for schedule(guided,1) reduction(+:res)
-	#endif
-	for (int i=0;i<spos.size();++i){res += (distr[i] - distr_old[i]) * (distr[i] - distr_old[i]) * ds;}
-	return res;
+	ThreadPool pool (get_num_threads());
+	return generate_bunch(ring, bun, pool);
 }
-static double get_residue(const my_Dvector& spos, const my_Dvector& distr)
+
+
+static double get_residue(
+	const my_Dvector& spos,
+	const my_Dvector& distr,
+	const my_Dvector& distr_old,
+	ThreadPool& pool)
 {
-	double res = 0.0;
-	double ds = spos[1] - spos[0];
-	#ifdef OPENMP
-	  #pragma omp parallel for schedule(guided,1) reduction(+:res)
-	#endif
-	for (int i=0;i<spos.size();++i){res += distr[i] * distr[i] * ds;}
+	double res (0.0);
+	double ds (spos[1] - spos[0]);
+
+	unsigned int nr_th = get_num_threads();
+	my_Ivector lims (get_bounds(0, spos.size()));
+	vector< std::future<double> > results;
+	auto fun = [&](int ini, int fin){
+		double r (0.0);
+		for (int ii=ini;ii<fin;++ii){r += (distr[ii] - distr_old[ii]) * (distr[ii] - distr_old[ii]) * ds;}
+		return r;};
+	for (unsigned int i=0;i<nr_th;++i){
+		results.emplace_back(pool.enqueue(fun, lims[i], lims[i+1]));
+	}
+	for(auto&& result: results) res += result.get();
+
 	return res;
 }
 static my_Dvector _const_espread_iteration_Haissinski(
 	const Ring_t ring,
 	const my_Dvector KickF,
 	const int niter,
-	const my_Dvector distr_ini)
+	const my_Dvector distr_ini,
+	ThreadPool& pool)
 {
 	my_Dvector distr_old (distr_ini);
 	auto& cav_s = ring.cav.ref_to_xi();
 	auto& cav_V = ring.cav.ref_to_yi();
-	double residue_old (get_residue(cav_s,distr_old));
+	double residue_old (get_residue(cav_s, distr_old, my_Dvector(cav_s.size(),0.0), pool));
 	int count (0);
 	double&& ds = (cav_s[1]-cav_s[0]);
+
+	unsigned int nr_th = get_num_threads();
+	my_Ivector lims (get_bounds(0, cav_V.size()));
+	vector< std::future<int> > res;
 	while (true) {
-		my_Dvector V (convolution_same(KickF,distr_old)); // variable to be returned;
+		my_Dvector V (convolution_same(KickF, distr_old, pool)); // variable to be returned;
 
-	  #ifdef OPENMP
-		#pragma omp parallel for schedule(guided,1)
-	  #endif
-		for (int i=0;i<V.size();++i){
-			V[i] *= ds; // to fix the scale of the convolution.
-			V[i] += cav_V[i];
-		}
+		// correct the scale of the convolution and add cavity to potential:
+	    auto fun = [&](my_Dvector& V1, int ini, int fin)
+	    {for (int i=ini;i<fin;++i){V1[i] *= ds; V1[i] += cav_V[i];}  return 1;};
+	    for (unsigned int i=0;i<nr_th;++i){
+	        res.emplace_back(pool.enqueue(fun, ref(V), lims[i], lims[i+1]));
+	    }
+	    for(auto&& result: res) result.get();
+		res.clear();
 
-		my_Dvector&& distr = ring.get_distribution(V);
-		double&& residue = get_residue(cav_s,distr,distr_old);
+		my_Dvector&& distr = ring.get_distribution(pool, V, cav_s);
+		double&& residue = get_residue(cav_s, distr, distr_old, pool);
 
-		// fprintf(stdout,"%3d: %8.3g\n",count,residue);
 		if (residue < residue_old){if (residue < 1e-6) return V;}
 		else {if (++count > niter) return my_Dvector ();};
 
@@ -111,31 +118,6 @@ static my_Dvector _const_espread_iteration_Haissinski(
 	}
 }
 
-static my_Dvector _const_espread_iteration_Haissinski(
-	const Ring_t ring,
-	const my_Dvector KickF)
-{
-	int niter = 100;
-	my_Dvector distr_ini (ring.get_distribution());
-	return _const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini);
-}
-static my_Dvector _const_espread_iteration_Haissinski(
-	const Ring_t ring,
-	const my_Dvector KickF,
-	const int niter)
-{
-	my_Dvector distr_ini (ring.get_distribution());
-	return _const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini);
-}
-static my_Dvector _const_espread_iteration_Haissinski(
-	const Ring_t ring,
-	const my_Dvector KickF,
-	const my_Dvector distr_ini)
-{
-	int niter = 100;
-	return _const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini);
-}
-
 
 my_Dvector solve_Haissinski_get_potential(
 	const Wake_t& wake,
@@ -144,39 +126,27 @@ my_Dvector solve_Haissinski_get_potential(
 	const int niter,
 	const my_Dvector distr_ini)
 {
-	// get the wake function at the cavity longitudinal points (actually it is the kick)
-	auto& cav_s = ring.cav.ref_to_xi();
-	my_Dvector&& KickF = wake.Wl.get_wake_at_points(cav_s, -Ib * ring.T0 / ring.energy);
+	ThreadPool pool (get_num_threads());
+	return solve_Haissinski_get_potential(wake, ring, Ib, pool, niter, distr_ini);
+}
 
-	return _const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini);
-}
-my_Dvector solve_Haissinski_get_potential(
-	const Wake_t& wake,
-	const Ring_t& ring,
-	const double& Ib)
-{
-	int niter (100);
-	my_Dvector distr_ini (ring.get_distribution());
-	return solve_Haissinski_get_potential(wake, ring, Ib, niter, distr_ini);
-}
 my_Dvector solve_Haissinski_get_potential(
 	const Wake_t& wake,
 	const Ring_t& ring,
 	const double& Ib,
-	const int niter)
-{
-	my_Dvector distr_ini (ring.get_distribution());
-	return solve_Haissinski_get_potential(wake, ring, Ib, niter, distr_ini);
-}
-my_Dvector solve_Haissinski_get_potential(
-	const Wake_t& wake,
-	const Ring_t& ring,
-	const double& Ib,
+	ThreadPool& pool,
+	const int niter,
 	const my_Dvector distr_ini)
 {
-	int niter (100);
-	return solve_Haissinski_get_potential(wake, ring, Ib, niter, distr_ini);
+	// get the wake function at the cavity longitudinal points (actually it is the kick)
+	my_Dvector ini_distr (distr_ini);
+	if (ini_distr.size() == 0) {ini_distr = ring.get_distribution();}
+
+	auto& cav_s = ring.cav.ref_to_xi();
+	my_Dvector&& KickF = wake.Wl.get_wake_at_points(cav_s, -Ib * ring.T0 / ring.energy);
+	return _const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini, pool);
 }
+
 
 double find_equilibrium_energy_spread(
 	const Wake_t& wake,
@@ -185,11 +155,23 @@ double find_equilibrium_energy_spread(
 	const int niter,
 	const my_Dvector distr_ini)
 {
+	ThreadPool pool (get_num_threads());
+	return find_equilibrium_energy_spread(wake, ring, Ib, pool, niter, distr_ini);
+}
+
+double find_equilibrium_energy_spread(
+	const Wake_t& wake,
+	Ring_t& ring,
+	const double& Ib,
+	ThreadPool& pool,
+	const int niter,
+	const my_Dvector distr_ini)
+{
 	// get the wake function at the cavity longitudinal points (actually it is the kick)
 	auto& cav_s = ring.cav.ref_to_xi();
 	my_Dvector&& KickF = wake.Wl.get_wake_at_points(cav_s, -Ib * ring.T0 / ring.energy);
 
-	my_Dvector V (_const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini));
+	my_Dvector V (_const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini, pool));
 
 	// Now use bissection to get the equilibrium distribution if needed
 	double final_espread (ring.espread);
@@ -211,7 +193,7 @@ double find_equilibrium_energy_spread(
 				ring.espread -= delta_spread;
 			}
 			// fprintf(stdout,"ok\n");
-			V = _const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini);
+			V = _const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini, pool);
 			// fprintf(stdout,"ok2\n");
 		}
 		ring.espread = init_espread;
@@ -219,33 +201,6 @@ double find_equilibrium_energy_spread(
 	return final_espread;
 }
 
-double find_equilibrium_energy_spread(
-	const Wake_t& wake,
-	Ring_t& ring,
-	const double& Ib)
-{
-	int niter = 100;
-	my_Dvector distr_ini (ring.get_distribution());
-	return find_equilibrium_energy_spread(wake, ring, Ib, niter, distr_ini);
-}
-double find_equilibrium_energy_spread(
-	const Wake_t& wake,
-	Ring_t& ring,
-	const double& Ib,
-	const int niter)
-{
-	my_Dvector distr_ini (ring.get_distribution());
-	return find_equilibrium_energy_spread(wake, ring, Ib, niter, distr_ini);
-}
-double find_equilibrium_energy_spread(
-	const Wake_t& wake,
-	Ring_t& ring,
-	const double& Ib,
-	const my_Dvector distr_ini)
-{
-	int niter = 100;
-	return find_equilibrium_energy_spread(wake, ring, Ib, niter, distr_ini);
-}
 
 void single_bunch_tracking(
     const Ring_t& ring,
@@ -257,16 +212,18 @@ void single_bunch_tracking(
     //current dependent strength of the kick:
     const double kick_stren = ring.T0 / ring.energy * bun.Ib / bun.num_part;
 
+	ThreadPool pool (get_num_threads());
+
     for (long n=0;n<results.get_nturns();n++){
-        double&& xx_ave = results.calc_stats(bun, n);
+        double&& xx_ave = results.calc_stats(bun, n, pool);
         /* convention: positive ss, means particle behind the sinchronous particle;
          First do single particle tracking:*/
-        ring.track_one_turn(bun, n);
+        ring.track_one_turn(bun, n, pool);
 
         results.register_Wkicks(n, wake.apply_kicks(bun,kick_stren, ring.betax));
         results.register_FBkick(n,   fb.apply_kick(bun, xx_ave,     ring.betax));
     }
-    results.calc_stats(bun, results.get_nturns());
+    results.calc_stats(bun, results.get_nturns(), pool);
 }
 
 

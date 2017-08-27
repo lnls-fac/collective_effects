@@ -2,17 +2,11 @@
 
 unsigned long seed = 1;
 int num_threads = 1;
-#ifdef SWIG
-my_Dvector pool (1,0.0);
-#else
-ThreadPool pool (1);
-#endif
 
 void set_num_threads(int nr)
 {
     num_threads = nr;
     omp_set_num_threads(nr);
-    pool.resize(nr);
 }
 
 int get_num_threads() { return num_threads;}
@@ -61,6 +55,11 @@ void Interpola_t::check_consistency()
 // this function follows matlab's convention of same, not numpy's.
 my_Dvector convolution_same_orig(const my_Dvector& vec1, const my_Dvector& vec2)
 {
+    ThreadPool pool (get_num_threads());
+    return convolution_same_orig(vec1, vec2, pool);
+}
+my_Dvector convolution_same_orig(const my_Dvector& vec1, const my_Dvector& vec2, ThreadPool& pool)
+{
     my_Dvector conv (vec1.size(),0.0);
     int init = vec2.size()/2;
 
@@ -78,15 +77,18 @@ my_Dvector convolution_same_orig(const my_Dvector& vec1, const my_Dvector& vec2)
         }
         return 1;
     }; //
-
     for (unsigned int i=0;i<nr_th;++i) results.emplace_back(pool.enqueue(
                         func, ref(conv), lims[i], lims[i+1]));
-
     for(auto && result: results) result.get();
 
     return conv;
 }
 my_Dvector convolution_full_orig(const my_Dvector& vec1, const my_Dvector& vec2)
+{
+    ThreadPool pool (get_num_threads());
+    return convolution_full_orig(vec1, vec2, pool);
+}
+my_Dvector convolution_full_orig(const my_Dvector& vec1, const my_Dvector& vec2, ThreadPool& pool)
 {
     my_Dvector conv (vec1.size()+vec2.size()-1,0.0);
 
@@ -104,10 +106,8 @@ my_Dvector convolution_full_orig(const my_Dvector& vec1, const my_Dvector& vec2)
         }
         return 1;
     }; //
-
 	for (unsigned int i=0;i<nr_th;++i) results.emplace_back(pool.enqueue(
                         func, ref(conv), lims[i], lims[i+1]));
-
     for(auto && result: results) result.get();
 
     return conv;
@@ -128,7 +128,7 @@ static void _trim_vec(const my_Dvector& vec, int& mini, int& maxi)
     }
 }
 
-static void _convolution(const my_Dvector& vec1, const my_Dvector& vec2, my_Dvector& conv, int init)
+static void _convolution(const my_Dvector& vec1, const my_Dvector& vec2, my_Dvector& conv, int init, ThreadPool& pool)
 {
     // To do the convolution I trim the beginning and ending points if they are zero (1e-30);
     int min1 (0), max1 (vec1.size());
@@ -140,53 +140,52 @@ static void _convolution(const my_Dvector& vec1, const my_Dvector& vec2, my_Dvec
     int ini = max(min1+min2-init,0);
     int fin = min(int(conv.size()), max1 + max2 - 1);
 
-    #ifdef OPENMP
-      #pragma omp parallel for schedule(guided,1)
-    #endif
-      for (int i=ini;i<fin;++i){
-          const int delta = max(i+init-min2-max1,0);
-          for (int j=min2+delta,k=(i+init-min2-delta);j<max2 && k>=min1;++j,--k){
-              conv[i] += vec1[k]*vec2[j];
-          }
-      }
+    unsigned int nr_job = max((fin-ini)/100, min(32, fin-ini));
+	my_Ivector lims (get_bounds(ini, fin, nr_job));
+	std::vector< std::future<int> > results;
 
+    //lambda function
+    auto func = [&](my_Dvector& v, int com, int ter)
+    {
+        for (int ii=com;ii<ter;++ii){
+            const int delta = max(ii+init-min2-max1,0);
+            for (int j=min2+delta,k=(ii+init-min2-delta);j<max2 && k>=min1;++j,--k){
+                v[ii] += vec1[k]*vec2[j];
+            }
+        }
+        return 1;
+    }; //
 
-    // unsigned int nr_th = (fin-ini) / 10;
-	// my_Ivector lims (get_bounds(ini,fin, nr_th));
-	// std::vector< std::future<int> > results;
-    //
-    // //lambda function
-    // auto func = [&](my_Dvector& v, int com, int ter)
-    // {
-    //     for (int ii=com;ii<ter;++ii){
-    //         const int delta = max(ii+init-min2-max1,0);
-    //         for (int j=min2+delta,k=(ii+init-min2-delta);j<max2 && k>=min1;++j,--k){
-    //             v[ii] += vec1[k]*vec2[j];
-    //         }
-    //     }
-    //     return 1;
-    // }; //
-    //
-	// for (unsigned int i=0;i<nr_th;++i) results.emplace_back(pool.enqueue(
-    //                     func, ref(conv), lims[i], lims[i+1]));
-    //
-    // for(auto && result: results) result.get();
+	for (unsigned int i=0;i<nr_job;++i) results.emplace_back(pool.enqueue(
+        func, ref(conv), lims[i], lims[i+1]));
+    for(auto && result: results) result.get();
+
 
 }
 // this function follows matlab's convention of same, not numpy's.
 my_Dvector convolution_same(const my_Dvector& vec1, const my_Dvector& vec2)
 {
+    ThreadPool pool (get_num_threads());
+    return convolution_same(vec1, vec2, pool);
+}
+my_Dvector convolution_same(const my_Dvector& vec1, const my_Dvector& vec2, ThreadPool& pool)
+{
     my_Dvector conv (vec1.size(),0.0);
     int init = vec2.size()/2;
 
-    _convolution(vec1, vec2, conv, init);
+    _convolution(vec1, vec2, conv, init, pool);
     return conv;
 }
 my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2)
 {
+    ThreadPool pool (get_num_threads());
+    return convolution_full(vec1, vec2, pool);
+}
+my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2, ThreadPool& pool)
+{
     my_Dvector conv (vec1.size()+vec2.size()-1,0.0);
     int init (0);
 
-    _convolution(vec1, vec2, conv, init);
+    _convolution(vec1, vec2, conv, init, pool);
     return conv;
 }

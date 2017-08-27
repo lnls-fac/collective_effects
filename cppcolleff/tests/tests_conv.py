@@ -61,7 +61,7 @@ def perform_time_domain_simulation(rin, wake, currents,
     return currents, espread, bl, s0, nus_ave, nus_std, dists
 
 
-coll.set_num_threads(8)
+coll.set_num_threads(32)
 
 ring = coll.Ring_t()
 ring.energy = 3e9

@@ -4,7 +4,7 @@ import time
 import math
 import cppcolleff as coll
 
-coll.set_num_threads(32)
+coll.set_num_threads(25)
 
 ring = coll.Ring_t()
 ring.energy = 3e9
@@ -34,7 +34,7 @@ for i in range(-10000, 10001):
     V.push_back(V0*math.sin(phi0 + krf*s) - ring.en_lost_rad)
 ring.cav.set_xy(ss, V)
 
-num_part = 100000
+num_part = 500000
 nturns = 10000
 bun = coll.Bunch_t(num_part, 1e-3)
 coll.generate_bunch(ring, bun)

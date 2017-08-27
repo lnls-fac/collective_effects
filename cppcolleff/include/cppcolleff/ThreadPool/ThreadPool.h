@@ -14,11 +14,9 @@
 class ThreadPool {
 public:
     ThreadPool(size_t);
-    #ifndef SWIG
     template<class F, class... Args>
     auto enqueue(F&& f, Args&&... args)
         -> std::future<typename std::result_of<F(Args...)>::type>;
-    #endif
     ~ThreadPool();
     void resize(size_t nThreads)
     {
@@ -90,7 +88,6 @@ inline ThreadPool::ThreadPool(size_t threads)
 }
 
 // add new work item to the pool
-#ifndef SWIG
 template<class F, class... Args>
 auto ThreadPool::enqueue(F&& f, Args&&... args)
     -> std::future<typename std::result_of<F(Args...)>::type>
@@ -114,7 +111,7 @@ auto ThreadPool::enqueue(F&& f, Args&&... args)
     condition.notify_one();
     return res;
 }
-#endif
+
 // the destructor joins all threads
 inline ThreadPool::~ThreadPool()
 {

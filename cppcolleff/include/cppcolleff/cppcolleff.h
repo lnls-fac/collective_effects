@@ -10,49 +10,38 @@
 #include <cppcolleff/Wake.h>
 #include <cppcolleff/Ring.h>
 
+void generate_bunch(const Ring_t& ring, Bunch_t& bun, ThreadPool& pool);
 void generate_bunch(const Ring_t& ring, Bunch_t& bun);
 
 my_Dvector solve_Haissinski_get_potential(
     const Wake_t& wake,
     const Ring_t& ring,
     const double& Ib,
-    const int niter,
-    const my_Dvector distr_ini);
-my_Dvector solve_Haissinski_get_potential(
-    const Wake_t& wake,
-    const Ring_t& ring,
-    const double& Ib);
-my_Dvector solve_Haissinski_get_potential(
-    const Wake_t& wake,
-    const Ring_t& ring,
-    const double& Ib,
-    const int niter);
+    const int niter = 100,
+    const my_Dvector distr_ini = my_Dvector ());
+
 my_Dvector solve_Haissinski_get_potential(
     const Wake_t& wake,
     const Ring_t& ring,
     const double& Ib,
-    const my_Dvector distr_ini);
+    ThreadPool& pool,
+    const int niter = 100,
+    const my_Dvector distr_ini = my_Dvector ());
 
 double find_equilibrium_energy_spread(
     const Wake_t& wake,
     Ring_t& ring, // Only changes the energy spread internally;
     const double& Ib,
-    const int niter,
-    const my_Dvector distr_ini);
-double find_equilibrium_energy_spread(
-	const Wake_t& wake,
-	Ring_t& ring, // Only changes the energy spread internally;
-	const double& Ib);
+    const int niter = 100,
+    const my_Dvector distr_ini = my_Dvector ());
+
 double find_equilibrium_energy_spread(
     const Wake_t& wake,
     Ring_t& ring, // Only changes the energy spread internally;
     const double& Ib,
-    const int niter);
-double find_equilibrium_energy_spread(
-    const Wake_t& wake,
-    Ring_t& ring, // Only changes the energy spread internally;
-    const double& Ib,
-    const my_Dvector distr_ini);
+    ThreadPool& pool,
+    const int niter = 100,
+    const my_Dvector distr_ini = my_Dvector ());
 
 void single_bunch_tracking(
     const Ring_t& ring,

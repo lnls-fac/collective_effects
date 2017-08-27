@@ -1,11 +1,5 @@
 #include <cppcolleff/Wake.h>
 
-#ifdef SWIG
-extern my_Dvector pool;
-#else
-extern ThreadPool pool;
-#endif
-
 my_Dvector WakePl::get_wake_at_points(const my_Dvector& spos, const double& stren) const
 {
     my_Dvector wakeF(spos.size(),0.0);
