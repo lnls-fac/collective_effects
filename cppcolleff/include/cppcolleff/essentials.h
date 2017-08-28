@@ -26,6 +26,7 @@ extern int num_threads;
 void set_num_threads(int nr);
 int get_num_threads();
 void set_seed_num(int nr);
+unsigned long get_seed();
 my_Ivector get_bounds(const int ini, const int fin);
 my_Ivector get_bounds(const int ini, const int fin, const int nr);
 
@@ -34,7 +35,9 @@ class Particle_t {
 public:
     double xx, xl, de, ss;
     Particle_t():xx(0.0),xl(0.0),de(0.0),ss(0.0) {};
-    Particle_t(double ini): xx(ini),xl(ini),de(ini),ss(ini) {};
+    Particle_t(const Particle_t& p){xx=p.xx; xl=p.xl; de=p.de; ss=p.ss;}
+    Particle_t(const double ini): xx(ini),xl(ini),de(ini),ss(ini) {};
+    Particle_t(const long ini): xx(ini),xl(ini),de(ini),ss(ini) {};
     ~Particle_t() = default;
     Particle_t& operator += (const Particle_t& b)
                 {xx += b.xx; xl += b.xl; de += b.de; ss += b.ss; return *this;}

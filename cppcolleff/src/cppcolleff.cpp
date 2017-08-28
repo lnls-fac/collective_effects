@@ -3,7 +3,7 @@
 static int _generate_bunch_thread(
 	const Ring_t& ring,
 	my_PartVector& p,
-	const unsigned int th,
+	const unsigned int seed,
 	const Interpola_t& idistr_interpol,
 	const int init,
 	const int final)
@@ -13,7 +13,7 @@ static int _generate_bunch_thread(
 	exponential_distribution<double> emitx_dist(1/(2*ring.emitx));
 	uniform_real_distribution<double> phix_dist(0.0,TWOPI);
 	uniform_real_distribution<double> ss_dist(idist.front(),idist.back());
-	default_random_engine gen(seed + th);
+	default_random_engine gen(seed);
 
   	for (int i=init;i<final;++i){
 	  		double&& emitx = emitx_dist(gen);
@@ -33,6 +33,7 @@ void generate_bunch(const Ring_t& ring, Bunch_t& bun, ThreadPool& pool)
 	Interpola_t idistr_interpol (ring.get_integrated_distribution());
 
 	extern unsigned long seed;
+
 	my_PartVector& p = bun.particles;
     unsigned int nr_th = get_num_threads();
 	my_Ivector lims (get_bounds(0,p.size()));
@@ -40,9 +41,10 @@ void generate_bunch(const Ring_t& ring, Bunch_t& bun, ThreadPool& pool)
 
 	for (unsigned int i=0;i<nr_th;++i){
 		results.emplace_back(pool.enqueue(
-			_generate_bunch_thread, ref(ring),ref(p), i,
+			_generate_bunch_thread, ref(ring), ref(p), seed,
   			ref(idistr_interpol), lims[i], lims[i+1]
 		));
+		seed++;
 	}
     for(auto && result: results) result.get();
 
@@ -220,7 +222,7 @@ void single_bunch_tracking(
          First do single particle tracking:*/
         ring.track_one_turn(bun, n, pool);
 
-        results.register_Wkicks(n, wake.apply_kicks(bun,kick_stren, ring.betax));
+        results.register_Wkicks(n, wake.apply_kicks(bun, kick_stren, ring.betax, pool));
         results.register_FBkick(n,   fb.apply_kick(bun, xx_ave,     ring.betax));
     }
     results.calc_stats(bun, results.get_nturns(), pool);

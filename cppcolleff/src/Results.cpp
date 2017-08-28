@@ -1,16 +1,5 @@
 #include <cppcolleff/Results.h>
 
-void Results_t::write_bunch_to_file(const Bunch_t& bun, const char* filename) const
-{
-    FILE* fp = fopen(filename,"w");
-    fprintf(fp,"#%20s %20s %20s %20s\n","xx [m]", "xl [m]", "de", "ss [m]");
-
-    for (auto& p:bun.particles){
-        fprintf(fp,"%20.7g  %20.7g %20.7g %20.7g\n",p.xx,p.xl,p.de,p.ss);
-    }
-    fclose(fp);
-}
-
 double calc_moments(
     const my_PartVector& p,
     Particle_t& ave,
@@ -79,7 +68,7 @@ double Results_t::calc_stats(
     if (dump_bunch_to_file && dump_this_turn(turn)) {
         char filename[50];
         sprintf(filename,"turn%07lu.txt",turn);
-        write_bunch_to_file(bun, filename);
+        bun.write_bunch_to_file(filename);
     }
     if (print_in_screen) {
         if (turn == 0) {

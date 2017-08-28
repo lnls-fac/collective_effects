@@ -3,8 +3,11 @@
 import time
 import math
 import cppcolleff as coll
+import matplotlib.pyplot as plt
+import numpy as np
 
-coll.set_num_threads(2)
+coll.set_num_threads(32)
+coll.set_seed_num(5004930)
 
 ring = coll.Ring_t()
 ring.energy = 3e9
@@ -34,25 +37,58 @@ for i in range(-10000, 10001):
     V.push_back(V0*math.sin(phi0 + krf*s) - ring.en_lost_rad)
 ring.cav.set_xy(ss, V)
 
-num_part = 5000000
-nturns = 10000
+num_part = 10000000
+nturns = 100
 bun = coll.Bunch_t(num_part, 1e-3)
 coll.generate_bunch(ring, bun)
 bun.sort()
 
+
+# resonators = [  # Rs    Q      wr
+#           [2000,  1,    1.0e11],
+#           [2500,  3,    2.2e11],
+#           [2500,  4.5,  3.6e11],
+#           [2000,  1.0,  5.0e11],
+#           [2000,  4.0,  8.7e11],
+#           [6500,  1.3, 13.0e11],
+#           [30000, 0.7,  45.0e11],
+# ]
+resonators = [  # Rs    Q      wr
+           [4000,  1,    1.0e11]]
+
 wake = coll.Wake_t()
-wake.Wl.resonator = False
-wake.Wl.wr.push_back(30e9*coll.TWOPI)
-wake.Wl.Rs.push_back(1e4)
-wake.Wl.Q.push_back(1)
+wake.Wl.resonator = True
+for Rsi, Qi, wri in resonators:
+    wake.Wl.wr.push_back(wri)
+    wake.Wl.Rs.push_back(Rsi)
+    wake.Wl.Q.push_back(Qi)
+
+# x = coll.my_Dvector()
+# for i in range(50000):
+#     x.push_back(2e-5 * 5e-2 * i)
+# y = coll.my_Dvector(wake.Wl.get_wake_at_points(x, 1))
+# wake.Wl.WF.set_xy(x, y)
+# wake.Wl.resonator = True
+# wake.Wl.wake_function = False
 
 fb = coll.Feedback_t()
 
-results = coll.Results_t(nturns, 100)
+results = coll.Results_t(nturns, 1)
 
 # bun.scale_longitudinal(0.1)
 # bun.scale_transverse(0.1)
 t0 = time.time()
-# coll.single_bunch_tracking(ring, wake, fb, bun, results)
-dist = bun.calc_particles_distribution(ss)
+coll.single_bunch_tracking(ring, wake, fb, bun, results)
 print('elapsed time: {0:15.4f}'.format(time.time()-t0))
+
+
+# t0 = time.time()
+# dists = []
+# for i in range(10):
+#     results = coll.Results_t(10, 1)
+#     coll.single_bunch_tracking(ring, wake, fb, bun, results)
+#     dists.append(bun.calc_particles_distribution(ss))
+#     plt.plot(ss, dists[-1])
+#     plt.xlim(-1.5e-2, 1.5e-2)
+#     plt.show()
+# print('elapsed time: {0:15.4f}'.format(time.time()-t0))

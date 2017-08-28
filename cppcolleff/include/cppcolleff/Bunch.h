@@ -31,16 +31,20 @@ class Bunch_t {
         void selection_sort();
         void sort();
 
-        void add_offsets(const double xx, const double de,
-        		    	 const double xl, const double ss);
-        void add_offsets(const double xx, const double de);
-        void add_offsets(const double xx);
+        void add_offsets(
+            const double xx,
+            const double de = 0.0,
+        	const double xl = 0.0,
+            const double ss = 0.0);
+
         void scale_longitudinal(const double scale);
         void scale_transverse(const double scale);
 
         my_Dvector calc_particles_distribution(
             const my_Dvector& spos,
             const int plane = SS) const;
+
+        void write_bunch_to_file(const char* filename) const;
 };
 
 #endif

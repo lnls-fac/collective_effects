@@ -67,16 +67,6 @@ void Bunch_t::add_offsets(const double xx, const double de,
 		p[i].ss += ss;
 	}
 }
-void Bunch_t::add_offsets(const double xx, const double de)
-{
-	double xl(0.0), ss(0.0);
-	add_offsets(xx, de, xl, ss);
-}
-void Bunch_t::add_offsets(const double xx)
-{
-	double xl(0.0), de(0.0), ss(0.0);
-	add_offsets(xx, de, xl, ss);
-}
 
 void Bunch_t::scale_longitudinal(const double scale)
 {
@@ -112,14 +102,25 @@ my_Dvector Bunch_t::calc_particles_distribution(
 	const my_PartVector& p = particles;
 	for (long&& i=0;i<p.size();++i){
 		int k;
-		if (plane==XX) k = (p[i].xx - spos[0]-delta) / delta;
-		else if (plane==XL) k = (p[i].xl - spos[0]-delta) / delta;
-		else if (plane==DE) k = (p[i].de - spos[0]-delta) / delta;
-		else if (plane==SS) k = (p[i].ss - spos[0]-delta) / delta;
+		if (plane==XX) k = (p[i].xx - spos[0])/delta + 0.5;
+		else if (plane==XL) k = (p[i].xl - spos[0])/delta + 0.5;
+		else if (plane==DE) k = (p[i].de - spos[0])/delta + 0.5;
+		else if (plane==SS) k = (p[i].ss - spos[0])/delta + 0.5;
 		if (k < 0) k=0;
 		if (k>=spos.size()) k = spos.size()-1;
 		distr[k]++;
 	}
 	for (long&& i=0;i<distr.size();++i){distr[i] /= delta*p.size();}
 	return distr;
+}
+
+void write_bunch_to_file(const char* filename) const
+{
+    FILE* fp = fopen(filename,"w");
+    fprintf(fp,"#%20s %20s %20s %20s\n","xx [m]", "xl [m]", "de", "ss [m]");
+
+    for (auto& p:particles){
+        fprintf(fp,"%20.7g  %20.7g %20.7g %20.7g\n",p.xx,p.xl,p.de,p.ss);
+    }
+    fclose(fp);
 }

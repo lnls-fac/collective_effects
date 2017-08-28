@@ -164,6 +164,9 @@ int Ring_t::_track_one_turn(
     normal_distribution<double> Gauss(0.0,1.0);
     default_random_engine gen1(seed);
 
+    // #ifdef OPENMP
+    //   #pragma omp parallel for schedule(guided,1)
+    // #endif
     for (int i=init;i<final_;++i){
         // subtract the energy dependent fixed point;
         p[i].xx -= etax * p[i].de;
@@ -205,20 +208,21 @@ void Ring_t::track_one_turn(Bunch_t& bun, int n, ThreadPool& pool) const
     extern unsigned long seed;
 
     my_PartVector& p = bun.particles;
+
     unsigned int nr_th = get_num_threads();
 	my_Ivector lims (get_bounds(0,p.size()));
-
     std::vector< std::future<int> > results;
-
     for (unsigned int i=0;i<nr_th;++i){
         seed += 1;
-        results.emplace_back(
-            pool.enqueue(
-                &Ring_t::_track_one_turn, this, ref(p), seed, lims[i], lims[i+1]
-            )
-        );
+        results.emplace_back(pool.enqueue(
+            &Ring_t::_track_one_turn, this, ref(p), seed, lims[i], lims[i+1]
+        ));
     }
     for(auto && result: results) result.get();
+
+    // When omp is preferred uncomment this option
+    // _track_one_turn(p, seed, 0, p.size());
+
 }
 
 void Ring_t::track_one_turn(Bunch_t& bun, int n) const

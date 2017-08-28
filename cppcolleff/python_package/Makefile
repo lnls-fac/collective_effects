@@ -9,8 +9,8 @@ PYTHON    = python3.$(PV)
 MACHINE   = -m64
 OPT_FLAG  = -O4
 SWIG_FLAGS= -c++ -python -threads
-GEN_FLAG  = -fopenmp -pthread -std=c++11 -fPIC
-DFLAGS    = -DSWIG
+GEN_FLAG  = -pthread -std=c++17 -fPIC -fopenmp
+DFLAGS    = -DOPENMP
 
 SOURCES_I = cppcolleff.i
 

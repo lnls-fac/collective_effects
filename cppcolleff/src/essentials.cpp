@@ -13,6 +13,8 @@ int get_num_threads() { return num_threads;}
 
 void set_seed_num(int nr) {seed = nr;}
 
+unsigned long get_seed(){return seed;}
+
 my_Ivector get_bounds(const int ini, const int fin)
 {
     return get_bounds(ini, fin, num_threads);
@@ -32,6 +34,7 @@ my_Ivector get_bounds(const int ini, const int fin, const int nr)
     }
     return bounds;
 }
+
 
 void Interpola_t::check_consistency()
 {
@@ -140,7 +143,8 @@ static void _convolution(const my_Dvector& vec1, const my_Dvector& vec2, my_Dvec
     int ini = max(min1+min2-init,0);
     int fin = min(int(conv.size()), max1 + max2 - 1);
 
-    unsigned int nr_job = max((fin-ini)/100, min(32, fin-ini));
+    unsigned int nr_th = get_num_threads();
+    unsigned int nr_job = max((fin-ini)/100, min(int(nr_th), fin-ini));
 	my_Ivector lims (get_bounds(ini, fin, nr_job));
 	std::vector< std::future<int> > results;
 
