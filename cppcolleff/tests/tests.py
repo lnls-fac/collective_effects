@@ -17,7 +17,6 @@ ring.chromx = 0
 ring.emitx = 250e-12
 ring.espread = 8e-4
 ring.circum = 518.396
-ring.T0 = 518.396/coll.light_speed
 ring.mom_comp = 1.7e-4
 ring.harm_num = 864
 ring.betax = 19
@@ -37,24 +36,24 @@ for i in range(-10000, 10001):
     V.push_back(V0*math.sin(phi0 + krf*s) - ring.en_lost_rad)
 ring.cav.set_xy(ss, V)
 
-num_part = 10000000
+num_part = 1000000  # takes 21 seconds with 32 processors.
 nturns = 100
 bun = coll.Bunch_t(num_part, 1e-3)
 coll.generate_bunch(ring, bun)
 bun.sort()
 
 
-# resonators = [  # Rs    Q      wr
-#           [2000,  1,    1.0e11],
-#           [2500,  3,    2.2e11],
-#           [2500,  4.5,  3.6e11],
-#           [2000,  1.0,  5.0e11],
-#           [2000,  4.0,  8.7e11],
-#           [6500,  1.3, 13.0e11],
-#           [30000, 0.7,  45.0e11],
-# ]
 resonators = [  # Rs    Q      wr
-           [4000,  1,    1.0e11]]
+          [2000,  1,    1.0e11],
+          [2500,  3,    2.2e11],
+          [2500,  4.5,  3.6e11],
+          [2000,  1.0,  5.0e11],
+          [2000,  4.0,  8.7e11],
+          [6500,  1.3, 13.0e11],
+          [30000, 0.7,  45.0e11],
+]
+# resonators = [  # Rs    Q      wr
+#            [4000,  1,    1.0e11]]
 
 wake = coll.Wake_t()
 wake.Wl.resonator = True
