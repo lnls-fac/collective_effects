@@ -1,10 +1,6 @@
 #ifndef _BUNCH_H
 #define _BUNCH_H
 
-#include <random>  //std::generator and some distributions
-#include <atomic>  //atomic<long>
-#include <parallel/algorithm> //std::sort
-#include <utility> //std::swap
 #include <cppcolleff/essentials.h>
 
 class Bunch_t {

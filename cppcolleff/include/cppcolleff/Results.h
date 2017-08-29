@@ -1,9 +1,6 @@
 #ifndef _RESULTS_H
 #define _RESULTS_H
 
-#include <cmath> //std::sqrt std::sin std::cos
-#include <cstdio> //std::sprintf std::fprintf
-#include <string> //std::string.c_str()
 #include <cppcolleff/essentials.h>
 #include <cppcolleff/Bunch.h>
 
@@ -20,13 +17,13 @@ class Results_t {
         }
         bool print_this_turn(const long n) const
         {
-            if (!calc_this_turn(n) || print_every == 0) return false;
+            if (!calc_this_turn(n) || !print_in_screen || print_every == 0) return false;
             if ((n % (calc_every*print_every))==0 || n==nturns) return true;
             else return false;
         }
         bool dump_this_turn(const long n) const
         {
-            if (!calc_this_turn(n) || dump_every == 0) return false;
+            if (!calc_this_turn(n) || !dump_bunch_to_file || dump_every == 0) return false;
             if ((n % (calc_every*dump_every))==0 || n==nturns) return true;
             else return false;
         }

@@ -1,7 +1,6 @@
 #ifndef _WAKE_H
 #define _WAKE_H
 
-#include <thread>
 #include <cppcolleff/essentials.h>
 #include <cppcolleff/Bunch.h>
 

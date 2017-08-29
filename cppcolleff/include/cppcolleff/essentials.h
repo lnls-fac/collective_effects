@@ -2,12 +2,21 @@
 #ifndef _ESSENTIALS_H
 #define _ESSENTIALS_H
 
-#include <vector>
+// IO
 #include <iostream>
-#include <random>
-#include <thread>
-#include <cmath>
+#include <iomanip> //std::setw
+#include <fstream>
+#include <sstream>
+#include <cstdio> //std::sprintf std::fprintf
+#include <string> //std::string.c_str()
+//Utilities:
+#include <vector>
+#include <utility> //std::swap
+#include <random>  //std::generator and some distributions
+#include <cmath> //std::sqrt std::sin std::cos
 #include <complex>
+//parallelization
+#include <parallel/algorithm> //std::sort
 #include <omp.h>
 #include <cppcolleff/ThreadPool/ThreadPool.h>
 
@@ -36,6 +45,11 @@ public:
     double xx, xl, de, ss;
     Particle_t():xx(0.0),xl(0.0),de(0.0),ss(0.0) {};
     Particle_t(const Particle_t& p){xx=p.xx; xl=p.xl; de=p.de; ss=p.ss;}
+    Particle_t(
+        const double x,
+        const double l,
+        const double e,
+        const double s): xx(x),xl(l),de(e),ss(s) {};
     Particle_t(const double ini): xx(ini),xl(ini),de(ini),ss(ini) {};
     Particle_t(const long ini): xx(ini),xl(ini),de(ini),ss(ini) {};
     ~Particle_t() = default;
@@ -112,6 +126,7 @@ public:
     void set_xy(my_Dvector& xref, my_Dvector& yref){xi=xref; yi=yref; check_consistency(); initialize_interp();}
     const my_Dvector& ref_to_xi() const {return xi;}
     const my_Dvector& ref_to_yi() const {return yi;}
+    bool empty() const {return xi.empty();}
 
     inline double get_y(const double& x) const
     {
@@ -124,23 +139,6 @@ public:
 
         return dy[i] * x + b[i];
     }
-    // inline double get_y(const double& x)const {
-    //     if (equally_spaced){
-    //         int&& i = (int) (x/dx - offset);
-    //
-    //         if (i > xi.size()-2)  {return 0.0;}
-    //         else if (i < 0) {return 0.0;}
-    //
-    //         return dy[i] * x + b[i];
-    //     } else{
-    //         if      (x > xi.back())  {return 0.0;}
-    //         else if (x < xi.front()) {return 0.0;}
-    //
-    //         unsigned int i;
-    //         for (i=0;i<xi.size();++i){if (x<xi[i]){break;}}
-    //         return dy[i] * x + b[i];
-    //     }
-    // }
 };
 
 my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2);
