@@ -145,7 +145,7 @@ my_Dvector solve_Haissinski_get_potential(
 	if (ini_distr.size() == 0) {ini_distr = ring.get_distribution();}
 
 	auto& cav_s = ring.cav.ref_to_xi();
-	my_Dvector&& KickF = wake.Wl.get_wake_at_points(cav_s, -Ib * ring.T0 / ring.energy);
+	my_Dvector&& KickF = wake.Wl.get_wake_at_points(cav_s, -Ib * ring.circum / light_speed / ring.energy);
 	return _const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini, pool);
 }
 
@@ -171,7 +171,7 @@ double find_equilibrium_energy_spread(
 {
 	// get the wake function at the cavity longitudinal points (actually it is the kick)
 	auto& cav_s = ring.cav.ref_to_xi();
-	my_Dvector&& KickF = wake.Wl.get_wake_at_points(cav_s, -Ib * ring.T0 / ring.energy);
+	my_Dvector&& KickF = wake.Wl.get_wake_at_points(cav_s, -Ib * ring.circum / light_speed / ring.energy);
 
 	my_Dvector V (_const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini, pool));
 
@@ -212,7 +212,7 @@ void single_bunch_tracking(
     Results_t& results)
 {
     //current dependent strength of the kick:
-    const double kick_stren = ring.T0 / ring.energy * bun.Ib / bun.num_part;
+    const double kick_stren = ring.circum / light_speed / ring.energy * bun.Ib / bun.num_part;
 
 	ThreadPool pool (get_num_threads());
 

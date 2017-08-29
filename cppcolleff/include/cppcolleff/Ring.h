@@ -20,7 +20,7 @@ class Ring_t{
         int harm_num;                              // harmonic number
         double betax, alphax, etax, etaxl,         // optical functions
                tunex, chromx, tunex_shift,         // tune related parameters
-               circum, mom_comp, T0, energy,       // general ring parameters
+               circum, mom_comp, energy,           // general ring parameters
                damp_nume, damp_numx,               // equilibrium parameters
                emitx, espread, en_lost_rad;        // equilibrium parameters
         Interpola_t cav;                           // cavity parameters
@@ -28,7 +28,7 @@ class Ring_t{
             harm_num(864),
             betax(1.0), alphax(0.0), etax(0.0), etaxl(0.0),
             tunex(0.0), chromx(0.0), tunex_shift(0.0),
-            circum(0.0), mom_comp(0.0), T0(0.0), energy(0.0),
+            circum(0.0), mom_comp(0.0), energy(0.0),
             damp_nume(2.0), damp_numx(1.0),
             emitx(0.0), espread(0.0), en_lost_rad(0.0){};
         ~Ring_t() = default;

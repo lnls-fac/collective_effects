@@ -15,7 +15,6 @@ int main()
     ring.emitx       = 250e-12;
     ring.espread     = 8e-4;
     ring.circum      = 518.396;
-    ring.T0          = 518.396/light_speed;
     ring.mom_comp    = 1.7e-4;
     ring.harm_num    = 864;
     ring.betax       = 19;
