@@ -65,10 +65,10 @@ double Results_t::calc_stats(
     rstd /= bun.num_part;
     rstd = sqrt(rstd - rave * rave);
 
-    if (dump_bunch_to_file && dump_this_turn(turn)) {
+    if (dump_this_turn(turn)) {
         char filename[50];
         sprintf(filename,"turn%07lu.txt",turn);
-        bun.write_bunch_to_file(filename);
+        bun.to_file(filename);
     }
     if (print_in_screen) {
         if (turn == 0) {

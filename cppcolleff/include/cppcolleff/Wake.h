@@ -12,6 +12,8 @@ struct WakePl
     WakePl(): wake_function(false), wake_potential(false), resonator(false) {};
     ~WakePl() = default;
     my_Dvector get_wake_at_points(const my_Dvector& spos, const double& stren) const;
+    void to_file(const char* filename) const;
+    void from_file(const char* filename);
 };
 
 class Wake_t
@@ -23,11 +25,15 @@ class Wake_t
         WakePl Wd, Wq, Wl;
         Wake_t() {};
         ~Wake_t() = default;
+
         my_Dvector apply_kicks(
             Bunch_t& bun,
             const double stren,
             const double betax,
             ThreadPool& pool) const;
+
+        void to_file(const char* filename) const;
+        void from_file(const char* filename);
 
     private:
         my_Dvector apply_wake_function_kick(

@@ -40,7 +40,8 @@ class Bunch_t {
             const my_Dvector& spos,
             const int plane = SS) const;
 
-        void write_bunch_to_file(const char* filename) const;
+        void to_file(const char* filename) const;
+        void from_file(const char* filename);
 };
 
 #endif

@@ -76,7 +76,6 @@ class Results_t {
         double calc_stats(const Bunch_t& bun, const long turn);
         void register_Wkicks(const long turn, const my_Dvector& kik);
         void register_FBkick(const long turn, const double& kik);
-        void write_bunch_to_file(const Bunch_t& bun, const char* filename) const;
 };
 
 

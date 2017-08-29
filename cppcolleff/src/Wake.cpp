@@ -30,6 +30,129 @@ my_Dvector WakePl::get_wake_at_points(const my_Dvector& spos, const double& stre
     return wakeF;
 }
 
+
+void WakePl::to_file(const char* filename) const
+{
+    if (wr.empty() && WF.empty() && WP.empty()) return;
+
+    auto g_bool = [](bool cond){return (cond) ? "true":"false";};
+
+	ofstream fp(filename);
+	if (fp.fail()) exit(1);
+	fp.setf(fp.left | fp.scientific);
+	fp.precision(15);
+    fp << setw(30) << "% use_resonator" << g_bool(resonator) << endl;
+    fp << setw(30) << "% use_wake_function" << g_bool(wake_function) << endl;
+    fp << setw(30) << "% use_wake_potential" << g_bool(wake_potential) << endl;
+    if (!wr.empty()) {
+        fp << "% start_resonators" << endl;
+        fp << setw(30) << "% num_resonators" << wr.size() << endl;
+        fp << setw(26) << "# Q";
+        fp << setw(26) << "wr [rad/s]";
+        fp << setw(26) << "Rs [Ohm or Ohm/m]" << endl;
+        fp.setf(fp.left | fp.showpos | fp.scientific);
+        for (auto i=0; i<wr.size(); ++i){
+            fp << setw(26) << Q[i];
+            fp << setw(26) << wr[i];
+            fp << setw(26) << Rs[i] << endl;
+        }
+        fp << "% end_resonators" << endl;
+    }
+    if (!WF.empty()){
+        auto& pos = WF.ref_to_xi();
+        auto& w = WF.ref_to_yi();
+        fp << "% start_wake_function" << endl;
+        fp << setw(30) << "% size_wake_function" << pos.size() << endl;
+        fp << setw(26) << "# pos [m]";
+        fp << setw(26) << "W [V/C or V/C/m]" << endl;
+        fp.setf(fp.left | fp.showpos | fp.scientific);
+        for (auto i=0; i<pos.size(); ++i){
+            fp << setw(26) << pos[i];
+            fp << setw(26) << w[i] << endl;
+        }
+        fp << "% end_wake_function" << endl;
+    }
+    if (!WP.empty()){
+        auto& pos = WP.ref_to_xi();
+        auto& w = WP.ref_to_yi();
+        fp << "% start_wake_potential" << endl;
+        fp << setw(30) << "% size_wake_potential" << pos.size() << endl;
+        fp << setw(26) << "# pos [m]";
+        fp << setw(26) << "W [V/C or V/C/m]" << endl;
+        fp.setf(fp.left | fp.showpos | fp.scientific);
+        for (auto i=0; i<pos.size(); ++i){
+            fp << setw(26) << pos[i];
+            fp << setw(26) << w[i] << endl;
+        }
+        fp << "% end_wake_potential" << endl;
+    }
+
+    fp.close();
+}
+
+void WakePl::from_file(const char* filename)
+{
+	ifstream fp(filename);
+	if (fp.fail()) return;
+
+    auto g_bool = [](string& cmd){return (cmd.compare("true")==0) ? true:false;};
+
+    my_Dvector vf1, vf2, vp1, vp2;
+	double d1(0.0), d2(0.0), d3(0.0);
+    bool fill_re(false), fill_wf(false), fill_wp(false);
+  	string line;
+	unsigned long line_count = 0;
+	while (getline(fp, line)) {
+  		line_count++;
+  		istringstream ss(line);
+		char c = ss.get();
+		while (c == ' ') c = ss.get();
+  		if (c == '#' || c == '\n') continue;
+  		else if (c == '%') {
+			string cmd;
+	  		ss >> cmd;
+            if (cmd.compare("use_resonator") == 0)
+		  		{ss >> cmd; resonator = g_bool(cmd);}
+            else if (cmd.compare("use_wake_function") == 0)
+		  		{ss >> cmd; wake_function = g_bool(cmd);}
+            else if (cmd.compare("use_wake_potential") == 0)
+		  		{ss >> cmd; wake_potential = g_bool(cmd);}
+            else if (cmd.compare("start_resonators") == 0)
+                {fill_re = true; fill_wf = false; fill_wp = false;}
+            else if (cmd.compare("start_wake_function") == 0)
+                {fill_re = false; fill_wf = true; fill_wp = false;}
+            else if (cmd.compare("start_wake_potential") == 0)
+                {fill_re = false; fill_wf = false; fill_wp = true;}
+            else if (cmd.compare("end_resonators") == 0)
+                {fill_re = false;}
+            else if (cmd.compare("end_wake_function") == 0)
+                {fill_wf = false; WF.set_xy(vf1,vf2);}
+            else if (cmd.compare("end_wake_potential") == 0)
+                {fill_wp = false; WP.set_xy(vp1,vp2);}
+            else if (cmd.compare("num_resonators") == 0)
+                {int np; ss >> np; Q.reserve(np); wr.reserve(np); Rs.reserve(np);}
+            else if (cmd.compare("size_wake_function") == 0)
+                {int np; ss >> np; vf1.reserve(np); vf2.reserve(np);}
+            else if (cmd.compare("size_wake_potential") == 0)
+                {int np; ss >> np; vp1.reserve(np); vp2.reserve(np);}
+            continue;
+  		}
+		ss.unget();
+        if (fill_re){
+            ss >> d1; ss >> d2; ss >> d3;
+            Q.push_back(d1); wr.push_back(d2); Rs.push_back(d3);
+        }else if (fill_wf){
+            ss >> d1; ss >> d2;
+            vf1.push_back(d1); vf2.push_back(d2);
+        }else if (fill_wp){
+            ss >> d1; ss >> d2;
+            vp1.push_back(d1); vp2.push_back(d2);
+        }
+	}
+	fp.close();
+}
+
+
 my_Dvector Wake_t::apply_wake_function_kick(
     my_PartVector& par,
     double stren,
@@ -308,4 +431,37 @@ my_Dvector Wake_t::apply_kicks(
     Wkick[1] = Wgd;
     Wkick[2] = Wgq;
     return Wkick;
+}
+
+
+void Wake_t::to_file(const char* filename) const
+{
+    string fnameD (filename);
+    auto p = fnameD.rfind('.');
+    fnameD.insert(p, "_wakeD");
+    Wd.to_file(fnameD.c_str());
+
+    string fnameQ (filename);
+    fnameQ.insert(p, "_wakeQ");
+    Wd.to_file(fnameQ.c_str());
+
+    string fnameL (filename);
+    fnameL.insert(p, "_wakeL");
+    Wl.to_file(fnameL.c_str());
+}
+
+void Wake_t::from_file(const char* filename)
+{
+    string fnameD (filename);
+    auto p = fnameD.rfind('.');
+    fnameD.insert(p, "_wakeD");
+    Wd.from_file(fnameD.c_str());
+
+    string fnameQ (filename);
+    fnameQ.insert(p, "_wakeQ");
+    Wd.from_file(fnameQ.c_str());
+
+    string fnameL (filename);
+    fnameL.insert(p, "_wakeL");
+    Wl.from_file(fnameL.c_str());
 }

@@ -230,3 +230,90 @@ void Ring_t::track_one_turn(Bunch_t& bun, int n) const
     ThreadPool pool (get_num_threads());
     return track_one_turn(bun, n, pool);
 }
+
+
+void Ring_t::to_file(const char* filename) const
+{
+	ofstream fp(filename);
+	if (fp.fail()) exit(1);
+	fp.setf(fp.left | fp.scientific);
+	fp.precision(15);
+    fp << setw(30) << "% energy" << energy << " eV" << endl;
+    fp << setw(30) << "% circumference" << circum << " m" << endl;
+    fp << setw(30) << "% harmonic_number" << harm_num << endl;
+    fp << setw(30) << "% momentum_compaction" << mom_comp << endl;
+	fp << setw(30) << "% betax" << betax << " m" << endl;
+    fp << setw(30) << "% etax" << etax << " m" << endl;
+    fp << setw(30) << "% alphax" << alphax << endl;
+    fp << setw(30) << "% etaxl" << etaxl << endl;
+    fp << setw(30) << "% tunex" << tunex << endl;
+    fp << setw(30) << "% chromx" << chromx << endl;
+    fp << setw(30) << "% tune_shiftx" << tunex_shift << endl;
+    fp << setw(30) << "% frac_energy_lost_per_turn" << en_lost_rad << endl;
+    fp << setw(30) << "% energy_spread" << espread << endl;
+    fp << setw(30) << "% emittancex" << emitx << " m.rad" << endl;
+    fp << setw(30) << "% damping_part_num_long" << damp_nume << endl;
+    fp << setw(30) << "% damping_part_num_x" << damp_numx << endl;
+    auto& s = cav.ref_to_xi();
+    auto& V = cav.ref_to_yi();
+    fp << setw(30) << "% cav_num_points" << s.size() << endl;
+    fp << setw(26) << "# ss [m]";
+    fp << setw(26) << "(V - U0)/E" << endl;
+    fp.setf(fp.left | fp.showpos | fp.scientific);
+    for (auto i=0; i<s.size(); ++i){
+        fp << setw(26) << s[i];
+        fp << setw(26) << V[i] << endl;
+    }
+    fp.close();
+}
+
+void Ring_t::from_file(const char* filename)
+{
+	ifstream fp(filename);
+	if (fp.fail()) return;
+
+    my_Dvector pos, V;
+	double s(0.0), v(0.0);
+  	string line;
+	unsigned long line_count = 0;
+	while (getline(fp, line)) {
+  		line_count++;
+  		istringstream ss(line);
+		char c = ss.get();
+		while (c == ' ') c = ss.get();
+  		if (c == '#' || c == '\n') continue;
+  		if (c == '%') {
+			string cmd;
+	  		ss >> cmd;
+            if (cmd.compare("energy") == 0) {ss >> energy; continue;}
+            if (cmd.compare("circumference") == 0) {ss >> circum; continue;}
+            if (cmd.compare("harmonic_number") == 0) {ss >> harm_num; continue;}
+            if (cmd.compare("momentum_compaction") == 0) {ss >> mom_comp; continue;}
+        	if (cmd.compare("betax") == 0) {ss >> betax; continue;}
+            if (cmd.compare("etax") == 0) {ss >> etax; continue;}
+            if (cmd.compare("alphax") == 0) {ss >> alphax; continue;}
+            if (cmd.compare("etaxl") == 0) {ss >> etaxl; continue;}
+            if (cmd.compare("tunex") == 0) {ss >> tunex; continue;}
+            if (cmd.compare("chromx") == 0) {ss >> chromx; continue;}
+            if (cmd.compare("tune_shiftx") == 0) {ss >> tunex_shift; continue;}
+            if (cmd.compare("frac_energy_lost_per_turn") == 0) {ss >> en_lost_rad; continue;}
+            if (cmd.compare("energy_spread") == 0) {ss >> espread; continue;}
+            if (cmd.compare("emittancex") == 0) {ss >> emitx; continue;}
+            if (cmd.compare("damping_part_num_long") == 0) {ss >> damp_nume; continue;}
+            if (cmd.compare("damping_part_num_x") == 0) {ss >> damp_numx; continue;}
+            if (cmd.compare("cav_num_points") == 0) {
+                int np;
+                ss >> np;
+                pos.reserve(np);
+                V.reserve(np);
+                continue;
+            }
+  		}
+		ss.unget();
+  		ss >> s; ss >> v;
+        pos.push_back(s);
+        V.push_back(v);
+	}
+    cav.set_xy(pos, V);
+	fp.close();
+}

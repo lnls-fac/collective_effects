@@ -46,6 +46,9 @@ class Ring_t{
 
         void track_one_turn(Bunch_t& bun, int n) const;
         void track_one_turn(Bunch_t& bun, int n, ThreadPool& pool) const;
+
+        void to_file(const char* filename) const;
+        void from_file(const char* filename);
 };
 
 #endif

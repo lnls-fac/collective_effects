@@ -114,13 +114,63 @@ my_Dvector Bunch_t::calc_particles_distribution(
 	return distr;
 }
 
-void write_bunch_to_file(const char* filename) const
+void Bunch_t::to_file(const char* filename) const
 {
-    FILE* fp = fopen(filename,"w");
-    fprintf(fp,"#%20s %20s %20s %20s\n","xx [m]", "xl [m]", "de", "ss [m]");
-
+	ofstream fp(filename);
+	if (fp.fail()) exit(1);
+	fp.setf(fp.left | fp.scientific);
+	fp.precision(15);
+	fp << setw(30) << "% current" << Ib << " A" << endl;
+	fp << setw(30) << "% is_sorted" << (is_sorted ? "true": "false") << endl;
+	fp << setw(30) << "% n_particles" << num_part << endl;
+	fp << setw(26) << "# xx [m]";
+	fp << setw(26) << "xl [m]";
+	fp << setw(26) << "de";
+	fp << setw(26) << "ss [m]" << endl;
+	fp.setf(fp.left | fp.showpos | fp.scientific);
     for (auto& p:particles){
-        fprintf(fp,"%20.7g  %20.7g %20.7g %20.7g\n",p.xx,p.xl,p.de,p.ss);
-    }
-    fclose(fp);
+		fp << setw(26) << p.xx;
+		fp << setw(26) << p.xl;
+		fp << setw(26) << p.de;
+		fp << setw(26) << p.ss << endl;
+	}
+    fp.close();
+}
+
+void Bunch_t::from_file(const char* filename)
+{
+	ifstream fp(filename);
+	if (fp.fail()) return;
+
+	particles.clear();
+	double x(0.0), l(0.0), e(0.0), s(0.0);
+  	string line;
+	unsigned long line_count = 0;
+	while (getline(fp, line)) {
+  		line_count++;
+  		istringstream ss(line);
+		char c = ss.get();
+		while (c == ' ') c = ss.get();
+  		if (c == '#' || c == '\n') continue;
+  		if (c == '%') {
+			string cmd;
+	  		ss >> cmd;
+	  		if (cmd.compare("current") == 0) { ss >> Ib; continue; }
+	  		if (cmd.compare("n_particles") == 0){
+		  		ss >> num_part;
+		  		particles.reserve(num_part);
+		  		continue;
+	  		}
+	  		if (cmd.compare("is_sorted") == 0) {
+		  		ss >> cmd;
+		  		is_sorted = (cmd.compare("true")==0) ? true:false;
+		  		continue;
+	  		}
+  		}
+		ss.unget();
+  		ss >> x; ss >> l; ss >> e; ss >> s;
+  		particles.push_back(Particle_t(x, l, e, s));
+		num_part = particles.size();
+	}
+	fp.close();
 }
