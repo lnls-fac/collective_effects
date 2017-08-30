@@ -91,7 +91,7 @@ void WakePl::to_stream(ostream& fp, const bool isFile) const
 void WakePl::show_properties() const
 {
     if (wr.empty() && WF.empty() && WP.empty()) return;
-    
+
 	ostringstream fp;
 	if (fp.fail()) exit(1);
 	to_stream(fp, false);
@@ -314,7 +314,7 @@ double Wake_t::apply_wake_resonator_kick(
 
         vector< std::future<double> > res1, res2;
         // submit the first round of threads:
-        for (unsigned int i=0;i<=nr_th;++i){
+        for (unsigned int i=0;i<nr_th;++i){
             res1.emplace_back(pool.enqueue(
                 W_res_kick_threads, ref(p), ref(Amp), ref(cpl_kr), ref(Ql),
                 Ktype, ref(W_pot), ref(lims), i, ch_W_pot));
