@@ -45,36 +45,35 @@ class Results_t {
             if (Wq) Wqkick.reserve(np); else Wqkick.reserve(0);
             if (Wl) Wlkick.reserve(np); else Wlkick.reserve(0);
         }
+        void initial_guess_distributions()
+        {
+            bins = my_Ivector(4,1000);
+            min.push_back(-200e-6);
+            min.push_back(-100e-6);
+            min.push_back(-1e-2);
+            min.push_back(-3e-2);
+            for (auto&& m:min) max.push_back(-m);
+        }
+        void to_stream(ostream& fp, const bool isFile = true) const;
     public:
         bool save_bunch, print_in_screen, save_distribution_xx;
         bool save_distribution_xl, save_distribution_de, save_distribution_ss;
         my_PartVector ave;
         my_PartVector std;
-        my_Dvector Wlkick;
-        my_Dvector Wdkick;
-        my_Dvector Wqkick;
-        my_Dvector FBkick;
-        Results_t (const unsigned long nt):
-            calc_every(1L), print_every(10L), save_bunch_every(0L), save_distributions_every(0L),
-            nturns(nt), save_bunch(false), print_in_screen(true), save_distribution_xx(false),
-            save_distribution_xl(false), save_distribution_de(false), save_distribution_ss(false),
-            FB(false), Wd(false), Wq(false), Wl(false)      {reserve_memory();}
-        Results_t (const unsigned long nt, const unsigned long eve):
+        my_Dvector min, max;
+        my_Ivector bins;
+        my_Dvector Wlkick, Wdkick, Wqkick, FBkick;  // kicks of wakes and feedback;
+        Results_t (const unsigned long nt, const unsigned long eve = 1, const bool kicks = false):
             calc_every(eve), print_every(10L), save_bunch_every(0L), save_distributions_every(0L),
             nturns(nt), save_bunch(false), print_in_screen(true), save_distribution_xx(false),
             save_distribution_xl(false), save_distribution_de(false), save_distribution_ss(false),
-            FB(false), Wd(false), Wq(false), Wl(false)      {reserve_memory();}
-        Results_t (const unsigned long nt, const unsigned long eve, const bool kicks):
-            calc_every(eve), print_every(10L), save_bunch_every(0L), save_distributions_every(0L),
-            nturns(nt), save_bunch(false), print_in_screen(true), save_distribution_xx(false),
-            save_distribution_xl(false), save_distribution_de(false), save_distribution_ss(false),
-            FB(kicks), Wd(kicks), Wq(kicks), Wl(kicks)      {reserve_memory();}
+            FB(kicks), Wd(kicks), Wq(kicks), Wl(kicks) {reserve_memory(); initial_guess_distributions();}
         ~Results_t() = default;
 
-        void set_keepFB(const bool keep)    {FB = keep; reserve_memory();}
-        void set_keepWd(const bool keep)    {Wd = keep; reserve_memory();}
-        void set_keepWq(const bool keep)    {Wq = keep; reserve_memory();}
-        void set_keepWl(const bool keep)    {Wl = keep; reserve_memory();}
+        void set_keepFB(const bool keep) {FB = keep; reserve_memory();}
+        void set_keepWd(const bool keep) {Wd = keep; reserve_memory();}
+        void set_keepWq(const bool keep) {Wq = keep; reserve_memory();}
+        void set_keepWl(const bool keep) {Wl = keep; reserve_memory();}
         void set_nturns(const long nt){nturns = nt; reserve_memory();}
         void set_calc_every(const unsigned long eve){calc_every = eve; reserve_memory();}
         void set_print_every(const unsigned long eve){print_every = eve;}
