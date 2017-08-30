@@ -3,10 +3,11 @@
 #define _ESSENTIALS_H
 
 // IO
-#include <iostream>
+#include <iostream> // std::cout, std:cerr, std::cin
+#include <ostream> // ostream class
 #include <iomanip> //std::setw
-#include <fstream>
-#include <sstream>
+#include <fstream> // ifstream and ofstream classes
+#include <sstream> // istringstream and ostringstream classes
 #include <cstdio> //std::sprintf std::fprintf
 #include <string> //std::string.c_str()
 //Utilities:

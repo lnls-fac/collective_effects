@@ -232,10 +232,8 @@ void Ring_t::track_one_turn(Bunch_t& bun, int n) const
 }
 
 
-void Ring_t::to_file(const char* filename) const
+void Ring_t::to_stream(ostream& fp, const bool isFile) const
 {
-	ofstream fp(filename);
-	if (fp.fail()) exit(1);
 	fp.setf(fp.left | fp.scientific);
 	fp.precision(15);
     fp << setw(30) << "% energy" << energy << " eV" << endl;
@@ -255,8 +253,9 @@ void Ring_t::to_file(const char* filename) const
     fp << setw(30) << "% damping_part_num_long" << damp_nume << endl;
     fp << setw(30) << "% damping_part_num_x" << damp_numx << endl;
     auto& s = cav.ref_to_xi();
-    auto& V = cav.ref_to_yi();
     fp << setw(30) << "% cav_num_points" << s.size() << endl;
+    if (!isFile) return;
+    auto& V = cav.ref_to_yi();
     fp << setw(26) << "# ss [m]";
     fp << setw(26) << "(V - U0)/E" << endl;
     fp.setf(fp.left | fp.showpos | fp.scientific);
@@ -264,6 +263,21 @@ void Ring_t::to_file(const char* filename) const
         fp << setw(26) << s[i];
         fp << setw(26) << V[i] << endl;
     }
+}
+
+void Ring_t::show_properties() const
+{
+	ostringstream fp;
+	if (fp.fail()) exit(1);
+	to_stream(fp, false);
+    cout << fp.str();
+}
+
+void Ring_t::to_file(const char* filename) const
+{
+	ofstream fp(filename);
+	if (fp.fail()) exit(1);
+	to_stream(fp, true);
     fp.close();
 }
 

@@ -102,12 +102,10 @@ void Results_t::register_Wkicks(const long turn, const my_Dvector& kik)
 }
 
 
-void Results_t::to_file(const char* filename) const
+void Results_t::to_stream(ostream& fp, const bool isFile) const
 {
     auto g_bool = [](bool cond){return (cond) ? "true":"false";};
 
-	ofstream fp(filename);
-	if (fp.fail()) exit(1);
 	fp.setf(fp.left | fp.scientific);
 	fp.precision(15);
     fp << setw(30) << "% number_of_turns" << nturns << endl;
@@ -120,11 +118,17 @@ void Results_t::to_file(const char* filename) const
     fp << setw(30) << "% save_distribution_xl" << g_bool(save_distribution_xl) << endl;
     fp << setw(30) << "% save_distribution_de" << g_bool(save_distribution_de) << endl;
     fp << setw(30) << "% save_distribution_ss" << g_bool(save_distribution_ss) << endl;
+    fp << setw(30) << "# parameters" << setw(26) << "number of bins" << setw(26) << "minimum" << setw(26) << "maximum" << endl;
+    fp << setw(30) << "% params_distribution_xx" << setw(26) << bins[0] << setw(26) << min[0] << setw(26) << max[0] << endl;
+    fp << setw(30) << "% params_distribution_xl" << setw(26) << bins[1] << setw(26) << min[1] << setw(26) << max[1] << endl;
+    fp << setw(30) << "% params_distribution_de" << setw(26) << bins[2] << setw(26) << min[2] << setw(26) << max[2] << endl;
+    fp << setw(30) << "% params_distribution_ss" << setw(26) << bins[3] << setw(26) << min[3] << setw(26) << max[3] << endl;
     fp << setw(30) << "% save_distributions_every" << save_distributions_every << " turns" << endl;
     fp << setw(30) << "% keep_feedback_kicks" << g_bool(FB) << endl;
     fp << setw(30) << "% keep_wake_long_kicks" << g_bool(Wl) << endl;
     fp << setw(30) << "% keep_wake_dipo_kicks" << g_bool(Wd) << endl;
     fp << setw(30) << "% keep_wake_quad_kicks" << g_bool(Wq) << endl;
+    if (!isFile) return;
     fp << setw(26) << "# <xx> [m]";
     fp << setw(26) << "<xl>";
     fp << setw(26) << "<de>";
@@ -154,6 +158,21 @@ void Results_t::to_file(const char* filename) const
         if (FB) fp << setw(26) << FBkick[i];
         fp << endl;
     }
+}
+
+void Results_t::show_properties() const
+{
+	ostringstream fp;
+	if (fp.fail()) exit(1);
+	to_stream(fp, false);
+    cout << fp.str();
+}
+
+void Results_t::to_file(const char* filename) const
+{
+	ofstream fp(filename);
+	if (fp.fail()) exit(1);
+	to_stream(fp, true);
     fp.close();
 }
 
@@ -191,6 +210,10 @@ void Results_t::from_file(const char* filename)
             else if (cmd.compare("keep_wake_long_kicks") == 0){ss >> cmd; Wl = g_bool(cmd); reserve_memory();}
             else if (cmd.compare("keep_wake_dipo_kicks") == 0){ss >> cmd; Wd = g_bool(cmd); reserve_memory();}
             else if (cmd.compare("keep_wake_quad_kicks") == 0){ss >> cmd; Wq = g_bool(cmd); reserve_memory();}
+            else if (cmd.compare("params_distribution_xx") == 0){ss >> bins[0] >> min[0] >> max[0];}
+            else if (cmd.compare("params_distribution_xl") == 0){ss >> bins[1] >> min[1] >> max[1];}
+            else if (cmd.compare("params_distribution_de") == 0){ss >> bins[2] >> min[2] >> max[2];}
+            else if (cmd.compare("params_distribution_ss") == 0){ss >> bins[3] >> min[3] >> max[3];}
             continue;
   		}
 		ss.unget();

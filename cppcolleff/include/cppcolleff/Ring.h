@@ -16,6 +16,7 @@ class Ring_t{
             const unsigned int seed,
             const int init,
             const int final_) const;
+        void to_stream(ostream& fp, const bool isFile = true) const;
     public:
         int harm_num;                              // harmonic number
         double betax, alphax, etax, etaxl,         // optical functions
@@ -49,6 +50,7 @@ class Ring_t{
 
         void to_file(const char* filename) const;
         void from_file(const char* filename);
+        void show_properties() const;
 };
 
 #endif

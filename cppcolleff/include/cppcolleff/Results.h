@@ -92,6 +92,7 @@ class Results_t {
 
         void to_file(const char* filename) const;
         void from_file(const char* filename);
+        void show_properties() const;
 };
 
 #endif

@@ -114,15 +114,14 @@ my_Dvector Bunch_t::calc_particles_distribution(
 	return distr;
 }
 
-void Bunch_t::to_file(const char* filename) const
+void Bunch_t::to_stream(ostream& fp, const bool isFile) const
 {
-	ofstream fp(filename);
-	if (fp.fail()) exit(1);
 	fp.setf(fp.left | fp.scientific);
 	fp.precision(15);
 	fp << setw(30) << "% current" << Ib << " A" << endl;
 	fp << setw(30) << "% is_sorted" << (is_sorted ? "true": "false") << endl;
 	fp << setw(30) << "% n_particles" << num_part << endl;
+	if (!isFile) return;
 	fp << setw(26) << "# xx [m]";
 	fp << setw(26) << "xl [m]";
 	fp << setw(26) << "de";
@@ -134,6 +133,21 @@ void Bunch_t::to_file(const char* filename) const
 		fp << setw(26) << p.de;
 		fp << setw(26) << p.ss << endl;
 	}
+}
+
+void Bunch_t::show_properties() const
+{
+	ostringstream fp;
+	if (fp.fail()) exit(1);
+	to_stream(fp, false);
+    cout << fp.str();
+}
+
+void Bunch_t::to_file(const char* filename) const
+{
+	ofstream fp(filename);
+	if (fp.fail()) exit(1);
+	to_stream(fp, true);
     fp.close();
 }
 

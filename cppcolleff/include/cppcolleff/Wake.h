@@ -12,8 +12,10 @@ struct WakePl
     WakePl(): wake_function(false), wake_potential(false), resonator(false) {};
     ~WakePl() = default;
     my_Dvector get_wake_at_points(const my_Dvector& spos, const double& stren) const;
+    void to_stream(ostream& fp, const bool isFile = true) const;
     void to_file(const char* filename) const;
     void from_file(const char* filename);
+    void show_properties() const;
 };
 
 class Wake_t
@@ -34,6 +36,7 @@ class Wake_t
 
         void to_file(const char* filename) const;
         void from_file(const char* filename);
+        void show_properties() const;
 
     private:
         my_Dvector apply_wake_function_kick(

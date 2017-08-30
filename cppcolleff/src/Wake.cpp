@@ -31,14 +31,10 @@ my_Dvector WakePl::get_wake_at_points(const my_Dvector& spos, const double& stre
 }
 
 
-void WakePl::to_file(const char* filename) const
+void WakePl::to_stream(ostream& fp, const bool isFile) const
 {
-    if (wr.empty() && WF.empty() && WP.empty()) return;
-
     auto g_bool = [](bool cond){return (cond) ? "true":"false";};
 
-	ofstream fp(filename);
-	if (fp.fail()) exit(1);
 	fp.setf(fp.left | fp.scientific);
 	fp.precision(15);
     fp << setw(30) << "% use_resonator" << g_bool(resonator) << endl;
@@ -63,12 +59,14 @@ void WakePl::to_file(const char* filename) const
         auto& w = WF.ref_to_yi();
         fp << "% start_wake_function" << endl;
         fp << setw(30) << "% size_wake_function" << pos.size() << endl;
-        fp << setw(26) << "# pos [m]";
-        fp << setw(26) << "W [V/C or V/C/m]" << endl;
-        fp.setf(fp.left | fp.showpos | fp.scientific);
-        for (auto i=0; i<pos.size(); ++i){
-            fp << setw(26) << pos[i];
-            fp << setw(26) << w[i] << endl;
+        if (isFile){
+            fp << setw(26) << "# pos [m]";
+            fp << setw(26) << "W [V/C or V/C/m]" << endl;
+            fp.setf(fp.left | fp.showpos | fp.scientific);
+            for (auto i=0; i<pos.size(); ++i){
+                fp << setw(26) << pos[i];
+                fp << setw(26) << w[i] << endl;
+            }
         }
         fp << "% end_wake_function" << endl;
     }
@@ -77,16 +75,36 @@ void WakePl::to_file(const char* filename) const
         auto& w = WP.ref_to_yi();
         fp << "% start_wake_potential" << endl;
         fp << setw(30) << "% size_wake_potential" << pos.size() << endl;
-        fp << setw(26) << "# pos [m]";
-        fp << setw(26) << "W [V/C or V/C/m]" << endl;
-        fp.setf(fp.left | fp.showpos | fp.scientific);
-        for (auto i=0; i<pos.size(); ++i){
-            fp << setw(26) << pos[i];
-            fp << setw(26) << w[i] << endl;
+        if (isFile){
+            fp << setw(26) << "# pos [m]";
+            fp << setw(26) << "W [V/C or V/C/m]" << endl;
+            fp.setf(fp.left | fp.showpos | fp.scientific);
+            for (auto i=0; i<pos.size(); ++i){
+                fp << setw(26) << pos[i];
+                fp << setw(26) << w[i] << endl;
+            }
         }
         fp << "% end_wake_potential" << endl;
     }
+}
 
+void WakePl::show_properties() const
+{
+    if (wr.empty() && WF.empty() && WP.empty()) return;
+    
+	ostringstream fp;
+	if (fp.fail()) exit(1);
+	to_stream(fp, false);
+    cout << fp.str();
+}
+
+void WakePl::to_file(const char* filename) const
+{
+    if (wr.empty() && WF.empty() && WP.empty()) return;
+
+	ofstream fp(filename);
+	if (fp.fail()) exit(1);
+	to_stream(fp, true);
     fp.close();
 }
 
@@ -433,6 +451,16 @@ my_Dvector Wake_t::apply_kicks(
     return Wkick;
 }
 
+
+void Wake_t::show_properties() const
+{
+	cout << "#########   Longitudinal Wake   #########" << endl;
+    Wl.show_properties();
+    cout << "#########     Dipolar Wake      #########" << endl;
+    Wd.show_properties();
+    cout << "#########   Quadrupolar Wake    #########" << endl;
+    Wq.show_properties();
+}
 
 void Wake_t::to_file(const char* filename) const
 {

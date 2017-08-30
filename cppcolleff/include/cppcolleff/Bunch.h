@@ -4,6 +4,8 @@
 #include <cppcolleff/essentials.h>
 
 class Bunch_t {
+    private:
+        void to_stream(ostream& fp, const bool isFile = true) const;
     public:
         static const int XX = 0;
         static const int XL = 1;
@@ -42,6 +44,7 @@ class Bunch_t {
 
         void to_file(const char* filename) const;
         void from_file(const char* filename);
+        void show_properties() const;
 };
 
 #endif
