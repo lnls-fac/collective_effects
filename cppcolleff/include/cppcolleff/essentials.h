@@ -17,6 +17,7 @@
 #include <cmath> //std::sqrt std::sin std::cos
 #include <complex>
 //parallelization
+#include <thread>
 #include <parallel/algorithm> //std::sort
 #include <omp.h>
 #include <cppcolleff/ThreadPool/ThreadPool.h>
@@ -44,14 +45,12 @@ my_Ivector get_bounds(const int ini, const int fin, const int nr);
 class Particle_t {
 public:
     double xx, xl, de, ss;
-    Particle_t():xx(0.0),xl(0.0),de(0.0),ss(0.0) {};
-    Particle_t(const Particle_t& p){xx=p.xx; xl=p.xl; de=p.de; ss=p.ss;}
+    Particle_t(const Particle_t& p):xx(p.xx), xl(p.xl), de(p.de), ss(p.ss){};
     Particle_t(
-        const double x,
-        const double l,
-        const double e,
-        const double s): xx(x),xl(l),de(e),ss(s) {};
-    Particle_t(const double ini): xx(ini),xl(ini),de(ini),ss(ini) {};
+        const double x = 0.0,
+        const double l = 0.0,
+        const double e = 0.0,
+        const double s = 0.0): xx(x),xl(l),de(e),ss(s) {};
     Particle_t(const long ini): xx(ini),xl(ini),de(ini),ss(ini) {};
     ~Particle_t() = default;
     Particle_t& operator += (const Particle_t& b)
@@ -79,15 +78,6 @@ public:
     template <class T> Particle_t operator / (const T& b) const
                             {Particle_t c = *this; c /= b; return c;}
 };
-
-// Particle_t operator + (const Particle_t& p) {return p;}
-// Particle_t operator - (const Particle_t& p) {return p*(-1.0);}
-// template <class T> Particle_t operator + (const T& b, const Particle_t& p)
-//                         {return p + b;}
-// template <class T> Particle_t operator - (const T& b, const Particle_t& p)
-//                         {return p*(-1.0) + b;}
-// template <class T> Particle_t operator * (const T& b, const Particle_t& p)
-//                         {return p*b;}
 
 inline Particle_t sqrt(const Particle_t& p)
 {
