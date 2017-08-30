@@ -80,7 +80,6 @@ t0 = time.time()
 coll.single_bunch_tracking(ring, wake, fb, bun, results)
 print('elapsed time: {0:15.4f}'.format(time.time()-t0))
 
-
 # t0 = time.time()
 # dists = []
 # for i in range(10):

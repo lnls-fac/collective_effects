@@ -41,7 +41,18 @@ class Bunch_t {
         my_Dvector calc_particles_distribution(
             const my_Dvector& spos,
             const int plane = SS) const;
+        my_Dvector calc_particles_distribution(
+        	double ini,
+        	double fin,
+        	const int nbin,
+        	const int plane = SS) const;
 
+        void save_distribution_to_file(
+            const char* filename,
+            double ini,
+        	double fin,
+        	const int nbin,
+        	const int plane = SS) const;
         void to_file(const char* filename) const;
         void from_file(const char* filename);
         void show_properties() const;

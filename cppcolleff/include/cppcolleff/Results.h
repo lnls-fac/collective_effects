@@ -27,7 +27,7 @@ class Results_t {
             if ((n % save_bunch_every)==0 || n==nturns) return true;
             return false;
         }
-        bool save_distribution_this_turn(const long n) const
+        bool save_distributions_this_turn(const long n) const
         {
             if (save_distributions_every == 0) return false;
             if (!save_distribution_xx && !save_distribution_xx &&
