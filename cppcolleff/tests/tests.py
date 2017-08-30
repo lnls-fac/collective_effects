@@ -73,6 +73,12 @@ for Rsi, Qi, wri in resonators:
 fb = coll.Feedback_t()
 
 results = coll.Results_t(nturns, 1)
+results.set_keepWl(True)
+results.set_save_distributions_every(10)
+results.save_distribution_de = True
+results.save_distribution_ss = True
+results.bins[2] = 5000
+results.bins[3] = 5000
 
 # bun.scale_longitudinal(0.1)
 # bun.scale_transverse(0.1)
