@@ -26,9 +26,7 @@ cppcolleff
 
 REQUIREMENTS
 
-- a C++ compiler with C++11 support (tested with GCC 4.8)
-- blas
-- gsl (GNU Scientific Library)
+- a C++ compiler with C++17 support (tested with GCC 5.4)
 
 
 INSTRUCTIONS
@@ -47,11 +45,9 @@ cppcolleff Python package
 
 REQUIREMENTS
 
-- a C++ compiler with C++11 support (tested with GCC 4.8)
-- blas
-- gsl (GNU Scientific Library)
+- a C++ compiler with C++17 support (tested with GCC 5.4)
 - SWIG 3 (tested with SWIG 3.0.2)
-- Python 3 (tested with Python 3.4) with header files
+- Python 3 (tested with Python 3.6) with header files
 - Python setuptools (>=16.0)
 - libcppcolleff.a (see previous section)
 
