@@ -41,6 +41,13 @@ double find_equilibrium_energy_spread(
     const int niter = 100,
     const my_Dvector distr_ini = my_Dvector ());
 
+my_Dvector long_simul_with_haissinki(
+	const Wake_t& wake,
+	Ring_t& ring,  // Only changes the energy spread internally;
+	my_Dvector& currs,
+    my_Dvector& init_espread,
+	int niter);
+
 void single_bunch_tracking(
     const Ring_t& ring,
     const Wake_t& wake,

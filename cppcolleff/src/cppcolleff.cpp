@@ -183,7 +183,7 @@ double find_equilibrium_energy_spread(
 		double delta_spread (1e-4);
 		bool conv_once (false);
 
-		while (delta_spread > 1e-5) {
+		while (delta_spread > 1e-7) {
 			if (V.empty()) {
 				if (conv_once) delta_spread /= 2;
 				ring.espread += delta_spread;
@@ -201,6 +201,77 @@ double find_equilibrium_energy_spread(
 		ring.espread = init_espread;
 	}
 	return final_espread;
+}
+
+my_Dvector long_simul_with_haissinki(
+	const Wake_t& wake,
+	Ring_t& ring,
+	my_Dvector& currs,
+    my_Dvector& init_espread,
+	int niter)
+{
+	const my_Dvector& ss = ring.cav.ref_to_xi();
+    my_Dvector espread (currs.size(), 0.0);
+    double espread0 (ring.espread);
+	ThreadPool pool (get_num_threads());
+
+	ofstream fp("results.txt");
+	if (fp.fail()) exit(1);
+	fp.setf(fp.left | fp.showpos | fp.scientific);
+	fp << setw(30) << "% number_of_iterations" << niter << endl;
+	fp << setw(22) << "Ib [A]";
+	fp << setw(22) << "spread";
+	fp << setw(22) << "bun len [m]";
+	fp << setw(22) << "sync ph [m]" << endl;
+
+	cout.setf(fp.left);
+	cout << setw(22) << "Ib [mA]";
+	cout << setw(22) << "spread x 1000";
+	cout << setw(22) << "bun len [mm]";
+	cout << setw(22) << "sync ph [mm]" << endl;
+
+    my_Dvector&& dist = ring.get_distribution();
+    for (int i=0; i<currs.size(); ++i){
+        ring.espread = max(init_espread[i], ring.espread);
+        espread[i] = find_equilibrium_energy_spread(wake, ring, currs[i],
+                                                	pool, niter, dist);
+        ring.espread = espread[i];
+        dist = ring.get_distribution(
+			solve_Haissinski_get_potential(
+				wake, ring, currs[i], pool, niter*2, dist));
+
+		//trapezoidal integration to find synch pos and bunch length
+		double&& s0 = dist[0]*ss[0];  double&& s02 = dist[0]*ss[0]*ss[0];
+		s0 += dist.back()*ss.back();  s02 += dist.back()*ss.back()*ss.back();
+		s0 /= 2;					  s02 /= 2;
+		for (auto&& ii=1; ii<ss.size()-1; ++ii){
+			double&& dummy = dist[ii]*ss[ii];
+			// phase shift:
+        	 s0 += dummy;
+			 dummy *= ss[ii];
+			 // bunch length
+			 s02 += dummy;
+		}
+		double&& ds = ss[1]-ss[0];   s0 *= ds;   s02 *= ds;
+		double&& bl = sqrt(s02 - s0*s0);
+
+		fp << setw(22) << currs[i];
+	 	fp << setw(22) << espread[i];
+	 	fp << setw(22) << bl;
+	 	fp << setw(22) << s0 << endl;
+
+	 	cout << setw(22) << currs[i]*1e3;
+	 	cout << setw(22) << espread[i]*1e3;
+	 	cout << setw(22) << bl*1e3;
+	 	cout << setw(22) << s0*1e3 << endl;
+
+		char fname[50];
+		sprintf(fname, "curr_%05.3fmA_distr_ss.txt", currs[i]*1e3);
+        save_distribution_to_file(fname, dist, ss.front(), ss.back(), ss.size());
+	}
+    fp.close();
+    ring.espread = espread0;
+    return espread;
 }
 
 
