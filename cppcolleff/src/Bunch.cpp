@@ -203,31 +203,20 @@ void Bunch_t::from_file(const char* filename)
 	fp.close();
 }
 
-void Bunch_t::save_distribution_to_file(
+void Bunch_t::distribution_to_file(
 	const char* filename,
-	double ini,
-	double fin,
+	const double ini,
+	const double fin,
 	const int nbin,
 	const int plane) const
 {
-	ofstream fp(filename);
-	if (fp.fail()) exit(1);
-
 	string unit, pl;
-	if (plane == XX){unit = " [m]"; pl = "xx";}
+	if (plane == XX){unit = "[m]"; pl = "xx";}
 	else if (plane == XL){unit = ""; pl = "xl";}
 	else if (plane == DE){unit = ""; pl = "de";}
-	else if (plane == SS){unit = " [m]"; pl = "ss";}
+	else if (plane == SS){unit = "[m]"; pl = "ss";}
 
 	my_Dvector&& distr = calc_particles_distribution(ini, fin, nbin, plane);
 
-	fp.setf(fp.left | fp.scientific);
-	fp.precision(15);
-	fp << setw(30) << "% initial" << ini << unit << endl;
-	fp << setw(30) << "% final" << fin  << unit << endl;
-	fp << setw(30) << "% nbins" << nbin << endl;
-	fp << "# " << pl << unit << endl;
-	fp.setf(fp.left | fp.showpos | fp.scientific);
-	for (auto& p:distr) fp << p << endl;
-	fp.close();
+	save_distribution_to_file(filename, distr, ini, fin, nbin, unit.c_str(), pl.c_str());
 }

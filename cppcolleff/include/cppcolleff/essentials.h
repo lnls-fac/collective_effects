@@ -143,4 +143,16 @@ my_Dvector convolution_same(const my_Dvector& vec1, const my_Dvector& vec2, Thre
 my_Dvector convolution_same_orig(const my_Dvector& vec1, const my_Dvector& vec2);
 my_Dvector convolution_same_orig(const my_Dvector& vec1, const my_Dvector& vec2, ThreadPool& pool);
 
+
+void save_distribution_to_file(
+    const char* filename,
+    const my_Dvector& distr,
+    const double ini,
+    const double fin,
+    const int nbin,
+    const char* unit = "[m]",
+    const char* pl = "ss");
+
+my_Dvector load_distribution_from_file(const char* filename, my_Dvector& lims);
+
 #endif

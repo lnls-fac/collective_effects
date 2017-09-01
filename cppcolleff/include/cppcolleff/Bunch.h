@@ -47,10 +47,10 @@ class Bunch_t {
         	const int nbin,
         	const int plane = SS) const;
 
-        void save_distribution_to_file(
+        void distribution_to_file(
             const char* filename,
-            double ini,
-        	double fin,
+            const double ini,
+        	const double fin,
         	const int nbin,
         	const int plane = SS) const;
         void to_file(const char* filename) const;

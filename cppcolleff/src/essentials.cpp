@@ -193,3 +193,57 @@ my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2, Thre
     _convolution(vec1, vec2, conv, init, pool);
     return conv;
 }
+
+void save_distribution_to_file(
+    const char* filename,
+    const my_Dvector& distr,
+    const double ini,
+    const double fin,
+    const int nbin,
+    const char* unit,
+    const char* pl)
+{
+    ofstream fp(filename);
+    if (fp.fail()) exit(1);
+    fp.setf(fp.left | fp.scientific);
+    fp.precision(15);
+    fp << setw(30) << "% initial" << ini << " " << unit << endl;
+    fp << setw(30) << "% final" << fin  << " " << unit << endl;
+    fp << setw(30) << "% nbins" << nbin << endl;
+    fp << "# " << pl << " " << unit << endl;
+    fp.setf(fp.left | fp.showpos | fp.scientific);
+    for (auto& p:distr) fp << p << endl;
+    fp.close();
+}
+
+my_Dvector load_distribution_from_file(const char* filename, my_Dvector& lims)
+{
+    my_Dvector distr;
+    ifstream fp(filename);
+	if (fp.fail()) return distr;
+
+    int nbin;
+  	string line;
+	unsigned long line_count = 0;
+	while (getline(fp, line)) {
+  		line_count++;
+  		istringstream ss(line);
+		char c = ss.get();
+		while (c == ' ') c = ss.get();
+  		if (c == '#' || c == '\n') continue;
+  		if (c == '%') {
+			string cmd;
+	  		ss >> cmd;
+	  		if (cmd.compare("initial") == 0) {ss >> lims[0];}
+	  		else if (cmd.compare("final") == 0){ss >> lims[1];}
+            else if (cmd.compare("nbins") == 0){ss >> nbin; distr.reserve(nbin);}
+            continue;
+  		}
+		ss.unget();
+        double x;
+  		ss >> x;
+        distr.push_back(x);
+	}
+	fp.close();
+    return distr;
+}

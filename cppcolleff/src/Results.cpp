@@ -58,22 +58,22 @@ double Results_t::calc_stats(
         if (save_distribution_xx){
             char filename[50];
             sprintf(filename,"turn%07lu_distr_xx.txt",turn);
-            bun.save_distribution_to_file(filename, min[0], max[0], bins[0], 0);
+            bun.distribution_to_file(filename, min[0], max[0], bins[0], 0);
         }
         if (save_distribution_xl){
             char filename[50];
             sprintf(filename,"turn%07lu_distr_xl.txt",turn);
-            bun.save_distribution_to_file(filename, min[1], max[1], bins[1], 1);
+            bun.distribution_to_file(filename, min[1], max[1], bins[1], 1);
         }
         if (save_distribution_de){
             char filename[50];
             sprintf(filename,"turn%07lu_distr_de.txt",turn);
-            bun.save_distribution_to_file(filename, min[2], max[2], bins[2], 2);
+            bun.distribution_to_file(filename, min[2], max[2], bins[2], 2);
         }
         if (save_distribution_ss){
             char filename[50];
             sprintf(filename,"turn%07lu_distr_ss.txt",turn);
-            bun.save_distribution_to_file(filename, min[3], max[3], bins[3], 3);
+            bun.distribution_to_file(filename, min[3], max[3], bins[3], 3);
         }
     }
 
