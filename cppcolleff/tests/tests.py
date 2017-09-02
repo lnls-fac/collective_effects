@@ -36,7 +36,7 @@ for i in range(-10000, 10001):
     V.push_back(V0*math.sin(phi0 + krf*s) - ring.en_lost_rad)
 ring.cav.set_xy(ss, V)
 
-num_part = 1000000  # takes 21 seconds with 32 processors.
+num_part = 10000  # takes 21 seconds with 32 processors.
 nturns = 100
 bun = coll.Bunch_t(num_part, 1e-3)
 coll.generate_bunch(ring, bun)
@@ -56,7 +56,7 @@ resonators = [  # Rs    Q      wr
 #            [4000,  1,    1.0e11]]
 
 wake = coll.Wake_t()
-wake.Wl.resonator = True
+wake.Wl.resonator = False
 for Rsi, Qi, wri in resonators:
     wake.Wl.wr.push_back(wri)
     wake.Wl.Rs.push_back(Rsi)
@@ -73,10 +73,15 @@ for Rsi, Qi, wri in resonators:
 fb = coll.Feedback_t()
 
 results = coll.Results_t(nturns, 1)
-results.set_keepWl(True)
+results.set_keepWl(False)
 results.set_save_distributions_every(10)
-results.save_distribution_de = True
-results.save_distribution_ss = True
+results.save_distribution_de = False
+results.save_distribution_ss = False
+results.set_nparticles_to_track(2)
+indcs = coll.my_Ivector()
+indcs.push_back(900)
+indcs.push_back(1)
+bun.set_track_indcs(indcs)
 results.bins[2] = 5000
 results.bins[3] = 5000
 
@@ -85,6 +90,8 @@ results.bins[3] = 5000
 t0 = time.time()
 coll.single_bunch_tracking(ring, wake, fb, bun, results)
 print('elapsed time: {0:15.4f}'.format(time.time()-t0))
+results.to_file('results.txt')
+bun.to_file('bunch.txt')
 
 # t0 = time.time()
 # dists = []

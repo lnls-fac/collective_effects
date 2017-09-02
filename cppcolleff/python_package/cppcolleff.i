@@ -41,5 +41,8 @@
 namespace std {
     %template(my_Ivector) vector<int>;
     %template(my_Dvector) vector<double>;
+    %template(my_Dmatrix) vector<my_Dvector>;
+    %template(my_Cvector) vector<complex<double>>;
     %template(my_PartVector) vector<Particle_t>;
+    %template(my_PartMatrix) vector<my_PartVector>;
 }

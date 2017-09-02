@@ -25,12 +25,27 @@ my_Dvector Bunch_t::get_ss() const
 	return x;
 }
 
+const my_Ivector& Bunch_t::get_track_indcs() const
+{
+	return track_indcs;
+}
+
+void Bunch_t::set_track_indcs(my_Ivector indcs)
+{
+	track_indcs.clear();
+	for (auto&& i: indcs)
+		if (i>=0 && i<particles.size()) track_indcs.push_back(i);
+}
+
 inline bool sort_increasing_ss(const Particle_t& first, const Particle_t& second)
 {
 	if (first.ss < second.ss) return true;
 	else return false;
 }
-void Bunch_t::general_sort() {__gnu_parallel::sort(particles.begin(),particles.end(),sort_increasing_ss);}
+void Bunch_t::general_sort()
+{
+	__gnu_parallel::sort(particles.begin(),particles.end(),sort_increasing_ss);
+}
 // void Bunch_t::general_sort() {std::sort(particles.begin(),particles.end(),sort_increasing_ss);}
 
 void Bunch_t::insertion_sort()
@@ -48,9 +63,48 @@ void Bunch_t::selection_sort()
 }
 
 void Bunch_t::sort(){
+	my_PartVector trv;
+	auto& p = particles;
+	for (int& i: track_indcs){
+		if (i >= 0 && i < p.size()) trv.emplace_back(p[i]);
+	}
+
 	if (is_sorted) {insertion_sort();}
 	else {general_sort();}
 	is_sorted = true;
+
+	for (int i=0; i<track_indcs.size(); ++i){
+		int old (track_indcs[i]);
+		if (old < 0 || old >= p.size()) continue;
+		// dividing the loop in two variables I hope it will be faster:
+		for (auto ip=old, in=old-1; (ip<p.size() || in >= 0); ++ip, --in){
+			if (ip<p.size() && trv[i] == p[ip]){
+				track_indcs[i] = ip;
+				break;
+			}
+			if (in >= 0 && trv[i] == p[in]){
+				track_indcs[i] = in;
+				break;
+			}
+		}
+	}
+}
+
+void Bunch_t::add_particles(const my_PartVector& parts)
+{
+	num_part += parts.size();
+	particles.reserve(num_part);
+	for (auto& p:parts) particles.push_back(Particle_t(p));
+}
+
+my_PartVector Bunch_t::pick_particles(const int n) const
+{
+	my_PartVector part;
+	default_random_engine gen(seed);
+	++seed;
+	uniform_int_distribution <int> dist(0,n-1);
+	for (int&& i=0; i<n; ++i) part.push_back(Particle_t(particles[dist(gen)]));
+	return part;
 }
 
 void Bunch_t::add_offsets(const double xx, const double de,
@@ -135,6 +189,11 @@ void Bunch_t::to_stream(ostream& fp, const bool isFile) const
 	fp << setw(30) << "% current" << Ib << " A" << endl;
 	fp << setw(30) << "% is_sorted" << (is_sorted ? "true": "false") << endl;
 	fp << setw(30) << "% n_particles" << num_part << endl;
+	if (!track_indcs.empty()){
+		fp << setw(30) << "% track_particles";
+		for (auto& i:track_indcs) fp << setw(10) << i;
+		fp << endl;
+	}
 	if (!isFile) return;
 	fp << setw(26) << "# xx [m]";
 	fp << setw(26) << "xl";
@@ -171,6 +230,7 @@ void Bunch_t::from_file(const char* filename)
 	if (fp.fail()) return;
 
 	particles.clear();
+	track_indcs.clear();
 	double x(0.0), l(0.0), e(0.0), s(0.0);
   	string line;
 	unsigned long line_count = 0;
@@ -194,6 +254,11 @@ void Bunch_t::from_file(const char* filename)
 		  		is_sorted = (cmd.compare("true")==0) ? true:false;
 		  		continue;
 	  		}
+			if (cmd.compare("track_particles") == 0){
+				int ind;
+				while (ss >> ind) track_indcs.push_back(ind);
+				continue;
+			}
   		}
 		ss.unget();
   		ss >> x; ss >> l; ss >> e; ss >> s;

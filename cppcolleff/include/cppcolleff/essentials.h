@@ -29,6 +29,7 @@ using namespace std;
 
 typedef vector<int> my_Ivector;
 typedef vector<double> my_Dvector;
+typedef vector<my_Dvector> my_Dmatrix;
 typedef vector<complex<double>> my_Cvector;
 
 extern unsigned long seed;
@@ -53,6 +54,12 @@ public:
         const double s = 0.0): xx(x),xl(l),de(e),ss(s) {};
     Particle_t(const long ini): xx(ini),xl(ini),de(ini),ss(ini) {};
     ~Particle_t() = default;
+    bool operator ==(const Particle_t& b)
+    {
+        return (fabs(xx - b.xx) < 1e-13 && fabs(xl - b.xl) < 1e-13 &&
+                fabs(de - b.de) < 1e-10 && fabs(ss - b.ss) < 1e-10);
+    }
+    bool operator != (const Particle_t& b) {return !(*this==b);}
     Particle_t& operator += (const Particle_t& b)
                 {xx += b.xx; xl += b.xl; de += b.de; ss += b.ss; return *this;}
     Particle_t& operator -= (const Particle_t& b)
@@ -90,6 +97,7 @@ inline Particle_t sqrt(const Particle_t& p)
 }
 
 typedef vector<Particle_t> my_PartVector;
+typedef vector<my_PartVector> my_PartMatrix;
 
 class Interpola_t {
 private:

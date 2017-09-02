@@ -348,7 +348,16 @@ my_Dvector Wake_t::apply_kicks(
     const double betax,
     ThreadPool& pool) const
 {
-    my_Dvector Wkick (3,0.0);
+    //necessary for keeping track of kick received by some particles:
+    const my_Ivector& track_indcs = bun.get_track_indcs();
+    my_Dvector xl, de;
+    for (auto& i: track_indcs){
+        xl.push_back(bun.particles[i].xl);
+        de.push_back(bun.particles[i].de);
+    }
+    //
+
+    my_Dvector Wkick;
     double Wgl(0.0), Wgd(0.0), Wgq(0.0);
     auto& p = bun.particles;
     double&& strenT = stren / betax;
@@ -358,9 +367,7 @@ my_Dvector Wake_t::apply_kicks(
     // After this sorting, the particles will be ordered from head to tail.
     // It means, from smaller ss to bigger ss.
     if (Wd.wake_function || Wq.wake_function || Wl.wake_function ||
-        Wd.resonator     || Wq.resonator     || Wl.resonator ){
-        bun.general_sort();
-    }
+        Wd.resonator     || Wq.resonator     || Wl.resonator) bun.sort();
 
     if (Wl.resonator)
         Wgl += apply_wake_resonator_kick(p, LL, stren, lims, pool);
@@ -445,9 +452,13 @@ my_Dvector Wake_t::apply_kicks(
         }
     }
 
-    Wkick[0] = Wgl;
-    Wkick[1] = Wgd;
-    Wkick[2] = Wgq;
+    Wkick.push_back(Wgl/bun.num_part);
+    Wkick.push_back(Wgd/bun.num_part);
+    Wkick.push_back(Wgq/bun.num_part);
+    for (auto&& i=0; i<track_indcs.size(); ++i){
+        Wkick.push_back(bun.particles[track_indcs[i]].de - de[i]);
+        Wkick.push_back(bun.particles[track_indcs[i]].xl - xl[i]);
+    }
     return Wkick;
 }
 

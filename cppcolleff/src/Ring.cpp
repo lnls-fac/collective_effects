@@ -222,7 +222,7 @@ void Ring_t::track_one_turn(Bunch_t& bun, int n, ThreadPool& pool) const
 
     // When omp is preferred uncomment this option
     // _track_one_turn(p, seed, 0, p.size());
-
+    bun.is_sorted = false;
 }
 
 void Ring_t::track_one_turn(Bunch_t& bun, int n) const

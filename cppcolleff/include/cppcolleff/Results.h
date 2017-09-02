@@ -44,6 +44,12 @@ class Results_t {
             if (Wd) Wdkick.reserve(np); else Wdkick.reserve(0);
             if (Wq) Wqkick.reserve(np); else Wqkick.reserve(0);
             if (Wl) Wlkick.reserve(np); else Wlkick.reserve(0);
+            for (int&& i=0; i<track_parts.size(); ++i)
+            {
+                track_parts[i].reserve(np);
+                if (Wl) track_Wlkick[i].reserve(np); else track_Wlkick[i].reserve(0);
+                if (Wd || Wq)track_Wtkick[i].reserve(np); else track_Wtkick[i].reserve(0);
+            }
         }
         void initial_guess_distributions()
         {
@@ -58,11 +64,13 @@ class Results_t {
     public:
         bool save_bunch, print_in_screen, save_distribution_xx;
         bool save_distribution_xl, save_distribution_de, save_distribution_ss;
+        my_PartMatrix track_parts;
         my_PartVector ave;
         my_PartVector std;
         my_Dvector min, max;
         my_Ivector bins;
         my_Dvector Wlkick, Wdkick, Wqkick, FBkick;  // kicks of wakes and feedback;
+        my_Dmatrix track_Wlkick, track_Wtkick;
         Results_t (const unsigned long nt, const unsigned long eve = 1, const bool kicks = false):
             calc_every(eve), print_every(10L), save_bunch_every(0L), save_distributions_every(0L),
             nturns(nt), save_bunch(false), print_in_screen(true), save_distribution_xx(false),
@@ -79,6 +87,13 @@ class Results_t {
         void set_print_every(const unsigned long eve){print_every = eve;}
         void set_save_bunch_every(const unsigned long eve){save_bunch_every = eve;}
         void set_save_distributions_every(const unsigned long eve){save_distributions_every = eve;}
+        void set_nparticles_to_track(const int np = 0)
+        {
+            track_parts.resize(np);
+            track_Wlkick.resize(np);
+            track_Wtkick.resize(np);
+            reserve_memory();
+        }
 
         unsigned long get_nturns() const {return nturns;}
         unsigned long get_calc_every() const {return calc_every;}

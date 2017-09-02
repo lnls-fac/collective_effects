@@ -289,7 +289,7 @@ void single_bunch_tracking(
 
     for (long n=0;n<results.get_nturns();n++){
         double&& xx_ave = results.calc_stats(bun, n, pool);
-        /* convention: positive ss, means particle behind the sinchronous particle;
+        /* convention: positive ss means particle behind the sinchronous particle;
          First do single particle tracking:*/
         ring.track_one_turn(bun, n, pool);
 

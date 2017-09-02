@@ -5,7 +5,11 @@
 
 class Bunch_t {
     private:
+        my_Ivector track_indcs;
         void to_stream(ostream& fp, const bool isFile = true) const;
+        void general_sort();
+        void insertion_sort();
+        void selection_sort();
     public:
         static const int XX = 0;
         static const int XL = 1;
@@ -24,10 +28,13 @@ class Bunch_t {
         my_Dvector get_de() const;
         my_Dvector get_ss() const;
 
-        void general_sort();
-        void insertion_sort();
-        void selection_sort();
+        const my_Ivector& get_track_indcs() const;
+        void set_track_indcs(my_Ivector indcs);
+
         void sort();
+
+        void add_particles(const my_PartVector& parts);
+        my_PartVector pick_particles(const int n) const;
 
         void add_offsets(
             const double xx,

@@ -96,6 +96,11 @@ double Results_t::calc_stats(
     rstd /= bun.num_part;
     rstd = sqrt(rstd - rave * rave);
 
+    const my_Ivector& track_indcs = bun.get_track_indcs();
+    for (int&& i=0; i<track_indcs.size(); ++i)
+        track_parts[i].push_back(bun.particles[track_indcs[i]]);
+
+
     if (print_in_screen) {
         if (turn == 0) {
             fprintf(stdout,"%7s %12s %12s   %12s %12s   %12s %12s   %12s %12s \n","turn",
@@ -122,9 +127,14 @@ void Results_t::register_FBkick(const long turn, const double& kik)
 
 void Results_t::register_Wkicks(const long turn, const my_Dvector& kik)
 {
-    if (Wl && calc_this_turn(turn)) {Wlkick.push_back(kik[0]);}
-    if (Wd && calc_this_turn(turn)) {Wdkick.push_back(kik[1]);}
-    if (Wq && calc_this_turn(turn)) {Wqkick.push_back(kik[2]);}
+    if (!calc_this_turn(turn)) return;
+    if (Wl) Wlkick.push_back(kik[0]);
+    if (Wd) Wdkick.push_back(kik[1]);
+    if (Wq) Wqkick.push_back(kik[2]);
+    for (int ii=0; ii<track_parts.size(); ++ii){
+        if (Wl) track_Wlkick[ii].push_back(kik[2*ii+3]);
+        if (Wd || Wq) track_Wtkick[ii].push_back(kik[2*ii+4]);
+    }
 }
 
 
@@ -154,6 +164,7 @@ void Results_t::to_stream(ostream& fp, const bool isFile) const
     fp << setw(30) << "% keep_wake_long_kicks" << g_bool(Wl) << endl;
     fp << setw(30) << "% keep_wake_dipo_kicks" << g_bool(Wd) << endl;
     fp << setw(30) << "% keep_wake_quad_kicks" << g_bool(Wq) << endl;
+    fp << setw(30) << "% number_particles_track" << track_parts.size() << endl;
     if (!isFile) return;
     fp << setw(26) << "# <xx> [m]";
     fp << setw(26) << "<xl>";
@@ -167,6 +178,14 @@ void Results_t::to_stream(ostream& fp, const bool isFile) const
     if (Wd) fp << setw(26) << "Dipo Wake Kick";
     if (Wq) fp << setw(26) << "Quad Wake Kick";
     if (FB) fp << setw(26) << "Feedback Kick";
+    for (int ii=0; ii<track_parts.size(); ++ii){
+        fp << "p" << ii << setw(24) << ".xx [m]";
+        fp << "p" << ii << setw(24) << ".xl";
+        fp << "p" << ii << setw(24) << ".de";
+        fp << "p" << ii << setw(24) << ".ss [m]";
+        if (Wl) fp << "p" << ii << setw(24) << " Long Wake Kick";
+        if (Wd || Wq) fp << "p" << ii << setw(24) << " Trans Wake Kick";
+    }
     fp << endl;
     fp.setf(fp.left | fp.showpos | fp.scientific);
     for (auto i=0; i<ave.size(); ++i){
@@ -182,6 +201,14 @@ void Results_t::to_stream(ostream& fp, const bool isFile) const
         if (Wd) fp << setw(26) << Wdkick[i];
         if (Wq) fp << setw(26) << Wqkick[i];
         if (FB) fp << setw(26) << FBkick[i];
+        for (int ii=0; ii<track_parts.size(); ++ii){
+            fp << setw(26) << track_parts[ii][i].xx;
+            fp << setw(26) << track_parts[ii][i].xl;
+            fp << setw(26) << track_parts[ii][i].de;
+            fp << setw(26) << track_parts[ii][i].ss;
+            if (Wl) fp << setw(26) << track_Wlkick[ii][i];
+            if (Wd || Wq) fp << setw(26) << track_Wtkick[ii][i];
+        }
         fp << endl;
     }
 }
@@ -240,6 +267,7 @@ void Results_t::from_file(const char* filename)
             else if (cmd.compare("params_distribution_xl") == 0){ss >> bins[1] >> min[1] >> max[1];}
             else if (cmd.compare("params_distribution_de") == 0){ss >> bins[2] >> min[2] >> max[2];}
             else if (cmd.compare("params_distribution_ss") == 0){ss >> bins[3] >> min[3] >> max[3];}
+            else if (cmd.compare("number_particles_track") == 0){int i; ss >> i; set_nparticles_to_track(i);}
             continue;
   		}
 		ss.unget();
@@ -251,6 +279,13 @@ void Results_t::from_file(const char* filename)
         if (Wd) {ss >> d1; Wdkick.push_back(d1);}
         if (Wq) {ss >> d1; Wqkick.push_back(d1);}
         if (FB) {ss >> d1; FBkick.push_back(d1);}
+        for (int ii=0; ii<track_parts.size(); ++ii){
+            double d1, d2, d3, d4;
+            fp >> d1 >> d2 >> d3 >> d4;
+            track_parts[ii].emplace_back(d1,d2,d3,d4);
+            if (Wl) {fp >> d1; track_Wlkick[ii].push_back(d1);}
+            if (Wd || Wq) {fp >> d1; track_Wtkick[ii].push_back(d1);}
+        }
 	}
 	fp.close();
 }
