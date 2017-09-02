@@ -272,19 +272,19 @@ void Results_t::from_file(const char* filename)
   		}
 		ss.unget();
         ss >> d1; ss >> d2; ss >> d3; ss >> d4;
-        ave.push_back(Particle_t(d1, d2, d3, d4));
+        ave.emplace_back(d1, d2, d3, d4);
         ss >> d1; ss >> d2; ss >> d3; ss >> d4;
-        std.push_back(Particle_t(d1, d2, d3, d4));
+        std.emplace_back(d1, d2, d3, d4);
         if (Wl) {ss >> d1; Wlkick.push_back(d1);}
         if (Wd) {ss >> d1; Wdkick.push_back(d1);}
         if (Wq) {ss >> d1; Wqkick.push_back(d1);}
         if (FB) {ss >> d1; FBkick.push_back(d1);}
         for (int ii=0; ii<track_parts.size(); ++ii){
             double d1, d2, d3, d4;
-            fp >> d1 >> d2 >> d3 >> d4;
+            ss >> d1 >> d2 >> d3 >> d4;
             track_parts[ii].emplace_back(d1,d2,d3,d4);
-            if (Wl) {fp >> d1; track_Wlkick[ii].push_back(d1);}
-            if (Wd || Wq) {fp >> d1; track_Wtkick[ii].push_back(d1);}
+            if (Wl) {ss >> d1; track_Wlkick[ii].push_back(d1);}
+            if (Wd || Wq) {ss >> d1; track_Wtkick[ii].push_back(d1);}
         }
 	}
 	fp.close();

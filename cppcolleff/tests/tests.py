@@ -37,7 +37,7 @@ for i in range(-10000, 10001):
 ring.cav.set_xy(ss, V)
 
 num_part = 10000  # takes 21 seconds with 32 processors.
-nturns = 100
+nturns = 215
 bun = coll.Bunch_t(num_part, 1e-3)
 coll.generate_bunch(ring, bun)
 bun.sort()
@@ -56,7 +56,7 @@ resonators = [  # Rs    Q      wr
 #            [4000,  1,    1.0e11]]
 
 wake = coll.Wake_t()
-wake.Wl.resonator = False
+wake.Wl.resonator = True
 for Rsi, Qi, wri in resonators:
     wake.Wl.wr.push_back(wri)
     wake.Wl.Rs.push_back(Rsi)
