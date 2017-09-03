@@ -197,48 +197,66 @@ my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2, Thre
     return conv;
 }
 
-my_Dvector convolution_fft(const my_Dvector& vec1 const my_Dvector& vec2)
-    set_num_threads(32);
-    fftw_complex *in1, in2;
-    fftw_plan p;
+my_Dvector convolution_fft(const my_Dvector& vec1, const my_Dvector& vec2)
+{
+    double *in1, *in2;
+    fftw_plan p1, p2, pr;
 
-    long N = vec1.size();
-    in1 = (double*) fftw_malloc(sizeof(double) * 2*(N/2+1));
-    in2 = (double*) fftw_malloc(sizeof(double) * 2*(N/2+1));
-    inr = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * (N/2+1));
+    long N = vec1.size() + vec2.size() - 1;
+    in1 = fftw_alloc_real(N);
+    in2 = fftw_alloc_real(N);
     // p = fftw_plan_dft_1d(N, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
-    p1 = fftw_plan_dft_r2c_1d(N, in1, in1, FFTW_MEASURE);
-    p2 = fftw_plan_dft_r2c_1d(N, in2, in2, FFTW_MEASURE);
-    pr = fftw_plan_dft_c2r_1d(N, in1, in1, FFTW_MEASURE);
-
     p1 = fftw_plan_r2r_1d(N, in1, in1, FFTW_R2HC, FFTW_MEASURE);
     p2 = fftw_plan_r2r_1d(N, in2, in2, FFTW_R2HC, FFTW_MEASURE);
-    p1 = fftw_plan_r2r_1d(N, in1, in1, FFTW_HC2R, FFTW_MEASURE);
+    pr = fftw_plan_r2r_1d(N, in1, in1, FFTW_HC2R, FFTW_MEASURE);
 
+    for (long i=0;i<vec1.size();++i) in1[i] = vec1[i];
+    for (long i=vec1.size();i<N;++i) in1[i] = 0.0;
 
-    for (long i=0;i<N;++i){
-        in1[i][0] = vec1[i];
-        in2[i][0] = vec2[i];
+    for (long i=0;i<vec2.size();++i) in2[i] = vec2[i];
+    for (long i=vec2.size();i<N;++i) in2[i] = 0.0;
+
+    fftw_execute(p1);
+    fftw_execute(p2);
+
+    in1[0] *= in2[0];
+    long stop = N/2 + 1;
+    if (N%2 == 0){
+        in1[N/2] *= in2[N/2];
+        stop = N/2;
     }
-
-    fftw_execute(p1); /* repeat as needed */
-    fftw_execute(p2); /* repeat as needed */
-
-    for (long k=0, i=0, j=1; k<(N/2+1); ++k, i+=2, j+=2){
-        inr[k][0] = in1[i]*in2[i] - in2[j]*in2[j];
-        inr[k][1] = in1[i]*in2[j] + in1[j]*in2[i];
+    for (long i=1, j=N-1; i<stop; ++i, --j){
+        double&& tmp = in1[i] * in2[i];
+        tmp -= in1[j]*in2[j];
+        in1[j] *= in2[i];
+        in1[j] += in1[i]*in2[j];
+        in1[i] = tmp;
     }
 
     fftw_execute(pr);
 
     my_Dvector res;
     res.reserve(N);
-    for (long i=0;i<N; i++) res.push_back(in1[i][0]/N)
+    for (long i=0; i<N; ++i) res.push_back(in1[i]/N);
 
-    fftw_destroy_plan(p);
-    fftw_free(in); fftw_free(out);
+    fftw_destroy_plan(p1);
+    fftw_destroy_plan(p2);
+    fftw_destroy_plan(pr);
+    fftw_free(in1);
+    fftw_free(in2);
 
     return res;
+}
+
+my_Dvector convolution_fft_same(const my_Dvector& vec1, const my_Dvector& vec2)
+{
+    my_Dvector res = convolution_fft(vec1, vec2);
+    my_Dvector res2;
+    res2.reserve(vec1.size());
+    long&& ini = vec2.size()/2;
+    long&& fin = ini + vec1.size();
+    for (long i=ini; i<fin; ++i) res2.push_back(res[i]);
+    return res2;
 }
 
 void save_distribution_to_file(

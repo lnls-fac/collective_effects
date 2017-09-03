@@ -5,30 +5,30 @@
 
 int main()
 {
-    set_num_threads(32);
-    long N = 50000000;
-    fftw_complex *in, *out;
-    fftw_plan p;
+    my_Dvector a, b, c, d;
+    a.push_back(1);
+    a.push_back(2);
+    a.push_back(3);
+    a.push_back(2);
+    a.push_back(1);
 
-    in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N);
-    out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N);
-    // p = fftw_plan_dft_1d(N, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
-    p = fftw_plan_dft_1d(N, in, out, FFTW_FORWARD, FFTW_MEASURE);
+    // b.push_back(1);
+    b.push_back(1);
+    b.push_back(1);
+    // b.push_back(2);
+    b.push_back(1);
 
-    for (long i=0;i<N;++i){
-        in[i][0] = (i>N/2) ? (N-i):i;
-        in[i][1] = 2;
+    // c = convolution_full(a, b);
+    // d = convolution_fft(a, b);
+    c = convolution_same(a, b);
+    d = convolution_fft_same(a, b);
+    cout << setw(10) << "trad" << endl;
+    for (int i=0; i<c.size(); ++i){
+        cout << setw(10) << c[i] << endl;
     }
-
-    typedef chrono::high_resolution_clock clock_;
-    typedef chrono::duration<double, ratio<1> > s_;
-    chrono::time_point<clock_> beg_ = clock_::now();
-
-    fftw_execute(p); /* repeat as needed */
-
-    cout << "ET: " << chrono::duration_cast<s_> (clock_::now()-beg_).count() << " s" << endl;
-
-    fftw_destroy_plan(p);
-    fftw_free(in); fftw_free(out);
+    cout << setw(10) << "fft" << endl;
+    for (int i=0; i<d.size(); ++i){
+        cout << setw(10) << d[i] << endl;
+    }
     return 0;
 }

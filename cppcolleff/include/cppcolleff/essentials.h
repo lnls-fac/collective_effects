@@ -153,6 +153,8 @@ my_Dvector convolution_same(const my_Dvector& vec1, const my_Dvector& vec2, Thre
 my_Dvector convolution_same_orig(const my_Dvector& vec1, const my_Dvector& vec2);
 my_Dvector convolution_same_orig(const my_Dvector& vec1, const my_Dvector& vec2, ThreadPool& pool);
 
+my_Dvector convolution_fft(const my_Dvector& vec1, const my_Dvector& vec2);
+my_Dvector convolution_fft_same(const my_Dvector& vec1, const my_Dvector& vec2);
 
 void save_distribution_to_file(
     const char* filename,

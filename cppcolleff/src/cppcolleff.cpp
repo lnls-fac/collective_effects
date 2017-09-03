@@ -98,7 +98,8 @@ static my_Dvector _const_espread_iteration_Haissinski(
 	my_Ivector lims (get_bounds(0, cav_V.size()));
 	vector< std::future<int> > res;
 	while (true) {
-		my_Dvector V (convolution_same(KickF, distr_old, pool)); // variable to be returned;
+		// my_Dvector V (convolution_same(KickF, distr_old, pool)); // variable to be returned;
+		my_Dvector V (convolution_fft_same(KickF, distr_old)); // variable to be returned;
 
 		// correct the scale of the convolution and add cavity to potential:
 	    auto fun = [&](my_Dvector& V1, int ini, int fin)
