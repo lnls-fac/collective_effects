@@ -20,7 +20,7 @@ OBJECTS = $(WRAPPEROBJS)
 
 COMP_FLAGS = $(MACHINE) $(OPT_FLAG) $(GEN_FLAG) $(DFLAGS)
 LDFLAGS    = $(MACHINE) $(GEN_FLAG) $(DFLAGS)
-LIBS = -lgsl -lblas -L../build -lcppcolleff
+LIBS = -lgsl -lblas -lfftw3 -lfftw3_omp -lm -L../build -lcppcolleff
 CPPCOLLEFFLIB = ../build/libcppcolleff.a
 INC = -I../include -I/usr/include/$(PYTHON) -I/usr/local/include/$(PYTHON)m
 

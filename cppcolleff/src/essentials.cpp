@@ -7,6 +7,9 @@ void set_num_threads(int nr)
 {
     num_threads = nr;
     omp_set_num_threads(nr);
+    int ret = fftw_init_threads();
+    if (ret == 0) {cout << "error" << endl; exit(1);}
+    fftw_plan_with_nthreads(nr);
 }
 
 int get_num_threads() { return num_threads;}

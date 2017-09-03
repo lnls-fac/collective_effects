@@ -27,6 +27,7 @@ cppcolleff
 REQUIREMENTS
 
 - a C++ compiler with C++17 support (tested with GCC 5.4)
+- fftw3 and fftw3_omp (ubuntu: available with apt-get.)
 
 
 INSTRUCTIONS

@@ -21,6 +21,8 @@
 #include <parallel/algorithm> //std::sort
 #include <omp.h>
 #include <cppcolleff/ThreadPool/ThreadPool.h>
+//extern libraries for special calculations
+#include <fftw3.h> // for fft and convolution
 
 using namespace std;
 

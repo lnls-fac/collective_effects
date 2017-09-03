@@ -55,7 +55,7 @@ BINSOURCES_CPP = exec.cpp
 
 AUXFILES  = VERSION
 
-LIBS = -lgsl -lgslcblas -lm
+LIBS = -lgsl -lgslcblas  -lfftw3 -lfftw3_omp -lm
 INC  = -I./include
 BINDEST_DIR = /usr/local/bin
 LIBDEST_DIR = /usr/local/lib
