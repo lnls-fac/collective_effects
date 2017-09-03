@@ -3,3 +3,6 @@
 -pthread
 -std=c++17
 -fPIC
+-lfftw3
+-lfftw3_omp
+-lm

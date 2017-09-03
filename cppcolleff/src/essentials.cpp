@@ -197,6 +197,50 @@ my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2, Thre
     return conv;
 }
 
+my_Dvector convolution_fft(const my_Dvector& vec1 const my_Dvector& vec2)
+    set_num_threads(32);
+    fftw_complex *in1, in2;
+    fftw_plan p;
+
+    long N = vec1.size();
+    in1 = (double*) fftw_malloc(sizeof(double) * 2*(N/2+1));
+    in2 = (double*) fftw_malloc(sizeof(double) * 2*(N/2+1));
+    inr = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * (N/2+1));
+    // p = fftw_plan_dft_1d(N, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+    p1 = fftw_plan_dft_r2c_1d(N, in1, in1, FFTW_MEASURE);
+    p2 = fftw_plan_dft_r2c_1d(N, in2, in2, FFTW_MEASURE);
+    pr = fftw_plan_dft_c2r_1d(N, in1, in1, FFTW_MEASURE);
+
+    p1 = fftw_plan_r2r_1d(N, in1, in1, FFTW_R2HC, FFTW_MEASURE);
+    p2 = fftw_plan_r2r_1d(N, in2, in2, FFTW_R2HC, FFTW_MEASURE);
+    p1 = fftw_plan_r2r_1d(N, in1, in1, FFTW_HC2R, FFTW_MEASURE);
+
+
+    for (long i=0;i<N;++i){
+        in1[i][0] = vec1[i];
+        in2[i][0] = vec2[i];
+    }
+
+    fftw_execute(p1); /* repeat as needed */
+    fftw_execute(p2); /* repeat as needed */
+
+    for (long k=0, i=0, j=1; k<(N/2+1); ++k, i+=2, j+=2){
+        inr[k][0] = in1[i]*in2[i] - in2[j]*in2[j];
+        inr[k][1] = in1[i]*in2[j] + in1[j]*in2[i];
+    }
+
+    fftw_execute(pr);
+
+    my_Dvector res;
+    res.reserve(N);
+    for (long i=0;i<N; i++) res.push_back(in1[i][0]/N)
+
+    fftw_destroy_plan(p);
+    fftw_free(in); fftw_free(out);
+
+    return res;
+}
+
 void save_distribution_to_file(
     const char* filename,
     const my_Dvector& distr,
