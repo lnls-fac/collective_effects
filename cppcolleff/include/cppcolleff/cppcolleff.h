@@ -52,7 +52,7 @@ my_Dvector long_simul_with_haissinki(
 
 void single_bunch_tracking(
     const Ring_t& ring,
-    const Wake_t& wake,
+    Wake_t& wake,
     Feedback_t& fb,
     Bunch_t& bun,
     Results_t& results);

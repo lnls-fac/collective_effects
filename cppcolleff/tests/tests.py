@@ -6,7 +6,7 @@ import cppcolleff as coll
 import matplotlib.pyplot as plt
 import numpy as np
 
-coll.set_num_threads(32)
+coll.set_num_threads(2)
 coll.set_seed_num(5004930)
 
 ring = coll.Ring_t()
@@ -37,8 +37,8 @@ for i in range(-10000, 10001):
 ring.cav.set_xy(ss, V)
 
 num_part = 1000000  # takes 21 seconds with 32 processors.
-nturns = 100
-bun = coll.Bunch_t(num_part, 1e-3)
+nturns = 1000
+bun = coll.Bunch_t(num_part, 1.5e-3)
 coll.generate_bunch(ring, bun)
 bun.sort()
 
@@ -62,13 +62,15 @@ for Rsi, Qi, wri in resonators:
     wake.Wl.Rs.push_back(Rsi)
     wake.Wl.Q.push_back(Qi)
 
-# x = coll.my_Dvector()
-# for i in range(50000):
-#     x.push_back(2e-5 * 5e-2 * i)
-# y = coll.my_Dvector(wake.Wl.get_wake_at_points(x, 1))
-# wake.Wl.WF.set_xy(x, y)
-# wake.Wl.resonator = True
-# wake.Wl.wake_function = False
+x = coll.my_Dvector()
+npt = 100000
+for i in np.linspace(-1, 1, npt):
+    x.push_back(15e-2 * i)
+y = coll.my_Dvector(wake.Wl.get_wake_at_points(x, 1))
+wake.Wl.WF.set_xy(x, y)
+wake.Wl.WFC.prepare(x, y, False)
+wake.Wl.resonator = True
+wake.Wl.wake_function = not wake.Wl.resonator
 
 fb = coll.Feedback_t()
 
@@ -81,11 +83,11 @@ results.save_distribution_ss = False
 results.bins[2] = 5000
 results.bins[3] = 5000
 
-#keep track of some particles
+# keep track of some particles
 indcs = coll.my_Ivector()
 indcs.push_back(900)
 indcs.push_back(1)
-bun.set_track_indcs(indcs
+bun.set_track_indcs(indcs)
 results.set_nparticles_to_track(indcs.size())
 
 # bun.scale_longitudinal(0.1)

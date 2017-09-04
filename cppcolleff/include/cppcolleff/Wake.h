@@ -33,7 +33,7 @@ class Wake_t
             Bunch_t& bun,
             const double stren,
             const double betax,
-            ThreadPool& pool) const;
+            ThreadPool& pool);
 
         void to_file(const char* filename) const;
         void from_file(const char* filename);
@@ -44,7 +44,7 @@ class Wake_t
             Bunch_t& bun,
             double stren,
             double strenT,
-            ThreadPool& pool) const;
+            ThreadPool& pool);
 
         my_Dvector apply_wake_function_kick(
             my_PartVector& par,
