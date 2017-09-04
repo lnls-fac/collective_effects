@@ -118,13 +118,16 @@ private:
     }
 public:
     //Interpola_t(my_Dvector&& xref, my_Dvector&& yref) {xi = move(xref); yi = move(yref);check_consistency();}
-    Interpola_t(my_Dvector& xref, my_Dvector& yref):
+    Interpola_t(const my_Dvector& xref, const my_Dvector& yref):
     xi(xref), yi(yref) {check_consistency();initialize_interp();}
     Interpola_t() = default;
     ~Interpola_t() = default;
-    void set_x(my_Dvector& xref){xi=xref; check_consistency(); initialize_interp();}
-    void set_y(my_Dvector& yref){yi=yref; check_consistency(); initialize_interp();}
-    void set_xy(my_Dvector& xref, my_Dvector& yref){xi=xref; yi=yref; check_consistency(); initialize_interp();}
+    void set_x(my_Dvector& xref)
+                        {xi=xref; check_consistency(); initialize_interp();}
+    void set_y(my_Dvector& yref)
+                        {yi=yref; check_consistency(); initialize_interp();}
+    void set_xy(my_Dvector& xref, my_Dvector& yref)
+                {xi=xref; yi=yref; check_consistency(); initialize_interp();}
     const my_Dvector& ref_to_xi() const {return xi;}
     const my_Dvector& ref_to_yi() const {return yi;}
     bool empty() const {return xi.empty();}
@@ -144,29 +147,20 @@ public:
 
 class Convolve_t {
     private:
-        double *in1, *in2;
+        double *in1 = nullptr, *in2 = nullptr;
         fftw_plan p1, p2, pr;
         long N1, N2, N;
+        bool measure;
+        void create_plans(const long n1, const long n2, const bool meas);
+        void free_memory();
     public:
-        Convolve_t(const long N1, const long N2, bool meas = false):
-                    N1(N1), N2(N2), N(N1+N2-1)
-        {
-            auto flag = meas ? FFTW_MEASURE: FFTW_ESTIMATE;
-            in1 = fftw_alloc_real(N);
-            in2 = fftw_alloc_real(N);
-            p1 = fftw_plan_r2r_1d(N, in1, in1, FFTW_R2HC, flag);
-            p2 = fftw_plan_r2r_1d(N, in2, in2, FFTW_R2HC, flag);
-            pr = fftw_plan_r2r_1d(N, in1, in1, FFTW_HC2R, flag);
-        }
-        ~Convolve_t()
-        {
-            fftw_destroy_plan(p1);
-            fftw_destroy_plan(p2);
-            fftw_destroy_plan(pr);
-            fftw_free(in1);
-            fftw_free(in2);
-        }
-        void prepare(const my_Dvector& vec1, const my_Dvector& vec2);
+        Convolve_t(const long N1 = 1024, const long N2=1024, const bool meas = false)
+                                                {create_plans(N1, N2, meas);}
+        ~Convolve_t(){free_memory();}
+        void prepare(
+            const my_Dvector& vec1,
+            const my_Dvector& vec2,
+            const bool meas = false);
         my_Dvector execute();
         my_Dvector execute_same();
 };

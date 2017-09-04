@@ -197,11 +197,39 @@ my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2, Thre
     return conv;
 }
 
-void Convolve_t::prepare(const my_Dvector& vec1, const my_Dvector& vec2)
+void Convolve_t::free_memory()
 {
+    if (in1 == nullptr) return;
+    fftw_free(in1); in1 = nullptr;
+    fftw_free(in2); in2 = nullptr;
+    fftw_destroy_plan(p1);
+    fftw_destroy_plan(p2);
+    fftw_destroy_plan(pr);
+}
+void Convolve_t::create_plans(const long n1, const long n2, const bool meas)
+{
+    if (n1 != N1 || n2 != N2) free_memory();
+    if (in1 != nullptr) return;
+    N1 = n1;
+    N2 = n2;
+    N = N1 + N2;
+    measure = meas;
+    auto flag = measure ? FFTW_MEASURE: FFTW_ESTIMATE;
+    in1 = fftw_alloc_real(N);
+    in2 = fftw_alloc_real(N);
+    p1 = fftw_plan_r2r_1d(N, in1, in1, FFTW_R2HC, flag);
+    p2 = fftw_plan_r2r_1d(N, in2, in2, FFTW_R2HC, flag);
+    pr = fftw_plan_r2r_1d(N, in1, in1, FFTW_HC2R, flag);
+}
+
+void Convolve_t::prepare(
+    const my_Dvector& vec1,
+    const my_Dvector& vec2,
+    const bool meas)
+{
+    create_plans(vec1.size(), vec2.size(), meas);
     copy(vec1.begin(), vec1.end(), in1);
     fill(in1+N1, in1+N, 0.0);
-
     copy(vec2.begin(), vec2.end(), in2);
     fill(in2+N2, in2+N, 0.0);
 }
@@ -228,20 +256,20 @@ my_Dvector Convolve_t::execute()
     fftw_execute(pr);
 
     my_Dvector res;
-    res.reserve(N);
-    for (long i=0; i<N; ++i) res.push_back(in1[i]/N);
+    res.reserve(N-1);
+    for (long i=0; i<N-1; ++i) res.push_back(in1[i]/N);
     return res;
-}
+    }
 
 my_Dvector Convolve_t::execute_same()
 {
     my_Dvector&& res = execute();
     my_Dvector res2;
-    res2.reserve(N1);
+    res2.resize(N1);
 
     long&& ini = N2/2;
     long&& fin = ini + N1;
-    for (long i=ini; i<fin; ++i) res2.push_back(res[i]);
+    copy(res.begin()+ini, res.begin()+fin, res2.begin());
     return res2;
 }
 
