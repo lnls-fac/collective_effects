@@ -8,6 +8,7 @@ struct WakePl
 {
     bool wake_function, wake_potential, resonator;
     Interpola_t  WF, WP;
+    Convolve_t WFC, WPC;
     my_Dvector wr, Rs, Q;
     WakePl(): wake_function(false), wake_potential(false), resonator(false) {};
     ~WakePl() = default;
@@ -39,6 +40,12 @@ class Wake_t
         void show_properties() const;
 
     private:
+        my_Dvector apply_wake_function_kick_fft(
+            Bunch_t& bun,
+            double stren,
+            double strenT,
+            ThreadPool& pool) const;
+
         my_Dvector apply_wake_function_kick(
             my_PartVector& par,
             double stren,

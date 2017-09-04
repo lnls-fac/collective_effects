@@ -171,6 +171,63 @@ void WakePl::from_file(const char* filename)
 }
 
 
+
+my_Dvector Wake_t::apply_wake_function_kick_fft(
+    Bunch_t& bun,
+    double stren,
+    double strenT,
+    ThreadPool& pool) const
+{
+    auto fun = [&](my_PartVector& p, int com, int ter)
+    {
+        my_Dvector vec (3,0.0);
+        for (auto w=com;w<ter;++w){ // Begin from the particle ahead
+            if (Wl.wake_function) {
+                double&& kick = Wl.WF.get_y(p[w].ss);
+                kick *= -stren;
+                vec[0] += kick;
+                p[w].de += kick;
+            }
+            // if (Wd.wake_function) {
+            //     double&& kick = Wd.WF.get_y(p[w].ss);
+            //     kick *= -strenT; // The kick is the negative of the wake;
+            //     vec[1] += kick;
+            //     p[w].xl += kick;
+            // }
+            // if (Wq.wake_function) {
+            //     double&& kick = Wq.WF.get_y(p[w].ss);
+            //     kick *= -p[w].xx * strenT; // The kick is the negative of the wake;
+            //     vec[2] += kick;
+            //     p[w].xl += kick;
+            // }
+        }
+        return vec;
+    };
+    const my_Dvector& spos = Wl.WF.ref_to_xi();
+    const my_Dvector& Wa = Wl.WF.ref_to_yi();
+
+    my_Dvector&& distr = bun.calc_particles_distribution(spos);
+    Wl.WFC.prepare(distr, Wa);
+    Interpola_t Kickl (spos, Wl.WFC.execute_same());
+
+    my_PartVector& par = bun.particles;
+
+    unsigned int nr_th = get_num_threads();
+    vector< std::future<my_Dvector> > res1;
+    my_Ivector lims (get_bounds(0, par.size(), nr_th));
+    for (unsigned int i=0;i<nr_th;++i){
+        res1.emplace_back(pool.enqueue(fun, ref(par), lims[i], lims[i+1]));
+    }
+
+    my_Dvector Wgs (3,0.0);
+    my_Dvector v (3,0.0);
+    for(auto&& result: res1)
+        {v = result.get(); Wgs[0] += v[0]; Wgs[1] += v[1]; Wgs[2] += v[2];}
+    return Wgs;
+}
+
+
+
 my_Dvector Wake_t::apply_wake_function_kick(
     my_PartVector& par,
     double stren,
