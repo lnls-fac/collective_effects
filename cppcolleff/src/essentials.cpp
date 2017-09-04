@@ -197,25 +197,18 @@ my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2, Thre
     return conv;
 }
 
-my_Dvector convolution_fft(const my_Dvector& vec1, const my_Dvector& vec2)
+void Convolve_t::prepare(const my_Dvector& vec1, const my_Dvector& vec2)
 {
-    double *in1, *in2;
-    fftw_plan p1, p2, pr;
+    assert(N1 == vec1.size() && N2 == vec2.size());
+    for (long i=0;i<N1;++i) in1[i] = vec1[i];
+    for (long i=N1;i<N;++i) in1[i] = 0.0;
 
-    long N = vec1.size() + vec2.size() - 1;
-    in1 = fftw_alloc_real(N);
-    in2 = fftw_alloc_real(N);
-    // p = fftw_plan_dft_1d(N, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
-    p1 = fftw_plan_r2r_1d(N, in1, in1, FFTW_R2HC, FFTW_MEASURE);
-    p2 = fftw_plan_r2r_1d(N, in2, in2, FFTW_R2HC, FFTW_MEASURE);
-    pr = fftw_plan_r2r_1d(N, in1, in1, FFTW_HC2R, FFTW_MEASURE);
+    for (long i=0;i<N2;++i) in2[i] = vec2[i];
+    for (long i=N2;i<N;++i) in2[i] = 0.0;
+}
 
-    for (long i=0;i<vec1.size();++i) in1[i] = vec1[i];
-    for (long i=vec1.size();i<N;++i) in1[i] = 0.0;
-
-    for (long i=0;i<vec2.size();++i) in2[i] = vec2[i];
-    for (long i=vec2.size();i<N;++i) in2[i] = 0.0;
-
+my_Dvector Convolve_t::execute()
+{
     fftw_execute(p1);
     fftw_execute(p2);
 
@@ -238,25 +231,33 @@ my_Dvector convolution_fft(const my_Dvector& vec1, const my_Dvector& vec2)
     my_Dvector res;
     res.reserve(N);
     for (long i=0; i<N; ++i) res.push_back(in1[i]/N);
-
-    fftw_destroy_plan(p1);
-    fftw_destroy_plan(p2);
-    fftw_destroy_plan(pr);
-    fftw_free(in1);
-    fftw_free(in2);
-
     return res;
+}
+
+my_Dvector Convolve_t::execute_same()
+{
+    my_Dvector&& res = execute();
+    my_Dvector res2;
+    res2.reserve(N1);
+
+    long&& ini = N2/2;
+    long&& fin = ini + N1;
+    for (long i=ini; i<fin; ++i) res2.push_back(res[i]);
+    return res2;
+}
+
+my_Dvector convolution_fft(const my_Dvector& vec1, const my_Dvector& vec2)
+{
+    Convolte_t conv(vec1.size(), vec2.size());
+    conv.prepare(vec1, vec2);
+    return conv.execute();
 }
 
 my_Dvector convolution_fft_same(const my_Dvector& vec1, const my_Dvector& vec2)
 {
-    my_Dvector res = convolution_fft(vec1, vec2);
-    my_Dvector res2;
-    res2.reserve(vec1.size());
-    long&& ini = vec2.size()/2;
-    long&& fin = ini + vec1.size();
-    for (long i=ini; i<fin; ++i) res2.push_back(res[i]);
-    return res2;
+    Convolte_t conv(vec1.size(), vec2.size());
+    conv.prepare(vec1, vec2);
+    return conv.execute_same();
 }
 
 void save_distribution_to_file(

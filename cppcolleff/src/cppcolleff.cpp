@@ -85,7 +85,8 @@ static my_Dvector _const_espread_iteration_Haissinski(
 	const my_Dvector KickF,
 	const int niter,
 	const my_Dvector distr_ini,
-	ThreadPool& pool)
+	ThreadPool& pool,
+	Convolve_t conv)
 {
 	my_Dvector distr_old (distr_ini);
 	auto& cav_s = ring.cav.ref_to_xi();
@@ -98,8 +99,9 @@ static my_Dvector _const_espread_iteration_Haissinski(
 	my_Ivector lims (get_bounds(0, cav_V.size()));
 	vector< std::future<int> > res;
 	while (true) {
+		conv.prepare(KickF, distr_old);
+		my_Dvector V (conv.execute()); // variable to be returned;
 		// my_Dvector V (convolution_same(KickF, distr_old, pool)); // variable to be returned;
-		my_Dvector V (convolution_fft_same(KickF, distr_old)); // variable to be returned;
 
 		// correct the scale of the convolution and add cavity to potential:
 	    auto fun = [&](my_Dvector& V1, int ini, int fin)
@@ -146,8 +148,9 @@ my_Dvector solve_Haissinski_get_potential(
 	if (ini_distr.size() == 0) {ini_distr = ring.get_distribution();}
 
 	auto& cav_s = ring.cav.ref_to_xi();
+	Convolve_t conv(cav_s.size(), cav_s.size());
 	my_Dvector&& KickF = wake.Wl.get_wake_at_points(cav_s, -Ib * ring.circum / light_speed / ring.energy);
-	return _const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini, pool);
+	return _const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini, conv, pool);
 }
 
 
@@ -159,7 +162,9 @@ double find_equilibrium_energy_spread(
 	const my_Dvector distr_ini)
 {
 	ThreadPool pool (get_num_threads());
-	return find_equilibrium_energy_spread(wake, ring, Ib, pool, niter, distr_ini);
+	auto& cav_s = ring.cav.ref_to_xi();
+	Convolve_t conv(cav_s.size(), cav_s.size());
+	return find_equilibrium_energy_spread(wake, ring, Ib, pool, conv, niter, distr_ini);
 }
 
 double find_equilibrium_energy_spread(
@@ -167,6 +172,7 @@ double find_equilibrium_energy_spread(
 	Ring_t& ring,
 	const double& Ib,
 	ThreadPool& pool,
+	Convolve_t conv,
 	const int niter,
 	const my_Dvector distr_ini)
 {
@@ -174,7 +180,7 @@ double find_equilibrium_energy_spread(
 	auto& cav_s = ring.cav.ref_to_xi();
 	my_Dvector&& KickF = wake.Wl.get_wake_at_points(cav_s, -Ib * ring.circum / light_speed / ring.energy);
 
-	my_Dvector V (_const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini, pool));
+	my_Dvector V (_const_espread_iteration_Haissinski(ring, KickF, niter, distr_ini, conv, pool));
 
 	// Now use bissection to get the equilibrium distribution if needed
 	double final_espread (ring.espread);

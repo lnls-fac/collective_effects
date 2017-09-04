@@ -142,6 +142,34 @@ public:
     }
 };
 
+class Convolve_t {
+    private:
+        double *in1, *in2;
+        fftw_plan p1, p2, pr;
+        long N1, N2, N;
+    public:
+        Convolve_t(const long N1, const long N2): N1(N1), N2(N2), N(N1+N2-1)
+        {
+            in1 = fftw_alloc_real(N);
+            in2 = fftw_alloc_real(N);
+            p1 = fftw_plan_r2r_1d(N, in1, in1, FFTW_R2HC, FFTW_MEASURE);
+            p2 = fftw_plan_r2r_1d(N, in2, in2, FFTW_R2HC, FFTW_MEASURE);
+            pr = fftw_plan_r2r_1d(N, in1, in1, FFTW_HC2R, FFTW_MEASURE);
+        }
+        ~Convolve_t()
+        {
+            fftw_destroy_plan(p1);
+            fftw_destroy_plan(p2);
+            fftw_destroy_plan(pr);
+            fftw_free(in1);
+            fftw_free(in2);
+        }
+        void prepare(const my_Dvector& vec1, const my_Dvector& vec2);
+        my_Dvector execute();
+        my_Dvector execute_same();
+}
+
+
 my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2);
 my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2, ThreadPool& pool);
 my_Dvector convolution_full_orig(const my_Dvector& vec1, const my_Dvector& vec2);
