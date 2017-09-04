@@ -148,13 +148,15 @@ class Convolve_t {
         fftw_plan p1, p2, pr;
         long N1, N2, N;
     public:
-        Convolve_t(const long N1, const long N2): N1(N1), N2(N2), N(N1+N2-1)
+        Convolve_t(const long N1, const long N2, bool meas = false):
+                    N1(N1), N2(N2), N(N1+N2-1)
         {
+            auto flag = meas ? FFTW_MEASURE: FFTW_ESTIMATE;
             in1 = fftw_alloc_real(N);
             in2 = fftw_alloc_real(N);
-            p1 = fftw_plan_r2r_1d(N, in1, in1, FFTW_R2HC, FFTW_MEASURE);
-            p2 = fftw_plan_r2r_1d(N, in2, in2, FFTW_R2HC, FFTW_MEASURE);
-            pr = fftw_plan_r2r_1d(N, in1, in1, FFTW_HC2R, FFTW_MEASURE);
+            p1 = fftw_plan_r2r_1d(N, in1, in1, FFTW_R2HC, flag);
+            p2 = fftw_plan_r2r_1d(N, in2, in2, FFTW_R2HC, flag);
+            pr = fftw_plan_r2r_1d(N, in1, in1, FFTW_HC2R, flag);
         }
         ~Convolve_t()
         {
@@ -167,7 +169,7 @@ class Convolve_t {
         void prepare(const my_Dvector& vec1, const my_Dvector& vec2);
         my_Dvector execute();
         my_Dvector execute_same();
-}
+};
 
 
 my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2);

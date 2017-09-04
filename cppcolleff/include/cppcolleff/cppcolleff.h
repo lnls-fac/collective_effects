@@ -23,6 +23,7 @@ my_Dvector solve_Haissinski_get_potential(
     const Ring_t& ring,
     const double& Ib,
     ThreadPool& pool,
+    Convolve_t& conv,
     const int niter = 100,
     const my_Dvector distr_ini = my_Dvector ());
 
@@ -38,6 +39,7 @@ double find_equilibrium_energy_spread(
     Ring_t& ring, // Only changes the energy spread internally;
     const double& Ib,
     ThreadPool& pool,
+    Convolve_t& conv,
     const int niter = 100,
     const my_Dvector distr_ini = my_Dvector ());
 

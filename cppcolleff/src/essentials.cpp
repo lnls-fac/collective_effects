@@ -199,12 +199,11 @@ my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2, Thre
 
 void Convolve_t::prepare(const my_Dvector& vec1, const my_Dvector& vec2)
 {
-    assert(N1 == vec1.size() && N2 == vec2.size());
-    for (long i=0;i<N1;++i) in1[i] = vec1[i];
-    for (long i=N1;i<N;++i) in1[i] = 0.0;
+    copy(vec1.begin(), vec1.end(), in1);
+    fill(in1+N1, in1+N, 0.0);
 
-    for (long i=0;i<N2;++i) in2[i] = vec2[i];
-    for (long i=N2;i<N;++i) in2[i] = 0.0;
+    copy(vec2.begin(), vec2.end(), in2);
+    fill(in2+N2, in2+N, 0.0);
 }
 
 my_Dvector Convolve_t::execute()
@@ -248,14 +247,14 @@ my_Dvector Convolve_t::execute_same()
 
 my_Dvector convolution_fft(const my_Dvector& vec1, const my_Dvector& vec2)
 {
-    Convolte_t conv(vec1.size(), vec2.size());
+    Convolve_t conv(vec1.size(), vec2.size());
     conv.prepare(vec1, vec2);
     return conv.execute();
 }
 
 my_Dvector convolution_fft_same(const my_Dvector& vec1, const my_Dvector& vec2)
 {
-    Convolte_t conv(vec1.size(), vec2.size());
+    Convolve_t conv(vec1.size(), vec2.size());
     conv.prepare(vec1, vec2);
     return conv.execute_same();
 }
