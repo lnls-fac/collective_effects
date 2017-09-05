@@ -6,11 +6,11 @@
 
 struct WakePl
 {
-    bool wake_function, wake_potential, resonator;
-    Interpola_t  WF, WP;
-    Convolve_t WFC, WPC;
+    bool wake_function, resonator;
+    Interpola_t WF; // can be wake functions or wake potentials;
+    Convolve_t WFC;
     my_Dvector wr, Rs, Q;
-    WakePl(): wake_function(false), wake_potential(false), resonator(false) {};
+    WakePl(): wake_function(false), resonator(false) {};
     ~WakePl() = default;
     my_Dvector get_wake_at_points(const my_Dvector& spos, const double& stren) const;
     void to_stream(ostream& fp, const bool isFile = true) const;
@@ -40,17 +40,10 @@ class Wake_t
         void show_properties() const;
 
     private:
-        my_Dvector apply_wake_function_kick_fft(
+        double apply_wake_function_kick(
             Bunch_t& bun,
             double stren,
-            double strenT,
-            ThreadPool& pool);
-
-        my_Dvector apply_wake_function_kick(
-            my_PartVector& par,
-            double stren,
-            double strenT,
-            ThreadPool& pool) const;
+            int Ktype);
 
         double apply_wake_resonator_kick(
             my_PartVector& p,

@@ -39,7 +39,6 @@ void WakePl::to_stream(ostream& fp, const bool isFile) const
 	fp.precision(15);
     fp << setw(30) << "% use_resonator" << g_bool(resonator) << endl;
     fp << setw(30) << "% use_wake_function" << g_bool(wake_function) << endl;
-    fp << setw(30) << "% use_wake_potential" << g_bool(wake_potential) << endl;
     if (!wr.empty()) {
         fp << "% start_resonators" << endl;
         fp << setw(30) << "% num_resonators" << wr.size() << endl;
@@ -70,27 +69,11 @@ void WakePl::to_stream(ostream& fp, const bool isFile) const
         }
         fp << "% end_wake_function" << endl;
     }
-    if (!WP.empty()){
-        auto& pos = WP.ref_to_xi();
-        auto& w = WP.ref_to_yi();
-        fp << "% start_wake_potential" << endl;
-        fp << setw(30) << "% size_wake_potential" << pos.size() << endl;
-        if (isFile){
-            fp << setw(26) << "# pos [m]";
-            fp << setw(26) << "W [V/C or V/C/m]" << endl;
-            fp.setf(fp.left | fp.showpos | fp.scientific);
-            for (auto i=0; i<pos.size(); ++i){
-                fp << setw(26) << pos[i];
-                fp << setw(26) << w[i] << endl;
-            }
-        }
-        fp << "% end_wake_potential" << endl;
-    }
 }
 
 void WakePl::show_properties() const
 {
-    if (wr.empty() && WF.empty() && WP.empty()) return;
+    if (wr.empty() && WF.empty()) return;
 
 	ostringstream fp;
 	if (fp.fail()) exit(1);
@@ -100,7 +83,7 @@ void WakePl::show_properties() const
 
 void WakePl::to_file(const char* filename) const
 {
-    if (wr.empty() && WF.empty() && WP.empty()) return;
+    if (wr.empty() && WF.empty()) return;
 
 	ofstream fp(filename);
 	if (fp.fail()) exit(1);
@@ -117,7 +100,7 @@ void WakePl::from_file(const char* filename)
 
     my_Dvector vf1, vf2, vp1, vp2;
 	double d1(0.0), d2(0.0), d3(0.0);
-    bool fill_re(false), fill_wf(false), fill_wp(false);
+    bool fill_re(false), fill_wf(false);
   	string line;
 	unsigned long line_count = 0;
 	while (getline(fp, line)) {
@@ -133,26 +116,18 @@ void WakePl::from_file(const char* filename)
 		  		{ss >> cmd; resonator = g_bool(cmd);}
             else if (cmd.compare("use_wake_function") == 0)
 		  		{ss >> cmd; wake_function = g_bool(cmd);}
-            else if (cmd.compare("use_wake_potential") == 0)
-		  		{ss >> cmd; wake_potential = g_bool(cmd);}
             else if (cmd.compare("start_resonators") == 0)
-                {fill_re = true; fill_wf = false; fill_wp = false;}
+                {fill_re = true; fill_wf = false;}
             else if (cmd.compare("start_wake_function") == 0)
-                {fill_re = false; fill_wf = true; fill_wp = false;}
-            else if (cmd.compare("start_wake_potential") == 0)
-                {fill_re = false; fill_wf = false; fill_wp = true;}
+                {fill_re = false; fill_wf = true;}
             else if (cmd.compare("end_resonators") == 0)
                 {fill_re = false;}
             else if (cmd.compare("end_wake_function") == 0)
                 {fill_wf = false; WF.set_xy(vf1,vf2);}
-            else if (cmd.compare("end_wake_potential") == 0)
-                {fill_wp = false; WP.set_xy(vp1,vp2);}
             else if (cmd.compare("num_resonators") == 0)
                 {int np; ss >> np; Q.reserve(np); wr.reserve(np); Rs.reserve(np);}
             else if (cmd.compare("size_wake_function") == 0)
                 {int np; ss >> np; vf1.reserve(np); vf2.reserve(np);}
-            else if (cmd.compare("size_wake_potential") == 0)
-                {int np; ss >> np; vp1.reserve(np); vp2.reserve(np);}
             continue;
   		}
 		ss.unget();
@@ -162,177 +137,64 @@ void WakePl::from_file(const char* filename)
         }else if (fill_wf){
             ss >> d1; ss >> d2;
             vf1.push_back(d1); vf2.push_back(d2);
-        }else if (fill_wp){
-            ss >> d1; ss >> d2;
-            vp1.push_back(d1); vp2.push_back(d2);
         }
 	}
 	fp.close();
 }
 
 
-
-my_Dvector Wake_t::apply_wake_function_kick_fft(
+double Wake_t::apply_wake_function_kick(
     Bunch_t& bun,
     double stren,
-    double strenT,
-    ThreadPool& pool)
+    int Ktype)
 {
-    auto funl = [](my_PartVector& p, Interpola_t& Kickl, int com, int ter, double stre)
-    {
-        double kl (0.0);
-        for (auto w=com;w<ter;++w){
-            double&& kick = Kickl.get_y(p[w].ss);
-            kick *= -stre;
-            kl += kick;
-            p[w].de += kick;
-        }
-        return kl;
-    };
-    auto fund = [](my_PartVector& p, Interpola_t& Kickd, int com, int ter, double stre)
-    {
-        double kd (0.0);
-        for (auto w=com;w<ter;++w){
-            double&& kick = Kickd.get_y(p[w].ss);
-            kick *= -stre; // The kick is the negative of the wake;
-            kd += kick;
-            p[w].xl += kick;
-        }
-        return kd;
-    };
-    auto funq = [](my_PartVector& p, Interpola_t& Kickq, int com, int ter, double stre)
-    {
-        double kq (0.0);
-        for (auto w=com;w<ter;++w){
-            double&& kick = Kickq.get_y(p[w].ss);
-            kick *= -p[w].xx * stre; // The kick is the negative of the wake;
-            kq += kick;
-            p[w].xl += kick;
-        }
-        return kq;
-    };
-
-    my_Dvector Wgs (3,0.0);
-
     my_PartVector& par = bun.particles;
 
-    unsigned int nr_th = get_num_threads();
-    my_Ivector lims (get_bounds(0, par.size(), nr_th));
+    WakePl& W = (Ktype == LL) ? Wl: ((Ktype == XD) ? Wd : Wq);
 
-    if (Wl.wake_function){
-        const my_Dvector& spos = Wl.WF.ref_to_xi();
-        const my_Dvector& Wa = Wl.WF.ref_to_yi();
-        double strenL = bun.num_part*stren*(spos[1]-spos[0]); // to normalize convolution;
+    const my_Dvector& spos = W.WF.ref_to_xi();
+    const my_Dvector& Wa = W.WF.ref_to_yi();
 
-        my_Dvector&& distr = bun.calc_particles_distribution(spos);
-        Wl.WFC.prepare(distr, Wa, true);
-        Interpola_t Kickl (spos, Wl.WFC.execute_same());
+    my_Dvector&& distr = (Ktype == XD) ? bun.calc_dipole_moment(spos):
+                                         bun.calc_particles_distribution(spos);
+    W.WFC.prepare(distr, Wa, true);
+    Interpola_t Kick (spos, W.WFC.execute_same());
 
-        vector< std::future<double> > res1;
-        for (unsigned int i=0;i<nr_th;++i)
-            res1.emplace_back(pool.enqueue(
-                funl, ref(par), ref(Kickl), lims[i], lims[i+1], strenL));
-        for(auto&& result: res1) Wgs[0] += result.get();
-    }
-    if (Wd.wake_function){
-        const my_Dvector& spos = Wd.WF.ref_to_xi();
-        const my_Dvector& Wa = Wd.WF.ref_to_yi();
-        double strenTT = bun.num_part*strenT*(spos[1]-spos[0]); // to normalize convolution;
-
-        my_Dvector&& distr = bun.calc_particles_distribution(spos);
-        Wd.WFC.prepare(distr, Wa, true);
-        Interpola_t Kickd (spos, Wd.WFC.execute_same());
-
-        vector< std::future<double> > res1;
-        for (unsigned int i=0;i<nr_th;++i)
-            res1.emplace_back(pool.enqueue(
-                fund, ref(par), ref(Kickd), lims[i], lims[i+1], strenTT));
-        for(auto&& result: res1) Wgs[1] += result.get();
-    }
-    if (Wq.wake_function){
-        const my_Dvector& spos = Wq.WF.ref_to_xi();
-        const my_Dvector& Wa = Wq.WF.ref_to_yi();
-        double strenTT = bun.num_part*strenT*(spos[1]-spos[0]); // to normalize convolution;
-
-        my_Dvector&& distr = bun.calc_particles_distribution(spos);
-        Wq.WFC.prepare(distr, Wa, true);
-        Interpola_t Kickq (spos, Wq.WFC.execute_same());
-
-        vector< std::future<double> > res1;
-        for (unsigned int i=0;i<nr_th;++i)
-            res1.emplace_back(pool.enqueue(
-                funq, ref(par), ref(Kickq), lims[i], lims[i+1], strenTT));
-        for(auto&& result: res1) Wgs[2] += result.get();
-    }
-    return Wgs;
-}
-
-my_Dvector Wake_t::apply_wake_function_kick(
-    my_PartVector& par,
-    double stren,
-    double strenT,
-    ThreadPool& pool) const
-{
-    auto fun = [&](my_PartVector& p, int com, int ter)
-    {
-        my_Dvector vec (3,0.0);
-        for (auto w=com;w<ter;++w){ // Begin from the particle ahead
-            if (Wl.wake_function) {
-                double&& kick = Wl.WF.get_y(0.0);
-                kick *= -stren;
-                vec[0] += kick;
-                p[w].de += kick;
-            }
-            for (auto s=w-1;s>=0;--s){ // loop over all particles ahead of it.
-                double&& ds = p[w].ss - p[s].ss;
-                if (Wl.wake_function) {
-                    double&& kick = Wl.WF.get_y(ds);
-                    kick *= -stren;
-                    vec[0] += kick;
-                    p[w].de += kick;
-                }
-                if (Wd.wake_function) {
-                    double&& kick = Wd.WF.get_y(ds);
-                    kick *= -p[s].xx * strenT; // The kick is the negative of the wake;
-                    vec[1] += kick;
-                    p[w].xl += kick;
-                }
-                if (Wq.wake_function) {
-                    double&& kick = Wq.WF.get_y(ds);
-                    kick *= -p[w].xx * strenT; // The kick is the negative of the wake;
-                    vec[2] += kick;
-                    p[w].xl += kick;
-                }
-            }
+    stren *= (spos[1]-spos[0]); // to normalize convolution;
+    stren *= bun.num_part; // the value comes divided by the number of particles.
+    double Wg (0.0);
+    if (Ktype == LL){
+        #ifdef OPENMP
+          #pragma omp parallel for schedule(guided,1) reduction(+:Wg)
+        #endif
+        for (auto w=0;w<par.size();++w){
+            double&& kick = Kick.get_y(par[w].ss);
+            kick *= -stren;
+            Wg += kick;
+            par[w].de += kick;
         }
-        return vec;
-    };
-
-    // auto&& off = ((i-1) % 2 == 0) ? (nr_th-(i/2)+1) : (i/2);
-    // res1.emplace_back(pool.enqueue(fun, ref(par), lims2[off-(i/2)], lims2[off-(i/2)+1]));
-
-    unsigned int nr_th = 64*get_num_threads();
-    // unsigned int&& nr_job = max(int(par.size()/100), min(int(nr_th), int(par.size())));
-    vector< std::future<my_Dvector> > res1;
-
-    my_Ivector lims2 (get_bounds(par.size()/2, par.size(), nr_th));
-    for (unsigned int i=1;i<=nr_th;++i){
-        // auto&& off = (i%2 == 0) ? (nr_th-(i/2)-1) : (i/2);
-        // res1.emplace_back(pool.enqueue(fun, ref(par), lims2[off], lims2[off+1]));
-
-        res1.emplace_back(pool.enqueue(fun, ref(par), lims2[nr_th-i], lims2[nr_th-i+1]));
+    }else if (Ktype == XD){
+        #ifdef OPENMP
+          #pragma omp parallel for schedule(guided,1) reduction(+:Wg)
+        #endif
+        for (auto w=0;w<par.size();++w){
+            double&& kick = Kick.get_y(par[w].ss);
+            kick *= -stren; // The kick is the negative of the wake;
+            Wg += kick;
+            par[w].xl += kick;
+        }
+    }else {
+        #ifdef OPENMP
+          #pragma omp parallel for schedule(guided,1) reduction(+:Wg)
+        #endif
+        for (auto w=0; w<par.size(); ++w){
+            double&& kick = Kick.get_y(par[w].ss);
+            kick *= -par[w].xx * stren; // The kick is the negative of the wake;
+            Wg += kick;
+            par[w].xl += kick;
+        }
     }
-
-    my_Ivector lims1 (get_bounds(0, par.size()/2, nr_th));
-    for (unsigned int i=0;i<nr_th;++i){
-        res1.emplace_back(pool.enqueue(fun, ref(par), lims1[i], lims1[i+1]));
-    }
-
-    my_Dvector Wgs (3,0.0);
-    my_Dvector v (3,0.0);
-    for(auto&& result: res1)
-        {v = result.get(); Wgs[0] += v[0]; Wgs[1] += v[1]; Wgs[2] += v[2];}
-    return Wgs;
+    return Wg;
 }
 
 
@@ -453,8 +315,7 @@ my_Dvector Wake_t::apply_kicks(
     }
     //
 
-    my_Dvector Wkick;
-    double Wgl(0.0), Wgd(0.0), Wgq(0.0);
+    my_Dvector Wkick (3, 0.0);
     auto& p = bun.particles;
     double&& strenT = stren / betax;
     //Determine the bounds of for loops in each thread
@@ -462,100 +323,25 @@ my_Dvector Wake_t::apply_kicks(
 
     // After this sorting, the particles will be ordered from head to tail.
     // It means, from smaller ss to bigger ss.
-    // if (Wd.wake_function || Wq.wake_function || Wl.wake_function ||
-    //     Wd.resonator     || Wq.resonator     || Wl.resonator) bun.sort();
-
     if (Wd.resonator || Wq.resonator || Wl.resonator) bun.sort();
 
     if (Wl.resonator)
-        Wgl += apply_wake_resonator_kick(p, LL, stren, lims, pool);
+        Wkick[0] += apply_wake_resonator_kick(p, LL, stren, lims, pool);
     if (Wd.resonator)
-        Wgd += apply_wake_resonator_kick(p, XD, strenT, lims, pool);
+        Wkick[1] += apply_wake_resonator_kick(p, XD, strenT, lims, pool);
     if (Wq.resonator)
-        Wgq += apply_wake_resonator_kick(p, XQ, strenT, lims, pool);
+        Wkick[2] += apply_wake_resonator_kick(p, XQ, strenT, lims, pool);
 
-    //pw --> witness particle   ps --> source particle
-    if (Wd.wake_function || Wq.wake_function || Wl.wake_function){
-        // #ifdef OPENMP
-        //   #pragma omp parallel for schedule(guided,1) reduction(+:Wgl,Wgd,Wgq)
-        // #endif
-        // for (auto w=0;w<p.size();++w){ // Begin from the particle ahead
-        //     if (Wl.wake_function) {
-        //         double&& kick = Wl.WF.get_y(0.0);
-        //         kick *= -stren;
-        //         Wgl     += kick;
-        //         p[w].de += kick;
-        //     }
-        //     for (auto s=w-1;s>=0;--s){ // loop over all particles ahead of it.
-        //         double&& ds = p[w].ss - p[s].ss;
-        //         if (Wl.wake_function) {
-        //             double&& kick = Wl.WF.get_y(ds);
-        //             kick *= -stren;
-        //             Wgl     += kick;
-        //             p[w].de += kick;
-        //         }
-        //         if (Wd.wake_function) {
-        //             double&& kick = Wd.WF.get_y(ds);
-        //             kick *= -p[s].xx * strenT; // The kick is the negative of the wake;
-        //             Wgd     += kick;
-        //             p[w].xl += kick;
-        //         }
-        //         if (Wq.wake_function) {
-        //             double&& kick = Wq.WF.get_y(ds);
-        //             kick *= -p[w].xx * strenT; // The kick is the negative of the wake;
-        //             Wgq     += kick;
-        //             p[w].xl += kick;
-        //         }
-        //     }
-        // }
+    if (Wl.wake_function)
+        Wkick[0] += apply_wake_function_kick(bun, stren, LL);
+    if (Wd.wake_function)
+        Wkick[1] += apply_wake_function_kick(bun, strenT, XD);
+    if (Wq.wake_function)
+        Wkick[2] += apply_wake_function_kick(bun, strenT, XQ);
 
-        my_Dvector&& Wgs (apply_wake_function_kick_fft(bun, stren, strenT, pool));
-        Wgl = Wgs[0]; Wgd = Wgs[1]; Wgq = Wgs[2];
-
-        //my parallelization (for now openmp is better)
-        // my_Dvector&& Wgs (apply_wake_function_kick(p, stren, strenT, pool));
-        // Wgl = Wgs[0]; Wgd = Wgs[1]; Wgq = Wgs[2];
-    }
-
-    //pw --> witness particle   ps --> source particle
-    if (Wd.wake_potential || Wq.wake_potential || Wl.wake_potential){
-      #ifdef OPENMP
-        #pragma omp parallel for schedule(guided,1) reduction(+:Wgl,Wgd,Wgq)
-      #endif
-        for (auto w=0;w<p.size();++w){ // Begin from the particle ahead
-            for (auto s=p.size();s>=0;--s){ // loop over all particles.
-                double&& ds = p[w].ss - p[s].ss;
-                if (Wl.wake_potential) {
-                    double&& kick = Wl.WP.get_y(ds);
-                    if (abs(kick)> 1e-30){
-                        kick *= -stren;
-                        Wgl     += kick;
-                        p[w].de += kick;
-                    }
-                }
-                if (Wd.wake_potential) {
-                    double&& kick = Wd.WP.get_y(ds);
-                    if (abs(kick)> 1e-30){
-                        kick *= -p[s].xx * strenT; // The kick is the negative of the wake;
-                        Wgd     += kick;
-                        p[w].xl += kick;
-                    }
-                }
-                if (Wq.wake_potential) {
-                    double&& kick = Wq.WP.get_y(ds);
-                    if (abs(kick)> 1e-30){
-                        kick *= -p[w].xx * strenT; // The kick is the negative of the wake;
-                        Wgq     += kick;
-                        p[w].xl += kick;
-                    }
-                }
-            }
-        }
-    }
-
-    Wkick.push_back(Wgl/bun.num_part);
-    Wkick.push_back(Wgd/bun.num_part);
-    Wkick.push_back(Wgq/bun.num_part);
+    Wkick[0] /= bun.num_part;
+    Wkick[1] /= bun.num_part;
+    Wkick[2] /= bun.num_part;
     for (auto&& i=0; i<track_indcs.size(); ++i){
         Wkick.push_back(bun.particles[track_indcs[i]].de - de[i]);
         Wkick.push_back(bun.particles[track_indcs[i]].xl - xl[i]);
