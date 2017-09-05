@@ -146,6 +146,42 @@ void Bunch_t::scale_transverse(const double scale)
 	}
 }
 
+my_Dvector Bunch_t::calc_dipole_moment(
+	const my_Dvector& spos,
+	const int plane) const
+{
+	double ini = spos.front();
+	double fin = spos.back();
+	const int nbin = spos.size();
+	return calc_dipole_moment(ini, fin, nbin, plane);
+}
+
+my_Dvector Bunch_t::calc_dipole_moment(
+	double ini,
+	double fin,
+	const int nbin,
+	const int plane) const
+{
+	my_Dvector distr (nbin, 0.0);
+
+	double&& delta = (fin-ini)/(nbin-1);
+	double&& offset = -ini/delta + 0.5;
+
+	const my_PartVector& p = particles;
+	for (long&& i=0;i<p.size();++i){
+		int k;
+		if (plane==XX) k = p[i].xx/delta + offset;
+		else if (plane==XL) k = p[i].xl/delta + offset;
+		else if (plane==DE) k = p[i].de/delta + offset;
+		else if (plane==SS) k = p[i].ss/delta + offset;
+		if (k < 0) k=0;
+		if (k>=nbin) k = nbin-1;
+		distr[k]++;
+	}
+	for (long&& i=0;i<distr.size();++i){distr[i] /= delta*p.size();}
+	return distr;
+}
+
 my_Dvector Bunch_t::calc_particles_distribution(
 	const my_Dvector& spos,
 	const int plane) const

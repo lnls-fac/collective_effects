@@ -45,6 +45,15 @@ class Bunch_t {
         void scale_longitudinal(const double scale);
         void scale_transverse(const double scale);
 
+        my_Dvector calc_dipole_moment(
+            const my_Dvector& spos,
+            const int plane = SS) const;
+        my_Dvector calc_dipole_moment(
+        	double ini,
+        	double fin,
+        	const int nbin,
+        	const int plane = SS) const;
+
         my_Dvector calc_particles_distribution(
             const my_Dvector& spos,
             const int plane = SS) const;
