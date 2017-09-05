@@ -155,8 +155,8 @@ double Wake_t::apply_wake_function_kick(
     const my_Dvector& spos = W.WF.ref_to_xi();
     const my_Dvector& Wa = W.WF.ref_to_yi();
 
-    my_Dvector&& distr = (Ktype == XD) ? bun.calc_dipole_moment(spos):
-                                         bun.calc_particles_distribution(spos);
+    my_Dvector&& distr = (Ktype == XD) ? bun.calc_first_moment(spos, bun.XX):
+                                         bun.calc_distribution(spos);
     W.WFC.prepare(distr, Wa, true);
     Interpola_t Kick (spos, W.WFC.execute_same());
 

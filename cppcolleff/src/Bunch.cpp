@@ -146,53 +146,17 @@ void Bunch_t::scale_transverse(const double scale)
 	}
 }
 
-my_Dvector Bunch_t::calc_dipole_moment(
+my_Dvector Bunch_t::calc_distribution(
 	const my_Dvector& spos,
 	const int plane) const
 {
 	double ini = spos.front();
 	double fin = spos.back();
 	const int nbin = spos.size();
-	return calc_dipole_moment(ini, fin, nbin, plane);
+	return calc_distribution(ini, fin, nbin, plane);
 }
 
-my_Dvector Bunch_t::calc_dipole_moment(
-	double ini,
-	double fin,
-	const int nbin,
-	const int plane) const
-{
-	my_Dvector distr (nbin, 0.0);
-
-	double&& delta = (fin-ini)/(nbin-1);
-	double&& offset = -ini/delta + 0.5;
-
-	const my_PartVector& p = particles;
-	for (long&& i=0;i<p.size();++i){
-		int k;
-		if (plane==XX) k = p[i].xx/delta + offset;
-		else if (plane==XL) k = p[i].xl/delta + offset;
-		else if (plane==DE) k = p[i].de/delta + offset;
-		else if (plane==SS) k = p[i].ss/delta + offset;
-		if (k < 0) k=0;
-		if (k>=nbin) k = nbin-1;
-		distr[k] += p[i].xx;
-	}
-	for (long&& i=0;i<distr.size();++i){distr[i] /= delta*p.size();}
-	return distr;
-}
-
-my_Dvector Bunch_t::calc_particles_distribution(
-	const my_Dvector& spos,
-	const int plane) const
-{
-	double ini = spos.front();
-	double fin = spos.back();
-	const int nbin = spos.size();
-	return calc_particles_distribution(ini, fin, nbin, plane);
-}
-
-my_Dvector Bunch_t::calc_particles_distribution(
+my_Dvector Bunch_t::calc_distribution(
 	double ini,
 	double fin,
 	const int nbin,
@@ -213,6 +177,78 @@ my_Dvector Bunch_t::calc_particles_distribution(
 		if (k < 0) k=0;
 		if (k>=nbin) k = nbin-1;
 		distr[k]++;
+	}
+	for (long&& i=0;i<distr.size();++i){distr[i] /= delta*p.size();}
+	return distr;
+}
+
+my_Dvector Bunch_t::calc_first_moment(
+	const my_Dvector& spos,
+	const int plane) const
+{
+	double ini = spos.front();
+	double fin = spos.back();
+	const int nbin = spos.size();
+	return calc_first_moment(ini, fin, nbin, plane);
+}
+
+my_Dvector Bunch_t::calc_first_moment(
+	double ini,
+	double fin,
+	const int nbin,
+	const int plane) const
+{
+	my_Dvector distr (nbin, 0.0);
+
+	double&& delta = (fin-ini)/(nbin-1);
+	double&& offset = -ini/delta + 0.5;
+
+	const my_PartVector& p = particles;
+	for (long&& i=0;i<p.size();++i){
+		int k;
+		k = p[i].ss/delta + offset;
+		if (k < 0) k=0;
+		if (k>=nbin) k = nbin-1;
+		if (plane==XX) distr[k] += p[i].xx;
+		else if (plane==XL) distr[k] += p[i].xl;
+		else if (plane==DE) distr[k] += p[i].de;
+		else if (plane==SS) distr[k] += p[i].ss;
+	}
+	for (long&& i=0;i<distr.size();++i){distr[i] /= delta*p.size();}
+	return distr;
+}
+
+my_Dvector Bunch_t::calc_second_moment(
+	const my_Dvector& spos,
+	const int plane) const
+{
+	double ini = spos.front();
+	double fin = spos.back();
+	const int nbin = spos.size();
+	return calc_second_moment(ini, fin, nbin, plane);
+}
+
+my_Dvector Bunch_t::calc_second_moment(
+	double ini,
+	double fin,
+	const int nbin,
+	const int plane) const
+{
+	my_Dvector distr (nbin, 0.0);
+
+	double&& delta = (fin-ini)/(nbin-1);
+	double&& offset = -ini/delta + 0.5;
+
+	const my_PartVector& p = particles;
+	for (long&& i=0;i<p.size();++i){
+		int k;
+		k = p[i].ss/delta + offset;
+		if (k < 0) k=0;
+		if (k>=nbin) k = nbin-1;
+		if (plane==XX) distr[k] += p[i].xx*p[i].xx;
+		else if (plane==XL) distr[k] += p[i].xl*p[i].xl;
+		else if (plane==DE) distr[k] += p[i].de*p[i].de;
+		else if (plane==SS) distr[k] += p[i].ss*p[i].ss;
 	}
 	for (long&& i=0;i<distr.size();++i){distr[i] /= delta*p.size();}
 	return distr;
@@ -317,7 +353,34 @@ void Bunch_t::distribution_to_file(
 	else if (plane == DE){unit = ""; pl = "de";}
 	else if (plane == SS){unit = "[m]"; pl = "ss";}
 
-	my_Dvector&& distr = calc_particles_distribution(ini, fin, nbin, plane);
+	my_Dvector&& distr = calc_distribution(ini, fin, nbin, plane);
 
 	save_distribution_to_file(filename, distr, ini, fin, nbin, unit.c_str(), pl.c_str());
+}
+
+void Bunch_t::moment_to_file(
+	const char* filename,
+	const double ini,
+	const double fin,
+	const int nbin,
+	const int order,
+	const int plane) const
+{
+	if (order == 1){
+		string unit, pl;
+		if (plane == XX){unit = "[m]"; pl = "xx";}
+		else if (plane == XL){unit = ""; pl = "xl";}
+		else if (plane == DE){unit = ""; pl = "de";}
+		else if (plane == SS){unit = "[m]"; pl = "ss";}
+		my_Dvector&& distr = calc_first_moment(ini, fin, nbin, plane);
+		save_distribution_to_file(filename, distr, ini, fin, nbin, unit.c_str(), pl.c_str());
+	}else if (order == 2){
+		string unit, pl;
+		if (plane == XX){unit = "[m*m]"; pl = "xx";}
+		else if (plane == XL){unit = ""; pl = "xl";}
+		else if (plane == DE){unit = ""; pl = "de";}
+		else if (plane == SS){unit = "[m*m]"; pl = "ss";}
+		my_Dvector&& distr = calc_second_moment(ini, fin, nbin, plane);
+		save_distribution_to_file(filename, distr, ini, fin, nbin, unit.c_str(), pl.c_str());
+	}
 }

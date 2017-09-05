@@ -64,6 +64,8 @@ class Results_t {
     public:
         bool save_bunch, print_in_screen, save_distribution_xx;
         bool save_distribution_xl, save_distribution_de, save_distribution_ss;
+        bool save_moment_xx, save_moment_xl, save_moment_de, save_moment_ss;
+        bool save_moment_xx2, save_moment_xl2, save_moment_de2, save_moment_ss2;
         my_PartMatrix track_parts;
         my_PartVector ave;
         my_PartVector std;
@@ -75,6 +77,8 @@ class Results_t {
             calc_every(eve), print_every(10L), save_bunch_every(0L), save_distributions_every(0L),
             nturns(nt), save_bunch(false), print_in_screen(true), save_distribution_xx(false),
             save_distribution_xl(false), save_distribution_de(false), save_distribution_ss(false),
+            save_moment_xx(false), save_moment_xl(false), save_moment_de(false), save_moment_ss(false),
+            save_moment_xx2(false), save_moment_xl2(false), save_moment_de2(false), save_moment_ss2(false),
             FB(kicks), Wd(kicks), Wq(kicks), Wl(kicks) {reserve_memory(); initial_guess_distributions();}
         ~Results_t() = default;
 

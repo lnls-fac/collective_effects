@@ -45,23 +45,31 @@ class Bunch_t {
         void scale_longitudinal(const double scale);
         void scale_transverse(const double scale);
 
-        my_Dvector calc_dipole_moment(
+        my_Dvector calc_distribution(
             const my_Dvector& spos,
             const int plane = SS) const;
-        my_Dvector calc_dipole_moment(
+        my_Dvector calc_distribution(
         	double ini,
         	double fin,
         	const int nbin,
         	const int plane = SS) const;
 
-        my_Dvector calc_particles_distribution(
+        my_Dvector calc_first_moment(
             const my_Dvector& spos,
             const int plane = SS) const;
-        my_Dvector calc_particles_distribution(
+        my_Dvector calc_first_moment(
         	double ini,
         	double fin,
         	const int nbin,
         	const int plane = SS) const;
+        my_Dvector calc_second_moment(
+            const my_Dvector& spos,
+            const int plane = XX) const;
+        my_Dvector calc_second_moment(
+        	double ini,
+        	double fin,
+        	const int nbin,
+        	const int plane = XX) const;
 
         void distribution_to_file(
             const char* filename,
@@ -69,6 +77,13 @@ class Bunch_t {
         	const double fin,
         	const int nbin,
         	const int plane = SS) const;
+        void moment_to_file(
+        	const char* filename,
+        	const double ini,
+        	const double fin,
+        	const int nbin,
+        	const int order,
+        	const int plane) const;
         void to_file(const char* filename) const;
         void from_file(const char* filename);
         void show_properties() const;

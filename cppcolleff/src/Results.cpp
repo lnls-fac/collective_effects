@@ -58,22 +58,63 @@ double Results_t::calc_stats(
         if (save_distribution_xx){
             char filename[50];
             sprintf(filename,"turn%07lu_distr_xx.txt",turn);
-            bun.distribution_to_file(filename, min[0], max[0], bins[0], 0);
+            bun.distribution_to_file(filename, min[0], max[0], bins[0], bun.XX);
         }
         if (save_distribution_xl){
             char filename[50];
             sprintf(filename,"turn%07lu_distr_xl.txt",turn);
-            bun.distribution_to_file(filename, min[1], max[1], bins[1], 1);
+            bun.distribution_to_file(filename, min[1], max[1], bins[1], bun.XL);
         }
         if (save_distribution_de){
             char filename[50];
             sprintf(filename,"turn%07lu_distr_de.txt",turn);
-            bun.distribution_to_file(filename, min[2], max[2], bins[2], 2);
+            bun.distribution_to_file(filename, min[2], max[2], bins[2], bun.DE);
         }
         if (save_distribution_ss){
             char filename[50];
             sprintf(filename,"turn%07lu_distr_ss.txt",turn);
-            bun.distribution_to_file(filename, min[3], max[3], bins[3], 3);
+            bun.distribution_to_file(filename, min[3], max[3], bins[3], bun.SS);
+        }
+        // Moments use longitudinal distribution bins configuration:
+        if (save_moment_xx){
+            char filename[50];
+            sprintf(filename,"turn%07lu_mom_xx.txt",turn);
+            bun.moment_to_file(filename, min[3], max[3], bins[3], 1, bun.XX);
+        }
+        if (save_moment_xl){
+            char filename[50];
+            sprintf(filename,"turn%07lu_mom_xl.txt",turn);
+            bun.moment_to_file(filename, min[3], max[3], bins[3], 1, bun.XL);
+        }
+        if (save_moment_de){
+            char filename[50];
+            sprintf(filename,"turn%07lu_mom_de.txt",turn);
+            bun.moment_to_file(filename, min[3], max[3], bins[3], 1, bun.DE);
+        }
+        if (save_moment_ss){
+            char filename[50];
+            sprintf(filename,"turn%07lu_mom_ss.txt",turn);
+            bun.moment_to_file(filename, min[3], max[3], bins[3], 1, bun.SS);
+        }
+        if (save_moment_xx2){
+            char filename[50];
+            sprintf(filename,"turn%07lu_mom_xx2.txt",turn);
+            bun.moment_to_file(filename, min[3], max[3], bins[3], 2, bun.XX);
+        }
+        if (save_moment_xl2){
+            char filename[50];
+            sprintf(filename,"turn%07lu_mom_xl2.txt",turn);
+            bun.moment_to_file(filename, min[3], max[3], bins[3], 2, bun.XL);
+        }
+        if (save_moment_de2){
+            char filename[50];
+            sprintf(filename,"turn%07lu_mom_de2.txt",turn);
+            bun.moment_to_file(filename, min[3], max[3], bins[3], 2, bun.DE);
+        }
+        if (save_moment_ss2){
+            char filename[50];
+            sprintf(filename,"turn%07lu_mom_ss2.txt",turn);
+            bun.moment_to_file(filename, min[3], max[3], bins[3], 2, bun.SS);
         }
     }
 
@@ -154,6 +195,14 @@ void Results_t::to_stream(ostream& fp, const bool isFile) const
     fp << setw(30) << "% save_distribution_xl" << g_bool(save_distribution_xl) << endl;
     fp << setw(30) << "% save_distribution_de" << g_bool(save_distribution_de) << endl;
     fp << setw(30) << "% save_distribution_ss" << g_bool(save_distribution_ss) << endl;
+    fp << setw(30) << "% save_moment_xx" << g_bool(save_moment_xx) << endl;
+    fp << setw(30) << "% save_moment_xl" << g_bool(save_moment_xl) << endl;
+    fp << setw(30) << "% save_moment_de" << g_bool(save_moment_de) << endl;
+    fp << setw(30) << "% save_moment_ss" << g_bool(save_moment_ss) << endl;
+    fp << setw(30) << "% save_moment_xx2" << g_bool(save_moment_xx2) << endl;
+    fp << setw(30) << "% save_moment_xl2" << g_bool(save_moment_xl2) << endl;
+    fp << setw(30) << "% save_moment_de2" << g_bool(save_moment_de2) << endl;
+    fp << setw(30) << "% save_moment_ss2" << g_bool(save_moment_ss2) << endl;
     fp << setw(30) << "# parameters" << setw(26) << "number of bins" << setw(26) << "minimum" << setw(26) << "maximum" << endl;
     fp << setw(30) << "% params_distribution_xx" << setw(26) << bins[0] << setw(26) << min[0] << setw(26) << max[0] << endl;
     fp << setw(30) << "% params_distribution_xl" << setw(26) << bins[1] << setw(26) << min[1] << setw(26) << max[1] << endl;
@@ -258,6 +307,14 @@ void Results_t::from_file(const char* filename)
             else if (cmd.compare("save_distribution_xl") == 0){ss >> cmd; save_distribution_xl = g_bool(cmd);}
             else if (cmd.compare("save_distribution_de") == 0){ss >> cmd; save_distribution_de = g_bool(cmd);}
             else if (cmd.compare("save_distribution_ss") == 0){ss >> cmd; save_distribution_ss = g_bool(cmd);}
+            else if (cmd.compare("save_moment_xx") == 0){ss >> cmd; save_moment_xx = g_bool(cmd);}
+            else if (cmd.compare("save_moment_xl") == 0){ss >> cmd; save_moment_xl = g_bool(cmd);}
+            else if (cmd.compare("save_moment_de") == 0){ss >> cmd; save_moment_de = g_bool(cmd);}
+            else if (cmd.compare("save_moment_ss") == 0){ss >> cmd; save_moment_ss = g_bool(cmd);}
+            else if (cmd.compare("save_moment_xx2") == 0){ss >> cmd; save_moment_xx = g_bool(cmd);}
+            else if (cmd.compare("save_moment_xl2") == 0){ss >> cmd; save_moment_xl = g_bool(cmd);}
+            else if (cmd.compare("save_moment_de2") == 0){ss >> cmd; save_moment_de = g_bool(cmd);}
+            else if (cmd.compare("save_moment_ss2") == 0){ss >> cmd; save_moment_ss = g_bool(cmd);}
             else if (cmd.compare("save_distributions_every") == 0){ss >> save_distributions_every;}
             else if (cmd.compare("keep_feedback_kicks") == 0){ss >> cmd; FB = g_bool(cmd); reserve_memory();}
             else if (cmd.compare("keep_wake_long_kicks") == 0){ss >> cmd; Wl = g_bool(cmd); reserve_memory();}
