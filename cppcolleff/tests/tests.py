@@ -37,8 +37,8 @@ for i in range(-10000, 10001):
 ring.cav.set_xy(ss, V)
 
 num_part = 1000000  # takes 21 seconds with 32 processors.
-nturns = 1000
-bun = coll.Bunch_t(num_part, 1.5e-3)
+nturns = 100
+bun = coll.Bunch_t(num_part, 3e-3)
 coll.generate_bunch(ring, bun)
 bun.sort()
 
@@ -69,7 +69,7 @@ for i in np.linspace(-1, 1, npt):
 y = coll.my_Dvector(wake.Wl.get_wake_at_points(x, 1))
 wake.Wl.WF.set_xy(x, y)
 wake.Wl.WFC.prepare(x, y, False)
-wake.Wl.resonator = True
+wake.Wl.resonator = False
 wake.Wl.wake_function = not wake.Wl.resonator
 
 fb = coll.Feedback_t()
