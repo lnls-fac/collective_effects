@@ -56,12 +56,12 @@ class Bunch_t {
 
         my_Dvector calc_first_moment(
             const my_Dvector& spos,
-            const int plane = SS) const;
+            const int plane = XX) const;
         my_Dvector calc_first_moment(
         	double ini,
         	double fin,
         	const int nbin,
-        	const int plane = SS) const;
+        	const int plane = XX) const;
         my_Dvector calc_second_moment(
             const my_Dvector& spos,
             const int plane = XX) const;

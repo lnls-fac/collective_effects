@@ -311,10 +311,10 @@ void Results_t::from_file(const char* filename)
             else if (cmd.compare("save_moment_xl") == 0){ss >> cmd; save_moment_xl = g_bool(cmd);}
             else if (cmd.compare("save_moment_de") == 0){ss >> cmd; save_moment_de = g_bool(cmd);}
             else if (cmd.compare("save_moment_ss") == 0){ss >> cmd; save_moment_ss = g_bool(cmd);}
-            else if (cmd.compare("save_moment_xx2") == 0){ss >> cmd; save_moment_xx = g_bool(cmd);}
-            else if (cmd.compare("save_moment_xl2") == 0){ss >> cmd; save_moment_xl = g_bool(cmd);}
-            else if (cmd.compare("save_moment_de2") == 0){ss >> cmd; save_moment_de = g_bool(cmd);}
-            else if (cmd.compare("save_moment_ss2") == 0){ss >> cmd; save_moment_ss = g_bool(cmd);}
+            else if (cmd.compare("save_moment_xx2") == 0){ss >> cmd; save_moment_xx2 = g_bool(cmd);}
+            else if (cmd.compare("save_moment_xl2") == 0){ss >> cmd; save_moment_xl2 = g_bool(cmd);}
+            else if (cmd.compare("save_moment_de2") == 0){ss >> cmd; save_moment_de2 = g_bool(cmd);}
+            else if (cmd.compare("save_moment_ss2") == 0){ss >> cmd; save_moment_ss2 = g_bool(cmd);}
             else if (cmd.compare("save_distributions_every") == 0){ss >> save_distributions_every;}
             else if (cmd.compare("keep_feedback_kicks") == 0){ss >> cmd; FB = g_bool(cmd); reserve_memory();}
             else if (cmd.compare("keep_wake_long_kicks") == 0){ss >> cmd; Wl = g_bool(cmd); reserve_memory();}
