@@ -6,7 +6,7 @@ import cppcolleff as coll
 import matplotlib.pyplot as plt
 import numpy as np
 
-coll.set_num_threads(2)
+coll.set_num_threads(32)
 coll.set_seed_num(5004930)
 
 ring = coll.Ring_t()
@@ -36,7 +36,7 @@ for i in range(-10000, 10001):
     V.push_back(V0*math.sin(phi0 + krf*s) - ring.en_lost_rad)
 ring.cav.set_xy(ss, V)
 
-num_part = 1000000  # takes 21 seconds with 32 processors.
+num_part = 50000000  # takes 21 seconds with 32 processors.
 nturns = 100
 bun = coll.Bunch_t(num_part, 3e-3)
 coll.generate_bunch(ring, bun)
@@ -103,7 +103,7 @@ results.to_file('results.txt')
 # for i in range(10):
 #     results = coll.Results_t(10, 1)
 #     coll.single_bunch_tracking(ring, wake, fb, bun, results)
-#     dists.append(bun.calc_particles_distribution(ss))
+#     dists.append(bun.calc_distribution(ss))
 #     plt.plot(ss, dists[-1])
 #     plt.xlim(-1.5e-2, 1.5e-2)
 #     plt.show()

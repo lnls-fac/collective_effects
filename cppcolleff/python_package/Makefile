@@ -41,7 +41,7 @@ develop: all
 	$(PYTHON) setup.py develop $(SETUPARGS)
 
 clean:
-	-rm -rf *.o cppcolleff/*.so *_wrap.cxx cppcolleff/__pycache__ cppcolleff/cppcolleff.py build dist cppcolleff.egg-info
+	-rm -rf *.o cppcolleff/*.so *_wrap.cxx cppcolleff/__pycache__ cppcolleff/cppcolleff.py cppcolleff.py build dist cppcolleff.egg-info
 
 %.o: %.cpp
 	$(CXX) -c $(COMP_FLAGS) $(INC) $< -o $@
