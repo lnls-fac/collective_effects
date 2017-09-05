@@ -176,7 +176,7 @@ my_Dvector Bunch_t::calc_dipole_moment(
 		else if (plane==SS) k = p[i].ss/delta + offset;
 		if (k < 0) k=0;
 		if (k>=nbin) k = nbin-1;
-		distr[k]++;
+		distr[k] += p[i].xx;
 	}
 	for (long&& i=0;i<distr.size();++i){distr[i] /= delta*p.size();}
 	return distr;
