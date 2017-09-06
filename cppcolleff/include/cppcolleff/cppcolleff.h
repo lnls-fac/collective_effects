@@ -15,6 +15,7 @@ my_Dvector solve_Haissinski_get_potential(
     const Wake_t& wake,
     const Ring_t& ring,
     const double& Ib,
+    const bool req_convergence = true,
     const int niter = 100,
     const my_Dvector distr_ini = my_Dvector ());
 
@@ -24,6 +25,7 @@ my_Dvector solve_Haissinski_get_potential(
     const double& Ib,
     ThreadPool& pool,
     Convolve_t& conv,
+    const bool req_convergence = true,
     const int niter = 100,
     const my_Dvector distr_ini = my_Dvector ());
 
