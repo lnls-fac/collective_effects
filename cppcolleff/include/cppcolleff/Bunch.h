@@ -3,6 +3,8 @@
 
 #include <cppcolleff/essentials.h>
 
+class Ring_t;
+
 class Bunch_t {
     private:
         my_Ivector track_indcs;
@@ -44,6 +46,14 @@ class Bunch_t {
 
         void scale_longitudinal(const double scale);
         void scale_transverse(const double scale);
+
+        void generate_particles(
+            ThreadPool& pool,
+        	const Ring_t& ring,
+        	const Interpola_t& distr = Interpola_t());
+        void generate_particles(
+            const Ring_t& ring,
+            const Interpola_t& distr = Interpola_t());
 
         my_Dvector calc_distribution(
             const my_Dvector& spos,

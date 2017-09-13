@@ -1,4 +1,5 @@
 #include <cppcolleff/Bunch.h>
+#include <cppcolleff/Ring.h>
 
 my_Dvector Bunch_t::get_xx() const
 {
@@ -145,6 +146,75 @@ void Bunch_t::scale_transverse(const double scale)
 		p[i].xl *= scale;
 	}
 }
+
+
+static int _generate_part_thread(
+	const Ring_t& ring,
+	my_PartVector& p,
+	const unsigned int seed,
+	const Interpola_t& idistr_interpol,
+	const int init,
+	const int final)
+{
+	const my_Dvector& idist = idistr_interpol.ref_to_xi();
+	normal_distribution<double> espread_dist(0.0,ring.espread);
+	exponential_distribution<double> emitx_dist(1/(2*ring.emitx));
+	uniform_real_distribution<double> phix_dist(0.0,TWOPI);
+	uniform_real_distribution<double> ss_dist(idist.front(),idist.back());
+	default_random_engine gen(seed);
+
+  	for (int i=init;i<final;++i){
+	  		double&& emitx = emitx_dist(gen);
+	  		double&& phix  = phix_dist(gen);
+	  		double&& Ax    = sqrt(emitx/ring.betax);
+	  		double&& Acosx = Ax*cos(phix);
+	  		double&& Asinx = Ax*sin(phix);
+	  		p[i].de = espread_dist(gen);
+	  		p[i].ss = idistr_interpol.get_y(ss_dist(gen));
+	  		p[i].xx =  Acosx*ring.betax          + ring.etax *p[i].de;
+	  		p[i].xl = -Acosx*ring.alphax - Asinx + ring.etaxl*p[i].de;
+  	}
+	return 1;
+}
+
+void Bunch_t::generate_particles(
+	ThreadPool& pool,
+	const Ring_t& ring,
+	const Interpola_t& distr)
+{
+	Interpola_t idistr_interpol;
+	const my_Dvector& xi = distr.ref_to_xi();
+	const my_Dvector& yi = distr.ref_to_yi();
+	if (xi.empty()) idistr_interpol = ring.get_integrated_distribution();
+	else idistr_interpol = Interpola_t(trapz_cumul_integral(xi, yi), xi);
+
+	extern unsigned long seed;
+
+	my_PartVector& p = particles;
+    unsigned int nr_th = get_num_threads();
+	my_Ivector lims (get_bounds(0,num_part));
+	std::vector< std::future<int> > results;
+
+	for (unsigned int i=0;i<nr_th;++i){
+		results.emplace_back(pool.enqueue(
+			_generate_part_thread, ref(ring), ref(p), seed,
+  			ref(idistr_interpol), lims[i], lims[i+1]
+		));
+		seed++;
+	}
+    for(auto && result: results) result.get();
+
+	is_sorted = false;
+}
+
+void Bunch_t::generate_particles(
+	const Ring_t& ring,
+	const Interpola_t& distr)
+{
+	ThreadPool pool (get_num_threads());
+	return generate_particles(pool, ring, distr);
+}
+
 
 my_Dvector Bunch_t::calc_distribution(
 	const my_Dvector& spos,

@@ -8,9 +8,6 @@
 #include <cppcolleff/Wake.h>
 #include <cppcolleff/Ring.h>
 
-void generate_bunch(const Ring_t& ring, Bunch_t& bun, ThreadPool& pool);
-void generate_bunch(const Ring_t& ring, Bunch_t& bun);
-
 my_Dvector solve_Haissinski_get_potential(
     const Wake_t& wake,
     const Ring_t& ring,
