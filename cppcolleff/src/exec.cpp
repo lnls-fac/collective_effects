@@ -44,7 +44,7 @@ int main()
     long num_part = 500000;  // takes 21 seconds with 32 processors.
     long nturns = 100;
     Bunch_t bun (num_part, 3e-3);
-    generate_bunch(ring, bun);
+    bun.generate_particles(ring);
     bun.sort();
 
     double Rs[7] = {2000, 2500, 2500, 2000, 2000, 6500, 30000};

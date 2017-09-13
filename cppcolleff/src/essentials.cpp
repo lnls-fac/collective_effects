@@ -325,14 +325,15 @@ void save_distribution_to_file(
     fp.close();
 }
 
-my_Dvector load_distribution_from_file(const char* filename, my_Dvector& lims)
+Interpola_t load_distribution_from_file(const char* filename)
 {
-    my_Dvector distr;
     ifstream fp(filename);
-	if (fp.fail()) return distr;
+	if (fp.fail()) return Interpola_t();
+    my_Dvector distr;
 
     int nbin;
   	string line;
+    double ini, fim;
 	unsigned long line_count = 0;
 	while (getline(fp, line)) {
   		line_count++;
@@ -343,8 +344,8 @@ my_Dvector load_distribution_from_file(const char* filename, my_Dvector& lims)
   		if (c == '%') {
 			string cmd;
 	  		ss >> cmd;
-	  		if (cmd.compare("initial") == 0) {ss >> lims[0];}
-	  		else if (cmd.compare("final") == 0){ss >> lims[1];}
+	  		if (cmd.compare("initial") == 0) {ss >> ini;}
+	  		else if (cmd.compare("final") == 0){ss >> fim;}
             else if (cmd.compare("nbins") == 0){ss >> nbin; distr.reserve(nbin);}
             continue;
   		}
@@ -354,5 +355,9 @@ my_Dvector load_distribution_from_file(const char* filename, my_Dvector& lims)
         distr.push_back(x);
 	}
 	fp.close();
-    return distr;
+    my_Dvector s(nbin, 0.0);
+    double ds((fim-ini)/(nbin-1));
+    s[0] = ini;
+    for (int i=1;i<distr.size(); ++i) {s[i] = s[i-1]; s[i] += ds;}
+    return Interpola_t(s, distr);
 }

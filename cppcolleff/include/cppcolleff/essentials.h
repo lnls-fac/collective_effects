@@ -190,6 +190,6 @@ void save_distribution_to_file(
     const char* unit = "[m]",
     const char* pl = "ss");
 
-my_Dvector load_distribution_from_file(const char* filename, my_Dvector& lims);
+Interpola_t load_distribution_from_file(const char* filename);
 
 #endif
