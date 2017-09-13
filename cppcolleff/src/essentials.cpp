@@ -46,16 +46,32 @@ void Interpola_t::check_consistency()
         exit(1);
     }
 
+    my_Dvector x, y;
     equally_spaced = true;
     double ds0 = xi[1]-xi[0];
+    x.push_back(xi[0]);
+    y.push_back(yi[0]);
     for (auto i=1;i<xi.size(); ++i){
         double&& ds = (xi[i] - xi[i-1]);
-        if (ds <= 0.0) {
-            fprintf(stdout,"xi must be strictly increasing.\n");
-            exit(1);
-        }
+        if (ds <= 1.0e-15) continue;
+        x.push_back(xi[i]);
+        y.push_back(yi[i]);
         if (abs(ds - ds0) > abs(ds0)*1e-10) {equally_spaced = false;}
     }
+    swap(xi, x);
+    swap(yi, y);
+}
+
+my_Dvector trapz_cumul_integral(const my_Dvector& x, const my_Dvector& y)
+{
+	my_Dvector iy;
+    iy.reserve(y.size());
+	iy.push_back(0.0);
+	for (int i=1;i<x.size();++i){
+		double&& idistri = (y[i]+y[i-1]) * (x[i]-x[i-1]) / 2;
+		iy.push_back(iy.back() + idistri);
+	}
+	return iy;
 }
 
 // this function follows matlab's convention of same, not numpy's.

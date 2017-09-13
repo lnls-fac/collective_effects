@@ -165,6 +165,7 @@ class Convolve_t {
         my_Dvector execute_same();
 };
 
+my_Dvector trapz_cumul_integral(const my_Dvector& x, const my_Dvector& y);
 
 my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2);
 my_Dvector convolution_full(const my_Dvector& vec1, const my_Dvector& vec2, ThreadPool& pool);
