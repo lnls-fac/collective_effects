@@ -8,9 +8,6 @@
 
 class Ring_t{
     private:
-        Interpola_t _get_integrated_distribution(
-            const my_Dvector& spos,
-            const my_Dvector& V) const;
         int _track_one_turn(
             my_PartVector& p,
             const unsigned int seed,
@@ -41,9 +38,9 @@ class Ring_t{
             const my_Dvector& V = my_Dvector(),
             const my_Dvector& spos = my_Dvector()) const;
 
-        Interpola_t get_integrated_distribution() const;
-        Interpola_t get_integrated_distribution(const my_Dvector& V) const;
-        Interpola_t get_integrated_distribution(const my_Dvector& spos, const my_Dvector& V) const;
+        Interpola_t get_integrated_distribution(
+            const my_Dvector& V = my_Dvector(),
+            const my_Dvector& spos = my_Dvector()) const;
 
         void track_one_turn(Bunch_t& bun, int n) const;
         void track_one_turn(Bunch_t& bun, int n, ThreadPool& pool) const;

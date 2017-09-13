@@ -107,43 +107,17 @@ my_Dvector Ring_t::get_distribution(
 
     return distri;
 }
+
 my_Dvector Ring_t::get_distribution(const my_Dvector& V, const my_Dvector& spos) const
 {
     ThreadPool pool (get_num_threads());
     return get_distribution(pool,V,spos);
 }
 
-
-Interpola_t Ring_t::_get_integrated_distribution(const my_Dvector& spos, const my_Dvector& V) const
+Interpola_t Ring_t::get_integrated_distribution(const my_Dvector& V, const my_Dvector& spos) const
 {
-    my_Dvector distr (get_distribution(V,spos));
-	//need to resize the vectors;
-	my_Dvector idistr, s_idistr;
-	idistr.push_back(0.0);
-	s_idistr.push_back(spos[0]);
-	for (int i=1;i<spos.size();++i){
-		double&& idistri = (distr[i]+distr[i-1]) * (spos[i]-spos[i-1]) / 2;
-		if (idistri >= 1e-15) { // much more than the number of particles; think about it!
-			idistr.push_back(idistr.back() + idistri); // for interpolation to work properly there must
-			s_idistr.push_back(spos[i]); // not exist repeated values in the integrated distribution.
-		}
-	}
-	return Interpola_t (idistr,s_idistr);
-}
-Interpola_t Ring_t::get_integrated_distribution() const
-{
-    const my_Dvector& spos = cav.ref_to_xi();
-    const my_Dvector& V    = cav.ref_to_yi();
-	return _get_integrated_distribution(spos,V);
-}
-Interpola_t Ring_t::get_integrated_distribution(const my_Dvector& V) const
-{
-    const my_Dvector& spos = cav.ref_to_xi();
-	return _get_integrated_distribution(spos,V);
-}
-Interpola_t Ring_t::get_integrated_distribution(const my_Dvector& spos, const my_Dvector& V) const
-{
-	return _get_integrated_distribution(spos,V);
+    my_Dvector distr(get_distribution(V, spos));
+	return Interpola_t(trapz_cumul_integral(distr, spos), spos);
 }
 
 int Ring_t::_track_one_turn(
