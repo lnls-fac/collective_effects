@@ -5,26 +5,28 @@ import matplotlib.pyplot as _plt
 import scipy.special as _scy
 import mathphys as _mp
 
-_c   = _mp.constants.light_speed
+_c = _mp.constants.light_speed
 _mu0 = _mp.constants.vacuum_permeability
 _ep0 = _mp.constants.vacuum_permitticity
-_Z0  = _mp.constants.vacuum_impedance
-E0   = _mp.constants.electron_rest_energy * _mp.units.joule_2_eV
+_Z0 = _mp.constants.vacuum_impedance
+E0 = _mp.constants.electron_rest_energy * _mp.units.joule_2_eV
 
-_IMPS  = {'Zll','Zdy','Zdx','Zqy','Zqx'}
-_WAKES = {'Wll','Wdy','Wdx','Wqy','Wqx'}
-_TITLE = {'Zll':'Longitudinal Impedance',
-          'Zdy':'Driving Vertical Impedance',
-          'Zdx':'Driving Horizontal Impedance',
-          'Zqy':'Detuning Vertical Impedance',
-          'Zqx':'Detuning Horizontal Impedance'}
-_FACTOR ={'Zll':1e-3, 'Zdy':1e-3, 'Zdx':1e-3, 'Zqy':1e-3, 'Zqx':1e-3,
-          'Wll':1e-3, 'Wdy':1e-6, 'Wdx':1e-6, 'Wqy':1e-6, 'Wqx':1e-6}
-_BETA   ={'Zll' :lambda x:1,
-          'Zdy':lambda x:x.betay,
-          'Zdx':lambda x:x.betax,
-          'Zqy':lambda x:x.betay,
-          'Zqx':lambda x:x.betax}
+_IMPS = {'Zll', 'Zdy', 'Zdx', 'Zqy', 'Zqx'}
+_WAKES = {'Wll', 'Wdy', 'Wdx', 'Wqy', 'Wqx'}
+_TITLE = {'Zll': 'Longitudinal Impedance',
+          'Zdy': 'Driving Vertical Impedance',
+          'Zdx': 'Driving Horizontal Impedance',
+          'Zqy': 'Detuning Vertical Impedance',
+          'Zqx': 'Detuning Horizontal Impedance'}
+_FACTOR = {'Zll': 1e-3, 'Zdy': 1e-3, 'Zdx': 1e-3, 'Zqy': 1e-3, 'Zqx': 1e-3,
+           'Wll': 1e-3, 'Wdy': 1e-6, 'Wdx': 1e-6, 'Wqy': 1e-6, 'Wqx': 1e-6}
+_BETA = {
+    'Zll': lambda x: 1,       'Wll': lambda x: 1,
+    'Zdy': lambda x: x.betay, 'Wdy': lambda x: x.betay,
+    'Zdx': lambda x: x.betax, 'Wdx': lambda x: x.betax,
+    'Zqy': lambda x: x.betay, 'Wqy': lambda x: x.betay,
+    'Zqx': lambda x: x.betax, 'Wqx': lambda x: x.betax,
+    }
 
 RW_default_w = _np.logspace(5,12.4,3000)
 RW_default_w = _np.array([-_np.flipud(RW_default_w),RW_default_w]).ravel()
@@ -87,13 +89,13 @@ class Element:
     def copy(self):
         other = Element(name =self.name,path=self.path,betax=self.betax,
                         betay=self.betay,quantity=self.quantity)
-        other.w   = self.w.copy()
+        other.w = self.w.copy()
         other.Zll = self.Zll.copy()
         other.Zdy = self.Zdy.copy()
         other.Zdx = self.Zdx.copy()
         other.Zqy = self.Zqy.copy()
         other.Zqx = self.Zqx.copy()
-        other.s   = self.s.copy()
+        other.s = self.s.copy()
         other.Wll = self.Wll.copy()
         other.Wdy = self.Wdy.copy()
         other.Wdx = self.Wdx.copy()
@@ -103,7 +105,7 @@ class Element:
         return other
 
     def save(self):
-        name = self.name.replace(' ','_').lower()
+        name = self.name.replace(' ', '_').lower()
         _mp.utils.save_pickle(_os.path.sep.join([self.path, name]),element=self)
 
     def load(self):
