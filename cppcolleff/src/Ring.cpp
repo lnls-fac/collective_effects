@@ -131,8 +131,8 @@ int Ring_t::_track_one_turn(
     double gammax ((1+alphax*alphax)/betax);
 
     // For damping and quantum excitation calculations
-    double Fde (1 - damp_nume * en_lost_rad);
-    double Fxl (1 - damp_numx * en_lost_rad);  //with rf contribution
+    double Fde (1 - damp_nume * en_lost_rad/2);
+    double Fxl (1 - damp_numx * en_lost_rad/2);  //with rf contribution
     double Srde (sqrt(1 - Fde*Fde) * espread);
     double Srxl (sqrt((1 - Fxl*Fxl) * emitx / betax));
     normal_distribution<double> Gauss(0.0,1.0);
