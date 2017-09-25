@@ -36,7 +36,7 @@ CC          = gcc
 CXX         = g++
 AR          = ar
 MACHINE     = -m64
-GEN_FLAG    = -pthread -std=c++17 -fPIC -fopenmp
+GEN_FLAG    = -pthread -std=c++11 -fPIC -fopenmp
 OPT_FLAG    = -O4 $(GEN_FLAG)
 DBG_FLAG    = -O0 -g3 $(GEN_FLAG)
 ARFLAGS     = rcs
