@@ -69,15 +69,16 @@ if __name__ == "__main__":
     plt.plot(Ibs)
     plt.show()
 
-    z = np.linspace(-0.06, 0.06, 1000)
+    z = np.linspace(-0.06, 0.06, 1001)
     V = get_potentials(wr=wr, Rs=Rs, Q=Q, Ibs=Ibs, z=z)
 
+    offset = V[0, 500]
     plt.plot(V[:, 0])
     plt.show()
     # plt.plot(z, V.T)
-    plt.plot(z, V.T[:, 1:10])
-    plt.plot(z, V.T[:, 39:49])
-    plt.plot(z, V.T[:, 78:88])
+    plt.plot(z, -V.T[:, 1:10] + offset)
+    plt.plot(z, -V.T[:, 39:49] + offset)
+    plt.plot(z, -V.T[:, 78:88] + offset)
 
     V0 = 1.63e6/E0
     phi0 = np.pi - np.arcsin(U0/V0)
