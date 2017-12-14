@@ -62,8 +62,8 @@ if __name__ == "__main__":
 
     Ibs = np.zeros(h)
 
-    nb = 120
-    start = 10
+    nb = 176
+    start = 0
     Ibs[start:start+nb] = It/nb
 
     plt.plot(Ibs)
@@ -85,6 +85,6 @@ if __name__ == "__main__":
     krf = 2*np.pi*h/C0
 
     Vrf = V0*np.sin(phi0 + krf*z) - U0
-    plt.plot(z, Vrf)
+    plt.plot(z, Vrf, linewidth=4, color='k')
     plt.grid(True)
     plt.show()
