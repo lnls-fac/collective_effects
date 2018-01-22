@@ -60,7 +60,7 @@ def _prepare_props(props):
 
 class Element:
 
-    _YLABEL ={'Zll' :r'$Z_l [\Omega]$',
+    _YLABEL ={'Zll' :r'$Z_l [k\Omega]$',
               'Zdy':r'$Z_y^D [k\Omega/m]$',
               'Zdx':r'$Z_x^D [k\Omega/m]$',
               'Zqy':r'$Z_y^Q [k\Omega/m]$',
