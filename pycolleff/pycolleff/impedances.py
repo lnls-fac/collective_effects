@@ -653,7 +653,10 @@ def kicker_tsutsui_model(w, epr, mur, a, b, d, L, n):
 
      - Tsutsui_H - Transverse Coupling Impedance of a Simplified Ferrite
        Kicker Magnet Model - LHC Project Note 234 - 2000
-'''
+
+     - Salvant, B. et al - Quadrupolar Impedance of Simple
+     Models of Kickers, Proceedings of IPAC 2010, pp. 2054-2057
+     '''
 
     # Valores do artigo do Wang et al para testar a implementacao das formulas
     # do modelo do Tsutui.
@@ -668,36 +671,48 @@ def kicker_tsutsui_model(w, epr, mur, a, b, d, L, n):
     # L = 0.6
 
     # Terms for the infinite sum:
-    n = _np.arange(0,n+1)[:,None]
+    n = _np.arange(0, n+1)[:, None]
 
     k = _np.ones(n.shape)*w/_c
     epr = _np.ones(n.shape)*epr
     mur = _np.ones(n.shape)*mur
 
-
     kxn = _np.repeat((2*n + 1)*_np.pi/2/a, w.shape[0], axis=1)
     kyn = _np.sqrt((epr*mur-1)*k**2 - kxn**2)
-    sh  = _np.sinh(kxn*b)
-    ch  = _np.cosh(kxn*b)
-    tn  = _np.tan(kyn*(b-d))
-    ct  = 1/_np.tan(kyn*(b-d))
+    sh = _np.sinh(kxn*b)
+    ch = _np.cosh(kxn*b)
+    tn = _np.tan(kyn*(b-d))
+    ct = 1/_np.tan(kyn*(b-d))
 
     Zl = 1j*_Z0*L/2/a / (
-        (kxn/k*sh*ch*(1+epr*mur) + kyn/k*(mur*sh**2*tn - epr*ch**2*ct)
-        )/(epr*mur-1) - k/kxn*sh*ch)
+        (kxn/k*sh*ch*(1+epr*mur) + kyn/k*(mur*sh**2*tn -
+                                          epr*ch**2*ct)
+         )/(epr*mur-1) - k/kxn*sh*ch)
+    Zq = -Zl*kxn*kxn/k
+    Zq = Zq.sum(0)
     Zl = Zl.sum(0)
 
     Zv = 1j*_Z0*L/2/a * kxn**2/k/(
-        (kxn/k*sh*ch*(1+epr*mur) + kyn/k*(mur*ch**2*tn - epr*sh**2*ct)
-        )/(epr*mur-1) - k/kxn*sh*ch)
+        (kxn/k*sh*ch*(1+epr*mur) + kyn/k*(mur*ch**2*tn -
+                                          epr*sh**2*ct)
+         )/(epr*mur-1) - k/kxn*sh*ch)
     Zv = Zv.sum(0)
 
+    kxn = _np.repeat(2*(n + 1)*_np.pi/2/a, w.shape[0], axis=1)
+    kyn = _np.sqrt((epr*mur-1)*k**2 - kxn**2)
+    sh = _np.sinh(kxn*b)
+    ch = _np.cosh(kxn*b)
+    tn = _np.tan(kyn*(b-d))
+    ct = 1/_np.tan(kyn*(b-d))
+
     Zh = 1j*_Z0*L/2/a * kxn**2/k/(
-        (kxn/k*sh*ch*(1+epr*mur) + kyn/k*(mur*sh**2*tn - epr*ch**2*ct)
-        )/(epr*mur-1) - k/kxn*sh*ch)
+        (kxn/k*sh*ch*(1+epr*mur) + kyn/k*(mur*sh**2*tn -
+                                          epr*ch**2*ct)
+         )/(epr*mur-1) - k/kxn*sh*ch)
     Zh = Zh.sum(0)
 
-    return Zl.conj(), Zh.conj(), Zv.conj() # impedance convention
+    return Zl.conj(), Zh.conj(), Zv.conj(), Zq.conj()  # impedance convention
+
 
 def yokoya_factors(plane='ll'):
     if plane == 'll':
