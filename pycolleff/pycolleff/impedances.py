@@ -867,3 +867,19 @@ class CSRElement:
             self._Y = self._Y*self._Y*self._Y*self._Y
         return _np.interp(values, self._X, self._Y, left=None, right=None)
 
+
+def from_wake_to_impedance(z, wake, bunlen, cutoff=2):
+    dt = (z[-1]-z[0]) / (z.shape[0]-1) / _c
+    VHat = _np.fft.fft(wake) * dt
+    w = 2 * _np.pi * _np.fft.fftfreq(len(z), d=dt)
+    VHat = _np.fft.fftshift(VHat)   # shift the negative frequencies
+    w = _np.fft.fftshift(w)         # to the center of the spectrum
+    VHat *= _np.exp(-1j * w * z[0] / _c)
+
+    wmax = cutoff / bunlen * _c
+    indcs = _np.abs(w) <= wmax
+    # Deconvolve the Transform with a gaussian bunch:
+    Jwlist = _np.exp(-(w * bunlen / _c)**2 / 2)
+    Z = VHat[indcs] / Jwlist[indcs]
+    w = w[indcs]
+    return w, Z.conj()
