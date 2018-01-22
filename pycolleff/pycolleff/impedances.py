@@ -28,8 +28,8 @@ _BETA = {
     'Zqx': lambda x: x.betax, 'Wqx': lambda x: x.betax,
     }
 
-RW_default_w = _np.logspace(5,12.4,3000)
-RW_default_w = _np.array([-_np.flipud(RW_default_w),RW_default_w]).ravel()
+RW_default_w = _np.logspace(1, 13, 3000)
+RW_default_w = _np.sort(_np.hstack([-RW_default_w, RW_default_w]))
 
 
 def _plotlog(x, y, color=None, label=None, ax=None,linewidth=1.5):
