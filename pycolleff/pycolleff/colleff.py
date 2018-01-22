@@ -172,8 +172,9 @@ class Ring:
         else:
             self.__dict__[attr] = value
 
-    def loss_factor(self,budget=None, element=None, w=None, Zl=None, bunlen=None):
-        """ Calculate the loss factor and effective impedance.
+    def loss_factor(self, budget=None, element=None, w=None,
+                    Zl=None, bunlen=None):
+        """Calculate the loss factor and effective impedance.
 
         Inputs:
           budget  = instance of Budget class
@@ -189,40 +190,46 @@ class Ring:
           lossf  = Loss factor in V/C
           Pl     = Power loss in W
           Zl_eff = Effective Impedance in Ohm
-          wp     = vector of angular frequencies where the impedance was sampled
-          lossfp = vector of loss factor with contribution of each sampled frequency
+          wp     = vector of angular frequencies where the impedance
+                   was sampled
+          lossfp = vector of loss factor with contribution of each sampled
+                   frequency
         """
-
         w0 = self.w0
         nb = self.nbun
         bunlen = bunlen or self.bunlen(self.nom_cur/nb)
 
-        w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zll')
+        w, Zl = self._prepare_input_impedance(budget, element, w, Zl, 'Zll')
 
-        pmin = _np.ceil( w[0] /(w0*nb))  # arredonda em direcao a +infinito
-        pmax = _np.floor(w[-1]/(w0*nb)) # arredonda em direcao a -infinito
+        limw = 5 * _c / bunlen
+        maxw = min(w[-1], limw)
+        minw = max(w[0], -limw)
+
+        pmin = _np.ceil(minw / (w0*nb))   # arredonda em direcao a +infinito
+        pmax = _np.floor(maxw / (w0*nb))  # arredonda em direcao a -infinito
         p = _np.arange(pmin, pmax+1)
         wp = w0*p*nb
 
         # h = _np.exp(-(wp*bunlen/_c)**2)
-        specs = self.calc_spectrum(wp,bunlen,n_rad=0,n_azi=1)
-        h = specs[(0,0)]**2
-        interpol_Z = _np.interp(wp,w,Zl.real)
+        specs = self.calc_spectrum(wp, bunlen, n_rad=0, n_azi=1)
+        h = specs[(0, 0)]**2
+        interpol_Z = _np.interp(wp, w, Zl.real)
 
         # Loss factor and Power loss:
         lossfp = nb*(w0/2/_np.pi)*interpol_Z*h
-        lossf  = sum(lossfp)
-        Pl     = lossf * (self.T0*self.nom_cur**2/nb)
+        lossf = sum(lossfp)
+        Pl = lossf * (self.T0*self.nom_cur**2/nb)
 
-        #Effective Impedance:
-        interpol_Z = _np.interp(wp,w,Zl.imag)
-        h = specs[(0,0)]**2
-        Zl_eff =  sum(interpol_Z*h/( (wp+1e-4)/w0 )) / sum(h) #pag 223 K.Y.Ng book
+        # Effective Impedance: pag 223 K.Y.Ng book
+        interpol_Z = _np.interp(wp, w, Zl.imag)
+        h = specs[(0, 0)]**2
+        Zl_eff = sum(interpol_Z*h/((wp+1e-4)/w0)) / sum(h)
 
         return lossf, Pl, Zl_eff, wp, lossfp
 
-    def kick_factor(self,budget=None, element=None, w=None, Z=None, bunlen=None, Imp='Zdy'):
-        """ Calculate the kick factor, tune shift and effective impedance.
+    def kick_factor(self, budget=None, element=None, w=None,
+                    Z=None, bunlen=None, Imp='Zdy'):
+        """Calculate the kick factor, tune shift and effective impedance.
 
         Inputs:
           budget  = instance of Budget class
@@ -233,7 +240,8 @@ class Ring:
           Zl = Longitudinal Impedance [Ohm]
 
           (optional) bunlen = Longitudinal beamsize [m]
-          (optional) Imp   = string with type of impedance to consider from element or budget
+          (optional) Imp   = string with type of impedance to consider
+                             from element or budget
                              options: Zll(default), Zdy, Zqy, Zdx, Zqx
 
         Outputs:
