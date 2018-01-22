@@ -12,6 +12,8 @@ class Bunch_t {
         void general_sort();
         void insertion_sort();
         void selection_sort();
+        // Savitzky–Golay filter: wikipedia
+        my_Dvector apply_filter(const my_Dvector& distr_old) const;
     public:
         static const int XX = 0;
         static const int XL = 1;

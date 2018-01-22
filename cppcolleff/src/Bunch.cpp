@@ -249,6 +249,29 @@ my_Dvector Bunch_t::calc_distribution(
 		distr[k]++;
 	}
 	for (long&& i=0;i<distr.size();++i){distr[i] /= delta*p.size();}
+	return apply_filter(distr);
+}
+
+// Savitzky–Golay filter: wikipedia
+my_Dvector Bunch_t::apply_filter(const my_Dvector& distr_old) const
+{
+	my_Dvector distr (distr_old.size(), 0.0);
+	my_Dvector C;
+	int C_sz(4), d_sz(distr_old.size());
+	C.push_back(-21.0/231);
+	C.push_back(14.0/231);
+	C.push_back(39.0/231);
+	C.push_back(54.0/231);
+	C.push_back(59.0/231);
+	C.push_back(54.0/231);
+	C.push_back(39.0/231);
+	C.push_back(14.0/231);
+	C.push_back(-21.0/231);
+
+	for (auto&& i=0; i<d_sz;++i){
+		for (int j=max(-i,-C_sz); j<min(d_sz-i,C_sz+1); ++j)
+			distr[i] += distr_old[i+j] * C[j+C_sz];
+	}
 	return distr;
 }
 
@@ -285,7 +308,7 @@ my_Dvector Bunch_t::calc_first_moment(
 		else if (plane==SS) distr[k] += p[i].ss;
 	}
 	for (long&& i=0;i<distr.size();++i){distr[i] /= delta*p.size();}
-	return distr;
+	return apply_filter(distr);
 }
 
 my_Dvector Bunch_t::calc_second_moment(
@@ -321,7 +344,7 @@ my_Dvector Bunch_t::calc_second_moment(
 		else if (plane==SS) distr[k] += p[i].ss*p[i].ss;
 	}
 	for (long&& i=0;i<distr.size();++i){distr[i] /= delta*p.size();}
-	return distr;
+	return apply_filter(distr);
 }
 
 void Bunch_t::to_stream(ostream& fp, const bool isFile) const
