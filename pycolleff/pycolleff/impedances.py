@@ -565,7 +565,8 @@ def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
 
     return Zl.conj(), Zv.conj(), Zh.conj()
 
-def kicker_coupled_flux(w,h,W,t,L,mur,Zg):
+
+def kicker_coupled_flux(w, h, W, t, L, mur, Zg):
     # Calculates Impedances for a ferrite kicker:
     #   - For the Coupled Flux, it uses Davino-Hahn model.
     #
@@ -592,18 +593,20 @@ def kicker_coupled_flux(w,h,W,t,L,mur,Zg):
     #   impedance of ferrite kicker magnets - Phys. Rev. ST-AB v6 012001 2003
     #
     # - Nassibian G Sacherer F - Methods for measuring tranverse coupling
-    #   impedances in circular Accelerators - Nucl Inst and Meth. 159 21-27 1979
+    #   impedances in circular Accelerators,
+    #   Nucl Inst and Meth. 159 21-27 1979
 
     # Equivalent Circuit model.
     D = 0.5e-3
-    M  = L*D*_mu0/W
+    M = L*D*_mu0/W
     #     L2 = L*2*a*_mu0/2/b
     L2 = L*h*_mu0/W*(mur*t/(mur*t+h*(h/W+1)))
 
-    Zk =      w * (M/L2)**2 * Zg*L2*1j/(1j*w*L2 + Zg)
-    Zx = _c/D**2 * (M/L2)**2 * Zg*L2*1j/(1j*w*L2 + Zg)
+    Zk = (M/L2)**2 * Zg*L2*1j/(1j*w*L2 + Zg) * w
+    Zx = (M/L2)**2 * Zg*L2*1j/(1j*w*L2 + Zg) * _c/D**2
 
-    return Zk.conj(), Zx.conj()  # take the conjugate to adapt impedance convention
+    return Zk.conj(), Zx.conj()  # conjugate to adapt impedance convention
+
 
 def kicker_tsutsui_model(w, epr, mur, a, b, d, L, n):
     '''
