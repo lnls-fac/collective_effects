@@ -725,33 +725,43 @@ class Ring:
                 delta[ii,:] = _np.linalg.eigvals(B)
         return delta
 
-    def budget_summary(self,budget=None ):
+    def budget_summary(self, budget=None):
         props = ['lsf', 'zln', 'pls', 'kdx', 'kdy', 'kqx', 'kqy',
                  'ktx', 'kty', 'ndx', 'ndy', 'nqx', 'nqy', 'ntx', 'nty']
 
         bud_res = pd.DataFrame(dict(
-        name=pd.Series([
-            'KLoss', 'Zl/n', 'PLoss', 'Kdx', 'Kdy', 'Kqx', 'Kqx','Kx', 'Ky',
-            'TuShdx', 'TuShdy', 'TuShqx', 'TuShqy', 'TuShx', 'TuShy'],
-            index=props),
-        unit=pd.Series([
-            '[V/pC]', '[mOhm]', '[W]', '[kV/pC]', '[kV/pC]', '[kV/pC]', '[kV/pC]',
-            '[kV/pC]', '[kV/pC]', '1/10^3',  '1/10^3',  '1/10^3',  '1/10^3',  '1/10^3',  '1/10^3'],
-            index=props),
-        latex_unit=pd.Series([
-            r'[V/pC]', r'[$m\Omega$]', r'[W]', r'[kV/pC]', r'[kV/pC]', r'[kV/pC]', r'[kV/pC]', r'[kV/pC]',
-            r'[kV/pC]', r'$10^{-3}$',  r'$10^{-3}$',  r'$10^{-3}$',  r'$10^{-3}$',  r'$10^{-3}$',  r'$10^{-3}$'],
-            index=props),
-        latex_name=pd.Series([
-            '$\kappa_{Loss}$', '$Z_L/n|_{eff}$', '$P_{Loss}$',
-            r'$\beta_x\kappa_x^D$', r'$\beta_y\kappa_y^D$', r'$\beta_x\kappa_x^Q$', r'$\beta_y\kappa_y^Q$',r'$\beta_x\kappa_x$', r'$\beta_y\kappa_y$',
-            r'$\Delta\nu_x^D$', r'$\Delta\nu_y^D$', r'$\Delta\nu_x^Q$', r'$\Delta\nu_y^Q$', r'$\Delta\nu_x$', r'$\Delta\nu_y$'],
-            index=props)
-        ))
+            name=pd.Series([
+                'KLoss', 'Zl/n', 'PLoss',
+                'Kdx', 'Kdy', 'Kqx', 'Kqx', 'Kx', 'Ky',
+                'TuShdx', 'TuShdy', 'TuShqx', 'TuShqy', 'TuShx', 'TuShy'],
+                index=props),
+            unit=pd.Series([
+                '[V/pC]', '[mOhm]', '[W]',
+                '[kV/pC]', '[kV/pC]', '[kV/pC]',
+                '[kV/pC]', '[kV/pC]', '[kV/pC]',
+                '1/10^3', '1/10^3', '1/10^3',
+                '1/10^3', '1/10^3', '1/10^3'],
+                index=props),
+            latex_unit=pd.Series([
+                r'[V/pC]', r'[$m\Omega$]', r'[W]', r'[kV/pC]', r'[kV/pC]',
+                r'[kV/pC]', r'[kV/pC]', r'[kV/pC]',
+                r'[kV/pC]', r'$10^{-3}$',  r'$10^{-3}$',  r'$10^{-3}$',
+                r'$10^{-3}$', r'$10^{-3}$',  r'$10^{-3}$'],
+                index=props),
+            latex_name=pd.Series([
+                '$\kappa_{Loss}$', '$Z_L/n|_{eff}$', '$P_{Loss}$',
+                r'$\beta_x\kappa_x^D$', r'$\beta_y\kappa_y^D$',
+                r'$\beta_x\kappa_x^Q$', r'$\beta_y\kappa_y^Q$',
+                r'$\beta_x\kappa_x$', r'$\beta_y\kappa_y$',
+                r'$\Delta\nu_x^D$', r'$\Delta\nu_y^D$', r'$\Delta\nu_x^Q$',
+                r'$\Delta\nu_y^Q$', r'$\Delta\nu_x$', r'$\Delta\nu_y$'],
+                index=props)
+            ))
 
         convert = dict(
-                lsf=1e-12, zln=1e3, pls=1, kdx=1e-15, kdy=1e-15, kqx=1e-15, kqy=1e-15,
-                ktx=1e-15, kty=1e-15, ndx=1e3, ndy=1e3, nqx=1e3, nqy=1e3, ntx=1e3, nty=1e3
+                lsf=1e-12, zln=1e3, pls=1, kdx=1e-15, kdy=1e-15, kqx=1e-15,
+                kqy=1e-15, ktx=1e-15, kty=1e-15, ndx=1e3, ndy=1e3, nqx=1e3,
+                nqy=1e3, ntx=1e3, nty=1e3
                 )
 
         for el in budget:
@@ -760,36 +770,54 @@ class Ring:
 
             Zl = el.Zll * el.quantity
             if len(Zl) != 0:
-                values['lsf'], values['pls'],values['zln'],*_ = self.loss_factor(w=w,Zl=Zl)
+                lossf, pl, zn, *_ = self.loss_factor(w=w, Zl=Zl)
+                values['lsf'] = lossf
+                values['pls'] = pl
+                values['zln'] = zn
 
             Zd = el.Zdy * el.quantity * el.betay
             if len(Zd) != 0:
-                values['kdy'], values['ndy'],*_ = self.kick_factor(w=w,Z=Zd,Imp='Zdy')
+                kd, tus, *_ = self.kick_factor(w=w, Z=Zd, Imp='Zdy')
+                values['kdy'] = kd
+                values['ndy'] = tus
+
             Zq = el.Zqy * el.quantity * el.betay
             if len(Zq) != 0:
-                values['kqy'], values['nqy'],*_ = self.kick_factor(w=w,Z=Zq,Imp='Zqy')
+                kd, tus, *_ = self.kick_factor(w=w, Z=Zq, Imp='Zqy')
+                values['kqy'] = kd
+                values['nqy'] = tus
+
             if len(Zd) != 0 or len(Zq) != 0:
-                values['kty'] = values.get('kdy',0) + values.get('kqy',0)
-                values['nty'] = values.get('ndy',0) + values.get('nqy',0)
+                values['kty'] = values.get('kdy', 0) + values.get('kqy', 0)
+                values['nty'] = values.get('ndy', 0) + values.get('nqy', 0)
 
             Zd = el.Zdx * el.quantity * el.betax
             if len(Zd) != 0:
-                values['kdx'], values['ndx'],*_ = self.kick_factor(w=w,Z=Zd,Imp='Zdx')
+                kd, tus, *_ = self.kick_factor(w=w, Z=Zd, Imp='Zdx')
+                values['kdx'] = kd
+                values['ndx'] = tus
+
             Zq = el.Zqx * el.quantity * el.betax
             if len(Zq) != 0:
-                values['kqx'], values['nqx'],*_ = self.kick_factor(w=w,Z=Zq,Imp='Zqx')
-            if len(Zd) != 0 or len(Zq) != 0:
-                values['ktx'] = values.get('kdx',0) + values.get('kqx',0)
-                values['ntx'] = values.get('ndx',0) + values.get('nqx',0)
+                kd, tus, *_ = self.kick_factor(w=w, Z=Zq, Imp='Zqx')
+                values['kqx'] = kd
+                values['nqx'] = tus
 
-            for prop in values.keys():   values[prop] *= convert[prop]
+            if len(Zd) != 0 or len(Zq) != 0:
+                values['ktx'] = values.get('kdx', 0) + values.get('kqx', 0)
+                values['ntx'] = values.get('ndx', 0) + values.get('nqx', 0)
+
+            for prop in values.keys():
+                values[prop] *= convert[prop]
 
             bud_res[el.name] = pd.Series(values)
         return bud_res
 
-    def kicker_power(self, gr, Rshunt=15e3, betak=5, Ab=1e-3, betab=5, coupled_mode=None):
-        ''' Calculate the minimum transverse bunch by bunch feedback power necessary
-        to damp coupled-bunch oscillations, assuming perfect tunning of the system.
+    def kicker_power(self, gr, Rshunt=15e3, betak=5, Ab=1e-3,
+                     betab=5, coupled_mode=None):
+        '''Calculate the minimum transverse bunch by bunch feedback power
+            necessary to damp coupled-bunch oscillations, assuming perfect
+            tunning of the system.
             Formula taken from CAS_Digital_Signal_Processing, pag. 314.
 
         INPUTS:
