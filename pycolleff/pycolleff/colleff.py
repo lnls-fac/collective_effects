@@ -841,3 +841,21 @@ class Ring:
 
         P = 2/Rshunt/betak * self.E**2 * (self.T0*gr)**2 * (Ab**2/betab)
         return P
+
+    def calc_energy_spread_increase(self, N=10000000, bunlen=3e-3, wake=1e17,
+                                    larg=50e-6, Ib=1e-3, zz=None):
+        zz = zz or bunlen
+        po = _np.exp(-zz*zz/2/bunlen/bunlen)/_np.sqrt(2*_np.pi)/bunlen*larg
+
+        var1 = po*(1-po)*N
+
+        # radiation kick
+        fde = (1 - self.T0/self.dampte/2)
+        srde = _np.sqrt(1-fde*fde)*self.espread(Ib)
+
+        # wake kick
+        factor = _np.sqrt(var1)/N
+        kick = self.T0/self.E * Ib * wake * factor
+        # kick = np.sqrt(var1)*1.6e-19/3e9 * Wake
+
+        return _np.sqrt(kick**2/(1-fde*fde))
