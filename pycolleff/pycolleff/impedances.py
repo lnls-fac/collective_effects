@@ -730,7 +730,7 @@ def yokoya_factors(plane='ll'):
         raise Exception("Plane not identified. Possible options: 'll','dy','dx','qy','qx' ")
 
 
-def taper(w,R1,R2,L1,L2):
+def taper(w, r1, r2, t, wid=0, geom='round'):
     '''
                    L2
     _____|- - - - - - - - - - - - |_____
@@ -743,7 +743,23 @@ def taper(w,R1,R2,L1,L2):
                 :                     :
     - - - - - - - - - - - - - - - - - - -
     '''
-    theta = (L2-L1)/2 / (R2-R1)
+    diff = _np.abs(r2-r1)
+    summ = r2 + r1
+    prod = r2*r1
+    ums = _np.ones(w.shape)
+    if geom=='round':
+        Zll = 2 * -1j*w*_Z0/4/_np.pi/_c * diff/t
+        Zdx = 2 * -1j*_Z0/2/_np.pi     * diff/t/prod * ums
+        Zdy = 1*Zdx
+        Zqx = 0*w
+    else:
+        Zll = 2 * -1j*0.43*w*_Z0/_np.pi/_c * diff/t
+        Zdx = 2 * -1j*_Z0/4/_np.pi        * diff/t/prod * ums
+        Zdy = 2 * -1j*_Z0/2               * wid/t*summ*diff/prod/prod * ums
+        Zqx = -1*Zdx
+    return Zll, Zdx, Zdy, Zqx
+
+
 class CSRElement:
     _X = _np.linspace(-900, 900, 10001)
     _Y = None
