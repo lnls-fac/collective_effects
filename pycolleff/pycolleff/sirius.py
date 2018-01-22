@@ -14,7 +14,7 @@ def create_ring(phase=2):
     ring.w0        = 2*_np.pi*ring.f0 # revolution angular frequency [rad/s]
     ring.mom_cmpct = 1.7e-4    # momentum compaction factor
     ring.E         = 3e9       # energy [eV]
-    ring.nuy       = 14.165    # vertical tune
+    ring.nuy       = 14.170    # vertical tune
     ring.nux       = 49.110    # horizontal tune
     ring.chromx    = 2.5       # horizontal chromaticity
     ring.chromy    = 2.5       # vertical chromaticity
@@ -25,21 +25,21 @@ def create_ring(phase=2):
     I = _np.linspace(0,4,num=41)
     ring.cur_bun   = I*1e-3
     if phase == 0: #commissioning
-        ring.version    += '.Commisioning'
-        ring.nom_cur     = 0.100       # total current [A]
-        ring.nus         = 0.0048      # synchrotron tune
+        ring.version    += '.Commissioning'
+        ring.nom_cur     = 0.030       # total current [A]
+        ring.nus         = 0.00356     # synchrotron tune
         ring.espread     = lambda x:1e-2*(8.87e-2+ 1.58e-2*(x*1e3) - 5.48e-3*(x*1e3)**2 + 1.25e-3*(x*1e3)**3 - 1.14e-4*(x*1e3)**4)
         ring.bunlen      = lambda x:    (2.45e-3 + 5.80e-4*(x*1e3) - 1.51e-4*(x*1e3)**2 + 3.45e-5*(x*1e3)**3 - 3.15e-6*(x*1e3)**4)
         ring.emitx       = lambda x:1e-9*(2.44e-1+ 1.57e-1*(x*1e3) - 6.36e-2*(x*1e3)**2 + 1.60e-2*(x*1e3)**3 - 1.55e-3*(x*1e3)**4)
         ring.emity       = lambda x:1e-12*(2.15  + 1.87   *(x*1e3) - 8.49e-1*(x*1e3)**2 + 2.25e-1*(x*1e3)**3 - 2.25e-3*(x*1e3)**4)
-        ring.damptx      = 17.1e-3
-        ring.dampty      = 22.7e-3
-        ring.dampte      = 13.6e-3
-        ring.en_lost_rad = 475300 #eV
+        ring.damptx      = 16.9e-3
+        ring.dampty      = 22.0e-3
+        ring.dampte      = 12.9e-3
+        ring.en_lost_rad = 473e3 #eV
     elif phase == 1: #phase_1
         ring.version    += '.Phase1'
         ring.nom_cur     = 0.10         # total current [A]
-        ring.nus         = 0.0048       # synchrotron tune
+        ring.nus         = 0.0046       # synchrotron tune
         ring.espread     = lambda x:1e-2*(8.87e-2+ 1.58e-2*(x*1e3) - 5.48e-3*(x*1e3)**2 + 1.25e-3*(x*1e3)**3 - 1.14e-4*(x*1e3)**4)
         ring.bunlen      = lambda x:    (2.45e-3 + 5.80e-4*(x*1e3) - 1.51e-4*(x*1e3)**2 + 3.45e-5*(x*1e3)**3 - 3.15e-6*(x*1e3)**4)
         ring.emitx       = lambda x:1e-9*(2.44e-1+ 1.57e-1*(x*1e3) - 6.36e-2*(x*1e3)**2 + 1.60e-2*(x*1e3)**3 - 1.55e-3*(x*1e3)**4)
@@ -51,7 +51,7 @@ def create_ring(phase=2):
     elif phase == 2: #phase_2
         ring.version    += '.Phase2'
         ring.nom_cur     = 0.35        # total current [A]
-        ring.nus         = 0.0048      # synchrotron tune
+        ring.nus         = 0.0046      # synchrotron tune
         ring.espread     = lambda x:1e-2*(8.87e-2+ 1.58e-2*(x*1e3) - 5.48e-3*(x*1e3)**2 + 1.25e-3*(x*1e3)**3 - 1.14e-4*(x*1e3)**4)
         ring.bunlen      = lambda x:    (2.45e-3 + 5.80e-4*(x*1e3) - 1.51e-4*(x*1e3)**2 + 3.45e-5*(x*1e3)**3 - 3.15e-6*(x*1e3)**4)
         ring.emitx       = lambda x:1e-9*(2.44e-1+ 1.57e-1*(x*1e3) - 6.36e-2*(x*1e3)**2 + 1.60e-2*(x*1e3)**3 - 1.55e-3*(x*1e3)**4)
