@@ -502,6 +502,106 @@ class Ring:
                 delta[ii,:] = _np.linalg.eigvals(B)
         return delta
 
+    def reduced_longitudinal_mode_coupling(self,
+                                           budget=None,  element=None,
+                                           w=None,  Zl=None,
+                                           bunlen=None,
+                                           n_azi=10,  n_rad=12,
+                                           mu=0,
+                                           use_fokker=True):
+
+        def calc_Fokker_Planck(alpe, n_azi, n_rad, use_fokker):
+            F = _np.zeros([n_azi, n_rad+1, n_azi, n_rad+1],dtype=complex)
+            if use_fokker:
+                for l in range(n_rad+1):
+                    for m in range(1, n_azi+1):
+                        F[m-1, l, m-1, l] = - alpe*(abs(m) + 2*l)
+                        if m == 1:
+                            if abs(m-2) <= n_azi and l <= n_rad:
+                                F[m-1, l, m-1-2, l] = alpe*(l+1)
+                            if abs(m+2) <= n_azi and l-1 >= 0:
+                                F[m-1, l, m-1+2, l-1] = -alpe*_np.sqrt((l+2)*l)
+                        if m >= 2:
+                            if abs(m-2) <= n_azi and l+1 <= n_rad:
+                                F[m-1, l, m-1-2, l+1] = -alpe*_np.sqrt((l+m)*(l+1))
+                            if abs(m+2) <= n_azi and l-1 >= 0:
+                                F[m-1, l, m-1+2, l-1] = -alpe*_np.sqrt((l+1+m)*l)
+
+            return F.swapaxes(0, 3).swapaxes(1, 2).reshape(
+                            [n_azi*(1+n_rad), n_azi*(1+n_rad)]).transpose()
+
+        def calc_Vlasov(interpol_Z, wp, bunlen, n_azi, n_rad):
+            def fill_M(m, k, n, l, Mmknl):
+                M[m-1, k, n-1, l] = m*m*Mmknl
+                M[n-1, l, m-1, k] = n*n*Mmknl * (-1)**(m-n)
+
+            A = _np.zeros([n_azi, n_rad+1, n_azi, n_rad+1], dtype=complex)
+            M = _np.zeros([n_azi, n_rad+1, n_azi, n_rad+1], dtype=complex)
+            spectrum = self.calc_spectrum(wp, bunlen, n_rad, n_azi)
+            for k in range(n_rad+1):
+                for m in range(n_azi+1):
+                    Imk = spectrum[(abs(m), k)]
+                    A[m-1, k, m-1, k] = m*m
+                    for n in range(m, n_azi+1):
+                        Inl = spectrum[(abs(n), k)]
+                        Mmknl = (1j)**(m-n)*_np.dot(interpol_Z/wp, Imk*Inl)
+                        fill_M(m, k, n, k, Mmknl)
+                for l in range(k+1, n_rad+1):
+                    for m in range(n_azi+1):
+                        Imk = spectrum[(abs(m), k)]
+                        for n in range(n_azi+1):
+                            Inl = spectrum[(abs(n), l)]
+                            Mmknl = (1j)**(m-n)*_np.dot(interpol_Z/wp, Imk*Inl)
+                            fill_M(m, k, n, l, Mmknl)
+            return (A.swapaxes(0, 3).swapaxes(1, 2).reshape(
+                            [n_azi*(1+n_rad), n_azi*(1+n_rad)]).transpose(),
+                    M.swapaxes(0, 3).swapaxes(1, 2).reshape(
+                            [n_azi*(1+n_rad), n_azi*(1+n_rad)]).transpose())
+
+        I_b = self.cur_bun
+        E = self.E
+        w0 = self.w0
+        nus = self.nus(0.0)
+        eta = self.mom_cmpct
+        nb = self.nbun
+        alpe = 1/self.dampte
+
+        F = calc_Fokker_Planck(alpe, n_azi, n_rad, use_fokker)
+        if bunlen is None:
+            bunlen = self.bunlen(I_b)
+        if isinstance(bunlen, (float, _np.float_)):
+            bunlen = [bunlen]
+
+        w, Zl = self._prepare_input_impedance(budget, element, w, Zl, 'Zll')
+
+        # arredonda em direcao a +infinito
+        pmin = _np.ceil((w[0] - (mu + n_azi*nus)*w0)/(w0*nb))
+        # arredonda em direcao a -infinito
+        pmax = _np.floor((w[-1]-(mu + n_azi*nus)*w0)/(w0*nb))
+
+        p = _np.arange(pmin, pmax+1)
+        wp = w0*(p*nb + mu + 1*nus)
+        # Complex interpolation is ill-defined
+        interpol_Z = _np.interp(wp, w, Zl.imag) * 1j  # imaginary must come first
+        interpol_Z += _np.interp(wp, w, Zl.real)
+
+        delta = _np.zeros([len(I_b), (n_rad+1)*n_azi], dtype=complex)
+        if not len(bunlen) == 1:
+            for ii in range(len(I_b)):
+                A, M = calc_Vlasov(interpol_Z, wp, bunlen[ii], n_azi, n_rad)
+                K = (I_b[ii]*nb*w0*eta/(2*_np.pi) /
+                     (self.nus(I_b[ii])*w0)**2/E/(bunlen[ii]/_c)**2)
+                B = A + 1j*2*K*M + 1j*2*F/w0/self.nus(I_b[ii])
+                delta[ii, :] = _np.linalg.eigvals(B)
+        else:
+            A, M = calc_Vlasov(interpol_Z, wp, bunlen[0], n_azi, n_rad)
+            for ii in range(len(I_b)):
+                K = (I_b[ii]*nb*w0*eta/(2*_np.pi) /
+                     (self.nus(I_b[ii])*w0)**2/E/(bunlen[0]/_c)**2)
+                B = A + 1j*K*M + 1j*F/w0/self.nus(I_b[ii])
+                delta[ii, :] = _np.linalg.eigvals(B)
+        return delta
+
     def transverse_mode_coupling(self,
                                  budget=None,  element=None,
                                  w=None,  Zt=None,
