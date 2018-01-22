@@ -241,27 +241,37 @@ class Ring:
           Tush   = Tune shift
           Zt_eff = Effective Impedance in Ohm
         """
+        if Imp.lower().startswith(('zqx', 'zqy')):
+            nut = 0
+        elif Imp.lower().startswith('zdx'):
+            nut = self.nux % 1
+        else:
+            nut = self.nuy % 1
 
         w0 = self.w0
         nb = self.nbun
         bunlen = bunlen or self.bunlen(self.nom_cur/nb)
 
-        w, Z = self._prepare_input_impedance(budget,element,w,Z,Imp)
+        w, Z = self._prepare_input_impedance(budget, element, w, Z, Imp)
 
-        pmin = _np.ceil( w[0] /(w0*nb))  # arredonda em direcao a +infinito
-        pmax = _np.floor(w[-1]/(w0*nb)) # arredonda em direcao a -infinito
+        limw = 5 * _c / bunlen
+        maxw = min(w[-1], limw)
+        minw = max(w[0], -limw)
+
+        pmin = _np.ceil(minw / (w0*nb))   # arredonda em direcao a +infinito
+        pmax = _np.floor(maxw / (w0*nb))  # arredonda em direcao a -infinito
         p = _np.arange(pmin, pmax+1)
-        wp = w0*p*nb
+        wp = w0*(p*nb + nut)
 
-        specs = self.calc_spectrum(wp,bunlen,n_rad=0,n_azi=1)
-        h = specs[(0,0)]**2
-        interpol_Z = _np.interp(wp,w,Z.imag)
+        specs = self.calc_spectrum(wp, bunlen, n_rad=0, n_azi=1)
+        h = specs[(0, 0)]**2
+        interpol_Z = _np.interp(wp, w, Z.imag)
 
-        Kick_f = nb*(w0/2/_np.pi)* sum(interpol_Z*h)
+        Kick_f = nb*(w0/2/_np.pi) * sum(interpol_Z*h)
         Tush = (self.nom_cur/nb)/(2*self.E) * Kick_f / w0
 
-        h = specs[(1,0)]**2
-        Zt_eff = sum(interpol_Z*h) / sum(h) #pag 383 K.Y.Ng Book
+        h = specs[(1, 0)]**2
+        Zt_eff = sum(interpol_Z*h) / sum(h)  # pag 383 K.Y.Ng Book
 
         return Kick_f, Tush, Zt_eff
 
