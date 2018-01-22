@@ -2,7 +2,8 @@
 import os as _os
 import numpy as _np
 import matplotlib.pyplot as _plt
-import scipy.special as _scy
+import scipy.special as _scyspe
+import scipy.signal as _scysig
 import mathphys as _mp
 
 _c = _mp.constants.light_speed
@@ -269,9 +270,11 @@ def load_budget(fname):
         data = _mp.utils.load_pickle(fname)
         return data['budget']
 
+
 def load_element(fname):
         data = _mp.utils.load_pickle(fname)
         return data['element']
+
 
 def longitudinal_resonator(Rs, Q, wr, w):
     """Returns the longitudinal resonator impedance for w.
@@ -312,6 +315,7 @@ def longitudinal_resonator(Rs, Q, wr, w):
     Zl = w*Rs / (w+1j*Q*(wr - w**2/wr))
     return Zl.sum(0).flatten()
 
+
 def transverse_resonator(Rs, Q, wr, w):
     """Returns the transverse resonator impedance for w.
 
@@ -350,6 +354,7 @@ def transverse_resonator(Rs, Q, wr, w):
     wr = _np.array(wr,ndmin=1,dtype=float)[:,None]
     Zt = wr*Rs/(w + 1j*Q*(wr - w**2/wr))
     return Zt.sum(0).flatten()
+
 
 def wake_longitudinal_resonator(Rs, Q, wr, s):
     """Returns the longitudinal resonator wake-function for s.
@@ -396,6 +401,7 @@ def wake_longitudinal_resonator(Rs, Q, wr, s):
             ).sum(0).flatten()
     Wl[s==0] = (alpha * Rs) .sum(0).flatten()
     return Wl
+
 
 def wake_transverse_resonator(Rs, Q, wr, s):
     """Returns the Transverse resonator wake-function for w.
@@ -450,6 +456,7 @@ def _prepare_input_epr_mur(w,epb,mub,ange,angm,sigmadc,tau):
         mur[j,:] = mub[j]*(1-1j*_np.sign(w)*_np.tan(angm[j]))
     return epr, mur
 
+
 def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
 
     def Mtil(m, epr, mur, bet, nu, b):
@@ -472,10 +479,10 @@ def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
                 if not any(z.real<0):
                     ind = (z.real<60)
 
-                    A = _scy.iv(m,z[ind])
-                    B = _scy.kv(m,z[ind])
-                    C = _scy.iv(m,x[ind])
-                    E = _scy.kv(m,x[ind])
+                    A = _scyspe.iv(m,z[ind])
+                    B = _scyspe.kv(m,z[ind])
+                    C = _scyspe.iv(m,x[ind])
+                    E = _scyspe.kv(m,x[ind])
 
                     D[0,0,:]    =  1
                     D[1,1,ind]  = - B*C/(A*E)
@@ -485,34 +492,34 @@ def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
                     D[3,3,~ind] = - _np.exp(-2*(z[~ind]-x[~ind]))
 
             Mt[0,0,:] = -nu[i+1,:]**2*b[i]/epr[i+1,:]*(
-                    epr[i+1,:]/nu[i+1,:]*(-_scy.kve(m-1,x)/_scy.kve(m,x) - m/x)
-                    - epr[i,:]/nu[i,:]  *( _scy.ive(m-1,y)/_scy.ive(m,y) - m/y))
+                    epr[i+1,:]/nu[i+1,:]*(-_scyspe.kve(m-1,x)/_scyspe.kve(m,x) - m/x)
+                    - epr[i,:]/nu[i,:]  *( _scyspe.ive(m-1,y)/_scyspe.ive(m,y) - m/y))
             Mt[0,1,:] = -nu[i+1,:]**2*b[i]/epr[i+1,:]*(
-                    epr[i+1,:]/nu[i+1,:]*(-_scy.kve(m-1,x)/_scy.kve(m,x) - m/x)
-                    - epr[i,:]/nu[i,:]  *(-_scy.kve(m-1,y)/_scy.kve(m,y) - m/y))
+                    epr[i+1,:]/nu[i+1,:]*(-_scyspe.kve(m-1,x)/_scyspe.kve(m,x) - m/x)
+                    - epr[i,:]/nu[i,:]  *(-_scyspe.kve(m-1,y)/_scyspe.kve(m,y) - m/y))
             Mt[1,0,:] = -nu[i+1,:]**2*b[i]/epr[i+1,:]*(
-                    epr[i+1,:]/nu[i+1,:]*( _scy.ive(m-1,x)/_scy.ive(m,x) - m/x)
-                    - epr[i,:]/nu[i,:]  *( _scy.ive(m-1,y)/_scy.ive(m,y) - m/y))
+                    epr[i+1,:]/nu[i+1,:]*( _scyspe.ive(m-1,x)/_scyspe.ive(m,x) - m/x)
+                    - epr[i,:]/nu[i,:]  *( _scyspe.ive(m-1,y)/_scyspe.ive(m,y) - m/y))
             Mt[1,1,:] = -nu[i+1,:]**2*b[i]/epr[i+1,:]*(
-                    epr[i+1,:]/nu[i+1,:]*( _scy.ive(m-1,x)/_scy.ive(m,x) - m/x)
-                    - epr[i,:]/nu[i,:]  *(-_scy.kve(m-1,y)/_scy.kve(m,y) - m/y))
+                    epr[i+1,:]/nu[i+1,:]*( _scyspe.ive(m-1,x)/_scyspe.ive(m,x) - m/x)
+                    - epr[i,:]/nu[i,:]  *(-_scyspe.kve(m-1,y)/_scyspe.kve(m,y) - m/y))
 
             Mt[0,2,:] = (nu[i+1,:]**2/nu[i,:]**2 - 1)*m/(bet*epr[i+1,:])
             Mt[0,3,:] = Mt[0,2,:]
             Mt[1,2,:] = Mt[0,2,:]
             Mt[1,3,:] = Mt[0,2,:]
             Mt[2,2,:] = -nu[i+1,:]**2*b[i]/mur[i+1,:]*(
-                    mur[i+1,:]/nu[i+1,:]*(-_scy.kve(m-1,x)/_scy.kve(m,x) - m/x)
-                    - mur[i,:]/nu[i,:]  *( _scy.ive(m-1,y)/_scy.ive(m,y) - m/y))
+                    mur[i+1,:]/nu[i+1,:]*(-_scyspe.kve(m-1,x)/_scyspe.kve(m,x) - m/x)
+                    - mur[i,:]/nu[i,:]  *( _scyspe.ive(m-1,y)/_scyspe.ive(m,y) - m/y))
             Mt[2,3,:] = -nu[i+1,:]**2*b[i]/mur[i+1,:]*(
-                    mur[i+1,:]/nu[i+1,:]*(-_scy.kve(m-1,x)/_scy.kve(m,x) - m/x)
-                    - mur[i,:]/nu[i,:]  *(-_scy.kve(m-1,y)/_scy.kve(m,y) - m/y))
+                    mur[i+1,:]/nu[i+1,:]*(-_scyspe.kve(m-1,x)/_scyspe.kve(m,x) - m/x)
+                    - mur[i,:]/nu[i,:]  *(-_scyspe.kve(m-1,y)/_scyspe.kve(m,y) - m/y))
             Mt[3,2,:] = -nu[i+1,:]**2*b[i]/mur[i+1,:]*(
-                    mur[i+1,:]/nu[i+1,:]*( _scy.ive(m-1,x)/_scy.ive(m,x) - m/x)
-                    - mur[i,:]/nu[i,:]  *( _scy.ive(m-1,y)/_scy.ive(m,y) - m/y))
+                    mur[i+1,:]/nu[i+1,:]*( _scyspe.ive(m-1,x)/_scyspe.ive(m,x) - m/x)
+                    - mur[i,:]/nu[i,:]  *( _scyspe.ive(m-1,y)/_scyspe.ive(m,y) - m/y))
             Mt[3,3,:] = -nu[i+1,:]**2*b[i]/mur[i+1,:]*(
-                    mur[i+1,:]/nu[i+1,:]*( _scy.ive(m-1,x)/_scy.ive(m,x) - m/x)
-                    - mur[i,:]/nu[i,:]  *(-_scy.kve(m-1,y)/_scy.kve(m,y) - m/y))
+                    mur[i+1,:]/nu[i+1,:]*( _scyspe.ive(m-1,x)/_scyspe.ive(m,x) - m/x)
+                    - mur[i,:]/nu[i,:]  *(-_scyspe.kve(m-1,y)/_scyspe.kve(m,y) - m/y))
             Mt[2,0,:] = (nu[i+1,:]**2/nu[i,:]**2 - 1)*m/(bet*mur[i+1,:])
             Mt[2,1,:] = Mt[2,0,:]
             Mt[3,0,:] = Mt[2,0,:]
@@ -533,7 +540,7 @@ def resistive_multilayer_round_pipe(w,epr,mur,b,L,E):
         M = Mtil(m, epr, mur, bet, nu, b)
 
         B = (M[0,1,:]*M[2,2,:] - M[2,1,:]*M[0,2,:]) / (M[0,0,:]*M[2,2,:] - M[0,2,:]*M[2,0,:])
-        alphaTM = _scy.kv(m,nu[0,:]*b[0])/_scy.iv(m,nu[0,:]*b[0]) * B
+        alphaTM = _scyspe.kv(m,nu[0,:]*b[0])/_scyspe.iv(m,nu[0,:]*b[0]) * B
         return alphaTM
 
     ####################
@@ -719,3 +726,110 @@ def taper(w,R1,R2,L1,L2):
     - - - - - - - - - - - - - - - - - - -
     '''
     theta = (L2-L1)/2 / (R2-R1)
+class CSRElement:
+    _X = _np.linspace(-900, 900, 10001)
+    _Y = None
+
+    def __init__(self, rho=17.2, h=12e-3, bl=2.5e-3, nus=4.6e-3,
+                 espread=8.5e-4, rev_time=1.73e-6):
+        self.bl = bl
+        self.rho = rho
+        self.h = h
+        self.nus = nus
+        self.espread = espread
+        self.rev_time = rev_time
+
+    @property
+    def shielding(self):
+        return self.rho**(1/2) * self.bl / self.h**(3/2)
+
+    @property
+    def threshold(self):
+        S = self.calc_normalized_strength(1e-3) / 1e-3
+        Ith = (0.5 + 0.12*self.shielding)/S
+        return Ith
+
+    def calc_normalized_current(self, I0):
+        return (120/4*_c*I0*self.rev_time /
+                (2*_np.pi*self.nus*3e9*self.espread))
+
+    def calc_normalized_strength(self, I0):
+        curr = self.calc_normalized_current(I0)
+        return curr*self.rho**(1/3)/self.bl**(4/3)
+
+    def calc_formation_length(self, w):
+        return (24*self.rho**2/w/_c)**(1/3)
+
+    def wake(self, z, maxi=25, L=None, bunlen=80e-6, convolved=True):
+        gaus_to_si = 120*_c/4  # _Z0 _c / (4 pi)
+        L = L or (2 * _np.pi * self.rho)
+
+        # Free Space Term
+        inds = z < 0
+        W0 = _np.zeros(len(z))
+        W0[inds] = (-2/3**(4/3)/self.rho**(2/3) /
+                    _np.power((-z[inds]), 4/3)*gaus_to_si*L)
+
+        # Shielding Term
+        W1 = _np.zeros(len(z))
+        zshield = self.shielding / self.bl * z
+        for i in range(1, maxi):
+            uai = self._getY(3*zshield/i**(3/2))
+            W1 += 8*_np.pi*(-1)**(i+1)/i/i*uai*(3 - uai)/(1 + uai)**3
+        W1 *= -1/self.h**2 / (2 * _np.pi) * gaus_to_si * L
+
+        # If want the convolved values
+        if convolved:
+            # For the free space used analytical formulas of convolution
+            bl = bunlen
+            C = _Z0*_c/2**(13/6)/_np.pi**(3/2)/(3*self.rho**2*bl**10)**(1/3)*L
+            W0 = C*(2**(1/2)*_scyspe.gamma(5/6)*(
+                        bl**2*_scyspe.hyp1f1(-1/3, 1/2, -z*z/2/bl**2) -
+                        z**2*_scyspe.hyp1f1(2/3, 3/2, -z*z/2/bl**2)) +
+                    z*bl*_scyspe.gamma(4/3)*(
+                        3*_scyspe.hyp1f1(1/6, 1/2, -z*z/2/bl**2) -
+                        2*_scyspe.hyp1f1(1/6, 3/2, -z*z/2/bl**2)))
+            # For shielding perform convolution numerically
+            bunch = _np.exp(-(z*z/bl**2)/2)/_np.sqrt(2*_np.pi)/bl  # gaussian
+            W1 = _scysig.fftconvolve(W1, bunch, mode='same') * (z[1]-z[0])
+        return W0, W1
+
+    def impedance(self, w, L=None, imax=3, free=False):
+        L = L or (2*_np.pi * self.rho)
+        Lfrac = L / (2*_np.pi * self.rho)
+        n = w/_c * self.rho
+
+        if free:
+            Z = (120/2 * 1.354/3**(1/3)*_np.exp(1j*_np.pi/6) *
+                 (w/_c/self.rho**2)**(1/3) * L)
+            return Z
+
+        u0 = _np.pi**2/2**(2/3) * (n * (2*self.h/self.rho)**(3/2))**(-4/3)
+        Z = (1 + 0*1j)*_Z0 * 16 * u0
+
+        F = _np.zeros(len(w), dtype=complex)
+        for p in range(0, imax):
+            up = u0*(2*p + 1)**2
+            Ai, Ail, Bi, Bil = _scyspe.airy(up)
+            Ri = Ail*Ail + up * Ai*Ai
+            Ai, Ail, Bi, Bil = _scyspe.airye(up)
+            Im = Ail*Bil + up * Ai*Bi
+            F += Ri - 1j * Im
+        Z *= F
+        return Z * n * self.h / self.rho * Lfrac
+
+    def _getY(self, values):
+        if self._Y is None:
+            self._Y = _np.zeros(self._X.shape)
+            for i, x in enumerate(self._X):
+                sol = _np.roots([1, 0, 0, -x, -3])
+                sol2 = []
+                for s in sol:
+                    if _np.isclose(s.imag, 0):
+                        sol2.append(s.real)
+                if len(sol2) != 2:
+                    print('war')
+                self._Y[i] = min(sol2)
+            self._Y = self._Y*self._Y*self._Y*self._Y
+        return _np.interp(values, self._X, self._Y, left=None, right=None)
+
