@@ -208,9 +208,9 @@ my_Dvector long_simul_with_haissinki(
         espread[i] = find_equilibrium_energy_spread(wake, ring, currs[i],
                                             pool, conv, niter, weight, dist);
         ring.espread = espread[i];
-        dist = ring.get_distribution(
-			solve_Haissinski_get_potential(
-				wake, ring, currs[i], pool, conv, true, niter*2, weight, dist));
+		my_Dvector&& V = solve_Haissinski_get_potential(wake, ring, currs[i],
+									pool, conv, true, niter*2, weight, dist);
+        dist = ring.get_distribution(V);
 
 		//trapezoidal integration to find synch pos and bunch length
 		double&& s0 = dist[0]*ss[0];  double&& s02 = dist[0]*ss[0]*ss[0];
@@ -240,6 +240,8 @@ my_Dvector long_simul_with_haissinki(
 		char fname[50];
 		sprintf(fname, "curr_%05.3fmA_distr_ss.txt", currs[i]*1e3);
         save_distribution_to_file(fname, dist, ss.front(), ss.back(), ss.size());
+		sprintf(fname, "curr_%05.3fmA_potential.txt", currs[i]*1e3);
+        save_distribution_to_file(fname, V, ss.front(), ss.back(), ss.size());
 	}
     fp.close();
     ring.espread = espread0;
