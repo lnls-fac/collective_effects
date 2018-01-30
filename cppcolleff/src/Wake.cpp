@@ -369,7 +369,7 @@ void Wake_t::to_file(const char* filename) const
 
     string fnameQ (filename);
     fnameQ.insert(p, "_wakeQ");
-    Wd.to_file(fnameQ.c_str());
+    Wq.to_file(fnameQ.c_str());
 
     string fnameL (filename);
     fnameL.insert(p, "_wakeL");
