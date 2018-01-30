@@ -295,12 +295,14 @@ class Ring:
         else:
             raise Exception('Incorrect impedance input.')
 
-    def longitudinal_cbi(self, budget=None, element=None, w=None, Zl=None, bunlen=None, m=0):
-        """Calculate the complex coeherent frequency shifts of the beam for all the oscilation modes,
-        considering a Gaussian beam and only azimuthal mode k=0;
+    def longitudinal_cbi(self, budget=None, element=None, w=None,
+                         Zl=None, bunlen=None, m=0, inverse=False):
+        """Calculate the complex coeherent frequency shifts of the beam for all
+        the oscilation modes, considering a Gaussian beam and only azimuthal
+        mode k=0;
         """
 
-        assert m > 0, 'azimuthal mode m must be greater than zero.'
+        assert abs(m) > 0, 'azimuthal mode m must be greater than zero.'
         nus  = self.nus()
         w0   = self.w0
         eta  = self.mom_cmpct
@@ -308,9 +310,16 @@ class Ring:
         nb   = self.nbun
         I_tot= self.nom_cur
         alpe = 1/self.dampte/nus/w0
+        if bunlen is None:
+            bunlen = self.bunlen(I_tot/nb)
 
-        if bunlen is None: bunlen = self.bunlen(I_tot/nb)
-        w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zl')
+        if inverse:
+            h = self.calc_spectrum(w, bunlen, n_rad=0, n_azi=m, only=True)**2
+            Z = w*alpe/(I_tot*w0*eta/(2*_np.pi)/(nus*w0)**2/E/(bunlen/_c)**2)/h
+            return Z
+
+        w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zll')
+
 
         # Calculate Effective Impedance
         pmin = _np.ceil( (w[ 0] -    m*nus*w0    )/(w0*nb)) #arredonda em direcao a +infinito
@@ -325,53 +334,66 @@ class Ring:
         interpol_Z +=    _np.interp(wp, w, Zl.real)
         Zl_eff = (interpol_Z/wp * h).sum(1)
 
-        #Returns the relative Tune Shift:
-        deltaw = -1j*abs(m)*alpe + 1j*abs(m)* I_tot*w0*eta/(2*_np.pi)/(nus*w0)**2/E/(bunlen/_c)**2 * Zl_eff
+        # Returns the relative Tune Shift:
+        deltaw = 1j*(-abs(m)*alpe +
+                     m*I_tot*w0*eta/(2*_np.pi)/E/(nus*w0*bunlen/_c)**2*Zl_eff)
         return deltaw
 
-    def transverse_cbi(self, budget=None, element=None, w=None, Zt=None, bunlen=None, m=0,  plane='y'):
+    def transverse_cbi(self, budget=None, element=None, w=None, Zt=None,
+                       bunlen=None, m=0,  plane='y', inverse=False):
         """Calcula a impedância transversal efetiva dos nb modos de oscilacao,
         considerando um feixe gaussiano, para o modo azimutal m e radial k=0;
         E calcula as instabilidades de Coupled_bunch a partir dela.
 
-        deltaw = transverse_cbi(w,Z, bunlen, nb, w0, nus, nut, chrom, eta, m, E, I_tot)
+        deltaw = transverse_cbi(w,Z, bunlen, nb, w0, nus, nut,
+                                chrom, eta, m, E, I_tot)
         """
-        nus  = self.nus()
-        w0   = self.w0
-        eta  = self.mom_cmpct
-        E    = self.E
-        nb   = self.nbun
-        I_tot= self.nom_cur
+        nus = self.nus()
+        w0 = self.w0
+        eta = self.mom_cmpct
+        E = self.E
+        nb = self.nbun
+        I_tot = self.nom_cur
         taue = self.dampte
-        if plane.lower().startswith(('x','h')):
-            taut, nut, chrom, imp   = self.damptx, self.nux, self.chromx, 'Zdx'
+        if plane.lower().startswith(('x', 'h')):
+            taut, nut, chrom, imp = self.damptx, self.nux, self.chromx, 'Zdx'
         else:
-            taut, nut, chrom, imp   = self.dampty, self.nuy, self.chromy, 'Zdy'
+            taut, nut, chrom, imp = self.dampty, self.nuy, self.chromy, 'Zdy'
 
-        if bunlen is None: bunlen = self.bunlen(I_tot/nb)
-        w, Zt = self._prepare_input_impedance(budget,element,w,Zt,imp)
+        if bunlen is None:
+            bunlen = self.bunlen(I_tot/nb)
+        w, Zt = self._prepare_input_impedance(budget, element, w, Zt, imp)
 
         alpe = 1/taue/w0/nus
         alpt = 1/taut/w0/nus
 
-        ## Calculate Effective Impedance
+        # Calculate Effective Impedance
         nucro = chrom/eta
-        pmin = _np.ceil( (w[0]  -        (m*nus + nut)*w0)/(w0*nb)) # arredonda em direcao a +infinito
-        pmax = _np.floor((w[-1] - (nb-1 + nut + m*nus)*w0)/(w0*nb)) # arredonda em direcao a -infinito
+        # arredonda em direcao a +infinito
+        pmin = _np.ceil((w[0] - (m*nus + nut)*w0)/(w0*nb))
+        # arredonda em direcao a -infinito
+        pmax = _np.floor((w[-1] - (nb-1 + nut + m*nus)*w0)/(w0*nb))
 
-        p = _np.arange(pmin,pmax+1)
-        wp = w0*(nb*p[None,:] + _np.arange(0,nb)[:,None] + nut + m*nus)
+        p = _np.arange(pmin, pmax+1)
+        wp = w0*(nb*p[None, :] + _np.arange(0, nb)[:, None] + nut + m*nus)
         wpcro = wp - nucro*w0
 
-        h = self.calc_spectrum(wpcro,bunlen,n_rad=0,n_azi=m,only=True)**2
+        if inverse:
+            h = self.calc_spectrum(w - nucro*w0, bunlen, n_rad=0,
+                                   n_azi=m, only=True)**2
+            Z = (alpt + abs(m)*alpe)/(I_tot*w0/(4*_np.pi)/(nus*w0)/E)/h
+            return Z
+
+        h = self.calc_spectrum(wpcro, bunlen, n_rad=0, n_azi=m, only=True)**2
         # Complex interpolation is ill-defined
-        interpol_Z  = 1j*_np.interp(wp, w, Zt.imag) # imaginary must come first
-        interpol_Z +=    _np.interp(wp, w, Zt.real)
+        interpol_Z = 1j*_np.interp(wp, w, Zt.imag)  # imaginar must come first
+        interpol_Z += _np.interp(wp, w, Zt.real)
         Zt_eff = (interpol_Z * h).sum(1)
 
-        ## Calculate Coupled_bunch Instability
-        #Returns the relative Tune Shift:
-        deltaw = -1j*(alpt + abs(m)*alpe) - 1j*I_tot*w0/(4*_np.pi)/(nus*w0)/E * Zt_eff
+        # Calculate Coupled_bunch Instability
+        # Returns the relative Tune Shift:
+        deltaw = -1j*(alpt + abs(m)*alpe +
+                      I_tot*w0/(4*_np.pi)/(nus*w0)/E * Zt_eff)
         return deltaw
 
     def calc_spectrum(self,wp,bunlen,n_rad=4,n_azi=3,only=False):
@@ -616,7 +638,8 @@ class Ring:
                                  bunlen=None, plane='y',
                                  n_azi=3,  n_rad=4,
                                  mu=0,
-                                 use_fokker = True):
+                                 use_fokker = True,
+                                 max_w = None):
 
         def calc_Fokker_Planck(alpt, alpe, n_azi, n_rad, use_fokker):
             F = _np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
@@ -702,10 +725,16 @@ class Ring:
             alpt, nut, chrom, imp = 1/self.dampty, self.nuy, self.chromy, 'Zdy'
 
         F = calc_Fokker_Planck(alpt, alpe, n_azi, n_rad, use_fokker)
-        if bunlen is None: bunlen = self.bunlen(I_b)
-        if isinstance(bunlen,(float,_np.float_)): bunlen = [bunlen]
+        if bunlen is None:
+            bunlen = self.bunlen(I_b)
+        if isinstance(bunlen, (float, _np.float_)):
+            bunlen = [bunlen]
 
-        w, Zt = self._prepare_input_impedance(budget,element,w,Zt,imp)
+        w, Zt = self._prepare_input_impedance(budget, element, w, Zt, imp)
+        if max_w is not None:
+            indcs = _np.abs(w) < max_w
+            w = w[indcs]
+            Zt = Zt[indcs]
 
         nucro = chrom/eta
         pmin = _np.ceil( (w[0] -(mu + nut + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a +infinito
@@ -822,7 +851,7 @@ class Ring:
         return bud_res
 
     def kicker_power(self, gr, Rshunt=15e3, betak=5, Ab=1e-3,
-                     betab=5, coupled_mode=None):
+                     betab=5, coupled_mode=None, plane='long'):
         '''Calculate the minimum transverse bunch by bunch feedback power
             necessary to damp coupled-bunch oscillations, assuming perfect
             tunning of the system.
@@ -838,9 +867,11 @@ class Ring:
 
         OUTPUT: RF power needed to damp instability [W].
         '''
-
-        P = 2/Rshunt/betak * self.E**2 * (self.T0*gr)**2 * (Ab**2/betab)
-        return P
+        if plane.lower().startswith('l'):
+            P = (2*_np.pi*self.nus(0)*self.E/self.mom_cmpct*gr*Ab/_c)**2
+        else:
+            P = 1/betak * self.E**2 * (self.T0*gr)**2 * (Ab**2/betab)
+        return P*2/Rshunt
 
     def calc_energy_spread_increase(self, N=10000000, bunlen=3e-3, wake=1e17,
                                     larg=50e-6, Ib=1e-3, zz=None):
