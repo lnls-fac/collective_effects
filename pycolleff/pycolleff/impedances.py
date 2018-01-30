@@ -443,7 +443,7 @@ def wake_transverse_resonator(Rs, Q, wr, s):
     wrl     = _np.sqrt(wr*wr - alpha*alpha)
     Wt      = _np.zeros(len(s))
     sel     = s > 0.0
-    Wt[sel] = (Rs * wr / (Q * wrl) * _np.exp(-alpha*s[sel]/_c)*_np.sin(wrl*s[sel]/_c)
+    Wt[sel] = (Rs * wr**2 / (Q*wrl) * _np.exp(-alpha*s[sel]/_c)*_np.sin(wrl*s[sel]/_c)
               ).sum(0).flatten()
     return Wt
 
