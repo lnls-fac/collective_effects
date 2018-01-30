@@ -599,8 +599,8 @@ def kicker_coupled_flux(w, h, W, t, L, mur, Zg):
     # Equivalent Circuit model.
     D = 0.5e-3
     M = L*D*_mu0/W
-    #     L2 = L*2*a*_mu0/2/b
-    L2 = L*h*_mu0/W*(mur*t/(mur*t+h*(h/W+1)))
+    L2 = L*h*_mu0/W
+    # L2 = L*h*_mu0/W*(mur*t/(mur*t+h*(h/W+1)))
 
     Zk = (M/L2)**2 * Zg*L2*1j/(1j*w*L2 + Zg) * w
     Zx = (M/L2)**2 * Zg*L2*1j/(1j*w*L2 + Zg) * _c/D**2
