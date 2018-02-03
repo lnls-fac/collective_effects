@@ -320,10 +320,11 @@ class Ring:
 
         w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zll')
 
-
         # Calculate Effective Impedance
-        pmin = _np.ceil( (w[ 0] -    m*nus*w0    )/(w0*nb)) #arredonda em direcao a +infinito
-        pmax = _np.floor((w[-1] - (nb-1+m*nus)*w0)/(w0*nb)) #arredonda em direcao a -infinito
+        # arredonda em direcao a +infinito
+        pmin = _np.ceil( (w[ 0] -    m*nus*w0    )/(w0*nb))
+        # arredonda em direcao a -infinito
+        pmax = _np.floor((w[-1] - (nb-1+m*nus)*w0)/(w0*nb))
 
         p = _np.arange(pmin,pmax+1)
         wp = w0*(nb*p[None,:] + _np.arange(0,nb)[:,None] + m*nus)
