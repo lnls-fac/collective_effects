@@ -32,13 +32,12 @@ class Ring:
         self.harm_num = 0         # Harmonic Number
         self.en_lost_rad = 0      # Energy loss per turn [eV]
         self.nom_cur = 0          # Total current [A]
-        self.f_rf = 0             # Rf frequency [Hz]
+        self.frf = 0              # Rf frequency [Hz]
         self.mom_cmpct = 0        # Momentum compaction factor
         self.en_spread = 0        # Relative Energy Spread
         self.peak_rf = 0          # Peak RF Voltage [V]
-        self.frf = 0              # Rf frequency [Hz]
         self.synch_tune = 0       # Synchrotron Tune
-        self.peak_cur = 0         # Peak bunch current
+        self.peak_cur = 0         # Peak bunch current [A]
 
     @property
     def synch_phase(self):
@@ -60,13 +59,21 @@ class Ring:
     def ws(self):
         return self.synch_tune*self.w0
 
+    @ws.setter
+    def ws(self, ws):
+        self.synch_tune = ws / self.w0
+
     @property
     def wrf(self):
         return 2*np.pi*self.frf
 
     @property
     def bunlen(self):
-        return self.en_spread * self.mom_cmpct*c / self.ws
+        return self.en_spread * self.mom_cmpct * c / self.ws
+
+    @bunlen.setter
+    def bunlen(self, bl):
+        self.ws = self.en_spread * self.mom_cmpct * c / bl
 
     def get_Vrf(self, z):
         V0 = self.peak_rf
@@ -83,6 +90,8 @@ class HarmCav:
         self.quality_fact = Q
         self.psi = 0
         self.form_fact = 0
+        # self.harm_phase = 0
+
         if Rs is not None:
             self.shunt_imp = np.array(Rs)
         else:
@@ -144,6 +153,10 @@ class HarmCav:
         It = ring.nom_cur
         self.psi = np.pi - np.abs(np.arccos(self.k * ring.peak_rf / 2 / It /
                                             self.shunt_imp/F))
+        # self.harm_phase = (1/self.num)*np.arctan(-self.num*self._r /
+        #                                          (np.sqrt((self.num**2-1)**2 -
+        #                                          self.num**4*self._r**2)))
+        # self.psi = np.pi/2 - self.num * self.harm_phase
         self.form_fact = F
 
     def print_param(self, ring):
@@ -160,6 +173,7 @@ class HarmCav:
         print('Form factor {0:6.4f}'.format(self.form_fact))
         print('Harm. cav. detuning {0:7.3f}kHz'.format(self.delta * self.wr / 2
                                                        / np.pi*1e-3))
+        print('Harm. cav. detuning {0:7.3f}º'.format(self.psi * 180 / np.pi))
 
 
 class Lambda:
@@ -187,23 +201,24 @@ class Lambda:
         a = ring.mom_cmpct
         pos = np.array(self.z)
         npo = len(pos)//2
-        pos_par = np.delete(pos, npo)
 
-        z_plus = np.split(pos_par, 2)[1]
+        pos_par = np.delete(pos, npo)
         z_minus = np.split(pos_par, 2)[0]
-        z_plus = np.append(0, z_plus)
         z_minus = np.append(z_minus, 0)
+        z_plus = np.split(pos_par, 2)[1]
+        z_plus = np.append(0, z_plus)
+
         # U = -scy_int.cumtrapz(V, self.z, initial=0)
         # U -= np.min(U, axis=1)[:, None]
         # rho = np.exp(-U/sigE/sigE/a/ring.C0/2)
         # rho /= np.trapz(rho, self.z)[:, None]
-        U_minus = -scy_int.cumtrapz(V[:, 0:npo+1], z_minus, initial=0)
-        U_plus = -scy_int.cumtrapz(V[:, npo:2*npo+1], z_plus, initial=0)
-        U_plus = np.array(U_plus)
-        U_minus = np.array(U_minus)
-        U_plus -= np.absolute(U_minus[0, npo])
+
+        U_minus = -scy_int.cumtrapz(V[:, :npo+1], z_minus, initial=0)
+        U_plus = -scy_int.cumtrapz(V[:, npo:], z_plus, initial=0)
+        U_plus += U_minus[:, -1][:, None]
         U = np.concatenate((U_minus, U_plus), axis=1)
         U_new = np.delete(U, npo, axis=1)
+
         rho = np.exp(-U_new/sigE/sigE/a/ring.C0)
         rho /= np.trapz(rho, self.z)[:, None]
         return rho
@@ -221,20 +236,12 @@ class Lambda:
 
 def get_potentials_wake(ring, harm_cav, lamb):
     E0 = ring.E0
-    It = ring.nom_cur
-    wrf = ring.wrf
     C0 = ring.C0
     T0 = ring.T0
     h = ring.harm_num
-    sigz = ring.bunlen
-
-    Q = harm_cav.quality_fact
     Rs = harm_cav.shunt_imp
     alpha = harm_cav.alpha
-    wr = harm_cav.wr
-    n = harm_cav.num
     beta = harm_cav.beta
-    z0 = harm_cav.length_shift
     z = lamb.z
     dist = lamb.dist*lamb.cur[:, None]
 
@@ -254,7 +261,7 @@ def get_potentials_wake(ring, harm_cav, lamb):
     return -T0/E0 * 2*alpha*Rs*(Vt.real - alpha/harm_cav.wrb*Vt.imag)
 
 
-def get_potentials_imp(ring, harm_cav, lamb, n_terms=20):
+def get_potentials_imp(ring, harm_cav, lamb, n_terms=10):
 
     E0 = ring.E0
     C0 = ring.C0
@@ -267,21 +274,26 @@ def get_potentials_imp(ring, harm_cav, lamb, n_terms=20):
     wr = harm_cav.wr
     n = harm_cav.num
     z = lamb.z
+    cur = np.array(lamb.cur)
 
     p0 = h*n
 
     ind_b = np.arange(h)
     dif = ind_b[:, None] - ind_b[None, :]
     Vt = np.zeros([h, len(z)])
+
+    if np.all(cur[1:] == cur[:-1]):
+        n_terms = 0
+
     for p in range(p0-n_terms, p0+n_terms+1):
         wp = p*w0
         B = np.exp(-1j*wp*dif*C0/h/c)
-        lamb_w = lamb.cur*np.trapz(lamb.dist*np.exp(-1j*wp*z/c)[None, :], z)
+        lamb_w = cur*np.trapz(lamb.dist*np.exp(-1j*wp*z/c)[None, :], z)
         V = np.dot(B, lamb_w)
         Zp = Rs/(1 - 1j * Q * (wr / wp - wp / wr))
         V_hat = (w0 / 2 / np.pi * Zp * np.exp(1j*wp*z/c))[None, :] * V[:, None]
         Vt += 2 * V_hat.real
-    return -T0/E0 * Vt
+    return - T0 / E0 * Vt
 
 
 def get_potential_analytic_uni_fill(ring, harm_cav, z):
@@ -300,6 +312,18 @@ def main():
 
     ring = Ring()
 
+    # # Sirius
+    # ring.E0 = 3e9
+    # ring.nom_cur = 350e-3
+    # ring.en_lost_rad = 872.7e3
+    # ring.frf = 499.658e6
+    # ring.peak_rf = 3e6
+    # ring.harm_num = 864
+    # # ring.bunlen = 2.5e-3
+    # ring.en_spread = 8.5e-4
+    # ring.mom_cmpct = 1.639e-4
+    # ring.synch_tune = 4.644e-3
+
     # MAX IV
     ring.E0 = 3e9
     ring.nom_cur = 500e-3
@@ -312,28 +336,28 @@ def main():
     ring.mom_cmpct = 3.07e-4
     ring.synch_tune = 1.994e-3
 
-    # # MAX II
+    # MAX II
     # ring.E0 = 1.5e9
     # ring.en_lost_rad = 133.4e3
-    # ring.frf = 99.9602e6
-    # ring.peak_rf = 358.19e3
-    # ring.nom_cur = 140e-3
-    # ring.harm_num = 30
-    # # ring.bunlen = 10.1e-3
-    # ring.en_spread = 7.01e-4
     # ring.mom_cmpct = 3.82e-3
-    # ring.synch_tune = 2*np.pi*6699/ring.w0
+    # ring.en_spread = 0.0701/100
+    # ring.harm_num = 30
+    # ring.nom_cur = 140.94e-3
+    # ring.peak_rf = 424.42e3
+    # ring.frf = 99.959e6
+    # ring.ws = 2*np.pi*7375
+    # df = 109.92e3
 
     # # SLS
     # ring.E0 = 2.4e9
-    # # ring.nom_cur = 500e-3
-    # ring.en_lost_rad = 530e3
-    # ring.frf = 499.632e6
-    # ring.peak_rf = 2.1e6
-    # ring.harm_num = 480
-    # # ring.bunlen = 10.1e-3
     # ring.en_spread = 9e-4
+    # ring.frf = 499.632e6
+    # ring.harm_num = 480
     # ring.mom_cmpct = 6e-4
+    # ring.en_lost_rad = 530e3
+    # ring.peak_rf = 2.1e6
+    # ring.nom_cur = 400e-3
+    # ring.bunlen = 4e-3
 
     r = ring.en_lost_rad/ring.peak_rf
 
@@ -341,11 +365,18 @@ def main():
     krf = wrf/c
     h = ring.harm_num
     It = ring.nom_cur
-
-    hc = HarmCav(wrf, n=3, Q=21600, Rs=4.2e6, r=r)  # MAX IV
+    # Q = 2.6e8
+    # Rs = 88*Q
+    # hc = HarmCav(wrf, n=3, Q=Q, Rs=Rs, r=r)  # NSLS-2 SC-3HC
+    hc = HarmCav(wrf, n=3, Q=21600, Rs=2.017e6, r=r)  # MAX IV
     # hc = HarmCav(wrf, n=5, Q=21720, Rs=1.57e6, r=r)  # MAX II
-    F = np.exp(-(ring.bunlen/c)**2/2*(hc.num*wrf)**2)
+    # hc = HarmCav(wrf, n=3, Q=2e8, Rs=88.4*2e8, r=r)  # SLS
+    F = np.exp(-(ring.bunlen*hc.num*wrf/c)**2)
+
     hc.calc_flat_potential(ring, F=F)
+
+    # hc.psi = 90.003641*np.pi/180  # Flat condition to Rs = 88Q
+    # hc.psi = 99.888555*np.pi/180  # Flat condition to Rs = 8.48M
 
     # hc.shunt_imp = 2.017e6
     # hc.psi = 103.717*np.pi/180
@@ -353,17 +384,22 @@ def main():
     # hc.shunt_imp = 4.2e6
     # hc.psi = 96.558*np.pi/180
 
-    zlim = 0.30
-    npoints = 501
+    # If the detuning is given in frequency
+    # fr = hc.num*ring.frf - df
+    # hc.delta = -(hc.num*ring.frf / fr - 1)
+    # hc.wr = 2*np.pi*fr
+
+    z0 = hc.length_shift
+    sigz = ring.bunlen
+
+    zlim = 30*sigz
+    npoints = 1501
     z = np.linspace(-zlim, zlim, npoints)
 
     Ib = np.zeros(h, dtype=float)
     nfill = h
-    start = h-nfill
+    start = 0
     Ib[start:start+nfill] = It/h
-
-    z0 = hc.length_shift
-    sigz = ring.bunlen
 
     lamb = Lambda(z, Ib, ring)
 
@@ -375,7 +411,8 @@ def main():
     Vt_imp = Vrf[None, :] + V_i
     dist_old = lamb.get_dist(Vt_imp, ring)
     F = np.trapz(dist_old*np.exp(1j*hc.num*wrf*z/c), z)
-    F /= np.trapz(lamb.dist, z)
+    F /= np.trapz(dist_old, z)
+    F_mod = np.absolute(F[0])
 
     # V_w = get_potentials_wake(ring, hc, lamb)
     # Vt_wake = Vrf[None, :] + V_w
@@ -386,6 +423,8 @@ def main():
     epsilon = 1e-5
     param_conv = 15
     n_iters = 500
+
+    # plt.plot(lamb.cur*1e3)
 
     plt.figure(figsize=(10, 14))
     gs = gridspec.GridSpec(3, 1)
@@ -407,6 +446,8 @@ def main():
         F_new /= np.trapz(lamb.dist, z)
         F_mod = np.absolute(F_new[0])
 
+        # hc.calc_flat_potential(ring, F=F_mod)
+
         V_i = get_potentials_imp(ring, hc, lamb)
         Vt_imp = Vrf[None, :] + V_i
         dist_new = lamb.get_dist(Vt_imp, ring)
@@ -417,7 +458,7 @@ def main():
 
         dif = dist_new - dist_old
         res = np.trapz(dif * dif, z)
-        conv = np.sqrt(np.mean(res))
+        conv = np.sqrt(np.max(res))
         print('{0:03d}: {1:f}, F: {2:f}, Psi: {3:f}'.format(i, conv, F_mod,
                                                             hc.psi*180/np.pi))
         if conv < epsilon:
@@ -438,28 +479,30 @@ def main():
     z_ave_i = lamb.get_synch_phases()
     z_ave_ave_i = np.mean(z_ave_i)
 
-    print('WAKE')
+    print('IMPEDANCE')
     hc.print_param(ring)
+
     V_i = get_potentials_imp(ring, hc, lamb)
     Vt_imp = Vrf + V_i[0, :]
 
     # V_w = get_potentials_wake(ring, hc, lamb)
     # Vt_wake = Vrf + V_w[0, :]
 
-    print('sync phase imp: {0:7.3f} mm'.format(z_ave_ave_i*1e3))
-    print('bun length imp: {0:7.3f} mm, ({1:7.3f} ps)'.format(bl_imp*1e3,
-                                                              bl_imp*1e12/c))
+    print('sync phase: {0:7.3f} mm'.format(z_ave_ave_i*1e3))
+    print('bun length: {0:7.3f} mm ({1:7.3f} ps)'.format(bl_imp*1e3,
+                                                         bl_imp*1e12/c))
 
     print('=============================')
 
-    hc_flat = HarmCav(wrf, n=3, Q=21600, Rs=4.2e6, r=r)
-
-    hc_flat.calc_flat_potential(ring, F=F_mod)
-
     print('ANALYTICAL')
-    hc_flat.print_param(ring)
-    V_a = get_potential_analytic_uni_fill(ring, hc_flat, z)
+
+    hc.shunt_imp = 2.017e6
+    hc.psi = 103.717*np.pi/180
+    hc.form_fact = F_mod
+
+    V_a = get_potential_analytic_uni_fill(ring, hc, z)
     Vt_a = Vrf + V_a
+
     lamb.dist = lamb.get_dist(Vt_a, ring)
     sigma_z_a = lamb.get_bun_lens()
     bl_a = np.mean(sigma_z_a)
@@ -467,33 +510,43 @@ def main():
     z_ave_ave_a = np.mean(z_ave_a)
 
     print('sync phase analy: {0:7.3f}'.format(z_ave_ave_a*1e3))
-    print('bun length analy: {0:7.3f} mm, ({1:7.3f} ps)'.format(bl_a*1e3,
-                                                                bl_a*1e12/c))
+    print('bun length analy: {0:7.3f} mm ({1:7.3f} ps)'.format(bl_a*1e3,
+                                                               bl_a*1e12/c))
 
     ax1.plot(ph, Vt_imp, label='Final Imp')
     # ax1.plot(ph, Vt_wake, label='Final Wake')
-    ax1.plot(ph, Vt_a, label='Final Analytic')
+    # ax1.plot(ph, Vt_a, label='Final Analytic')
 
-    ax2.plot(ph, dist_new[0, :], '--', label='Final Wake')
-    # ax2.plot(ph, dist_new[50, :], label='Final Imp - 50')
-    # ax2.plot(ph, dist_new[100, :], label='Final Imp - 100')
-    # ax2.plot(ph, dist_new[150, :], label='Final Imp - 150')
-    ax2.plot(ph, lamb.dist[0, :], label='Final Analytic')
+    ax2.plot(ph, dist_new[0, :], '--', label='Final Imp - 0')
+    # ax2.plot(ph, lamb.dist[0, :], label='Final Analytic')
 
-    ax3.plot(np.sqrt(sigma_z_imp)*1e3, label='Imp')
-    ax3.plot(z_ave_i*1e3, label='Imp')
-    ax3.plot(np.sqrt(sigma_z_a)*1e3, label='Analytic')
-    ax3.plot(z_ave_a*1e3, label='Analytic')
+    ax3.plot(sigma_z_imp*1e3, label='Bunch Length - Imp')
+    # ax3.plot(z_ave_i*1e3, label='Synch Phase - Imp')
+    # ax3.plot(sigma_z_a*1e3, label='Bunch Length - Analytic')
+    # ax3.plot(z_ave_a*1e3, label='Synch Phase - Analytic')
 
     # ax1.set_xlim([-0.5, 0.5])
     # ax1.set_ylim([-5e-7, 5e-7])
     ax1.legend(loc='best')
     ax2.legend(loc='best')
-    # ax3.legend(loc='best')
+    ax3.legend(loc='best')
     ax1.grid(True)
     ax2.grid(True)
     ax3.grid(True)
     plt.show()
+
+    # fig2 = plt.figure()
+    # fig2.suptitle('Potencial de Equilíbrio', fontsize=14, fontweight='bold')
+    # ax = fig2.add_subplot(111)
+    # ax.plot(ph, Vt_imp, label='Total')
+    # ax.plot(ph, V_i[0, :], label='3HC')
+    # ax.plot(ph, Vrf, label='RF Principal')
+    # # ax.plot(ph, lamb.dist[0, :], label='Analítico')
+    # fig2.subplots_adjust(top=0.85)
+    # ax.set_xlabel('Fase [rad]')
+    # ax.legend(loc='best')
+    # ax.grid(True)
+    # plt.show()
 
 
 if __name__ == "__main__":
