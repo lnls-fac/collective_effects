@@ -155,8 +155,8 @@ class HarmCav:
                                             self.shunt_imp/F))
         # self.harm_phase = (1/self.num)*np.arctan(-self.num*self._r /
         #                                          (np.sqrt((self.num**2-1)**2 -
-        #                                          self.num**4*self._r**2)))
-        # self.psi = np.pi/2 - self.num * self.harm_phase
+        #                                           self.num**4*self._r**2)))
+        # self.psi = np.pi/2 + self.num * self.harm_phase
         self.form_fact = F
 
     def print_param(self, ring):
@@ -261,7 +261,7 @@ def get_potentials_wake(ring, harm_cav, lamb):
     return -T0/E0 * 2*alpha*Rs*(Vt.real - alpha/harm_cav.wrb*Vt.imag)
 
 
-def get_potentials_imp(ring, harm_cav, lamb, n_terms=10):
+def get_potentials_imp(ring, harm_cav, lamb, n_terms=5):
 
     E0 = ring.E0
     C0 = ring.C0
@@ -324,29 +324,42 @@ def main():
     # ring.mom_cmpct = 1.639e-4
     # ring.synch_tune = 4.644e-3
 
-    # MAX IV
+    # # MAX IV
+    # ring.E0 = 3e9
+    # ring.nom_cur = 500e-3
+    # ring.en_lost_rad = 856e3
+    # ring.frf = 99.931e6
+    # ring.peak_rf = 1.63e6
+    # ring.harm_num = 176
+    # # ring.bunlen = 10.1e-3
+    # ring.en_spread = 7.82e-4
+    # ring.mom_cmpct = 3.07e-4
+    # ring.synch_tune = 1.994e-3
+
+    # MAX IV without ID
     ring.E0 = 3e9
     ring.nom_cur = 500e-3
-    ring.en_lost_rad = 856e3
+    ring.en_lost_rad = 360e3
     ring.frf = 99.931e6
-    ring.peak_rf = 1.63e6
+    ring.peak_rf = 1.02e6
     ring.harm_num = 176
-    # ring.bunlen = 10.1e-3
+    ring.bunlen = 40e-12*c
     ring.en_spread = 7.82e-4
     ring.mom_cmpct = 3.07e-4
     ring.synch_tune = 1.994e-3
+    df = -48.1227e3
 
-    # MAX II
+    # # MAX II
     # ring.E0 = 1.5e9
     # ring.en_lost_rad = 133.4e3
     # ring.mom_cmpct = 3.82e-3
-    # ring.en_spread = 0.0701/100
+    # ring.en_spread = 7.01e-4
     # ring.harm_num = 30
-    # ring.nom_cur = 140.94e-3
-    # ring.peak_rf = 424.42e3
+    # ring.nom_cur = 48.75e-3
+    # ring.peak_rf = 399.023e3
     # ring.frf = 99.959e6
-    # ring.ws = 2*np.pi*7375
-    # df = 109.92e3
+    # ring.ws = 2*np.pi*7125
+    # df = -26.370e3
 
     # # SLS
     # ring.E0 = 2.4e9
@@ -357,23 +370,43 @@ def main():
     # ring.en_lost_rad = 530e3
     # ring.peak_rf = 2.1e6
     # ring.nom_cur = 400e-3
-    # ring.bunlen = 4e-3
+    # # ring.bunlen = 4e-3
+    # ring.ws = 2*np.pi*7.5e3
+    # df = -48.1227e3
+
+    # # SSRF
+    # ring.E0 = 3.5e9
+    # ring.en_spread = 9.8e-4
+    # ring.frf = 500e6
+    # ring.harm_num = 720
+    # ring.mom_cmpct = 4.2e-4
+    # ring.en_lost_rad = 1.44e6
+    # ring.peak_rf = 4e6
+    # ring.nom_cur = 300e-3
+    # ring.bunlen = 3.8e-3
+    # df = -63e3
 
     r = ring.en_lost_rad/ring.peak_rf
 
     wrf = ring.wrf
     krf = wrf/c
     h = ring.harm_num
+    # It = ring.nom_cur
     It = ring.nom_cur
     # Q = 2.6e8
     # Rs = 88*Q
     # hc = HarmCav(wrf, n=3, Q=Q, Rs=Rs, r=r)  # NSLS-2 SC-3HC
-    hc = HarmCav(wrf, n=3, Q=21600, Rs=2.017e6, r=r)  # MAX IV
+    # hc = HarmCav(wrf, n=3, Q=21600, Rs=2.017e6, r=r)  # MAX IV
+    hc = HarmCav(wrf, n=3, Q=21600, Rs=2.36441e6, r=r)  # MAX IV without IDs
     # hc = HarmCav(wrf, n=5, Q=21720, Rs=1.57e6, r=r)  # MAX II
     # hc = HarmCav(wrf, n=3, Q=2e8, Rs=88.4*2e8, r=r)  # SLS
     F = np.exp(-(ring.bunlen*hc.num*wrf/c)**2)
+    # F = 0.948882
 
     hc.calc_flat_potential(ring, F=F)
+
+    fr = hc.num*ring.frf - df
+    hc.delta = df/fr
 
     # hc.psi = 90.003641*np.pi/180  # Flat condition to Rs = 88Q
     # hc.psi = 99.888555*np.pi/180  # Flat condition to Rs = 8.48M
@@ -399,7 +432,7 @@ def main():
     Ib = np.zeros(h, dtype=float)
     nfill = h
     start = 0
-    Ib[start:start+nfill] = It/h
+    Ib[start:start+nfill] = It/nfill
 
     lamb = Lambda(z, Ib, ring)
 
@@ -419,10 +452,11 @@ def main():
     # dist_old = lamb.get_dist(Vt_wake, ring)
     # F = np.trapz(dist_old*np.exp(1j*hc.num*wrf*z/c), z)
     # F /= np.trapz(lamb.dist, z)
+    # F_mod = np.absolute(F[0])
 
-    epsilon = 1e-5
+    epsilon = 1e-10
     param_conv = 15
-    n_iters = 500
+    n_iters = 5000
 
     # plt.plot(lamb.cur*1e3)
 
@@ -488,16 +522,17 @@ def main():
     # V_w = get_potentials_wake(ring, hc, lamb)
     # Vt_wake = Vrf + V_w[0, :]
 
+    # fwhm = 2*np.sqrt(2*np.log(2))
+
     print('sync phase: {0:7.3f} mm'.format(z_ave_ave_i*1e3))
     print('bun length: {0:7.3f} mm ({1:7.3f} ps)'.format(bl_imp*1e3,
                                                          bl_imp*1e12/c))
-
     print('=============================')
 
     print('ANALYTICAL')
 
-    hc.shunt_imp = 2.017e6
-    hc.psi = 103.717*np.pi/180
+    # hc.shunt_imp = 2.017e6
+    # hc.psi = 103.717*np.pi/180
     hc.form_fact = F_mod
 
     V_a = get_potential_analytic_uni_fill(ring, hc, z)
@@ -515,10 +550,10 @@ def main():
 
     ax1.plot(ph, Vt_imp, label='Final Imp')
     # ax1.plot(ph, Vt_wake, label='Final Wake')
-    # ax1.plot(ph, Vt_a, label='Final Analytic')
+    ax1.plot(ph, Vt_a, label='Final Analytic')
 
     ax2.plot(ph, dist_new[0, :], '--', label='Final Imp - 0')
-    # ax2.plot(ph, lamb.dist[0, :], label='Final Analytic')
+    ax2.plot(ph, lamb.dist[0, :], label='Final Analytic')
 
     ax3.plot(sigma_z_imp*1e3, label='Bunch Length - Imp')
     # ax3.plot(z_ave_i*1e3, label='Synch Phase - Imp')
