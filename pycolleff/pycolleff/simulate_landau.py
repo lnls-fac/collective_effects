@@ -2,6 +2,7 @@ import numpy as np
 import scipy.integrate as scy_int
 import mathphys as _mp
 import resource
+import simulate_landau as landau_cav
 
 c = _mp.constants.light_speed
 
@@ -290,3 +291,45 @@ def get_potential_analytic_uni_fill(ring, harm_cav, z):
     wrf = ring.wrf
     z_n = z - z0
     return -2*It*Rs*F*np.cos(psi)*np.cos(n*wrf*z_n/c-psi)/ring.E0
+
+
+def calc_equilibrium_potential(ring, lamb, hc, z, epsilon=1e-6, param_conv=15,
+                               n_iters=1000):
+
+    Vrf = ring.get_Vrf(z)
+    dist_old = lamb.get_gauss_dist(hc.length_shift, ring.bunlen)
+    lamb.dist = np.array(dist_old)
+
+    V_i = landau_cav.get_potentials_imp(ring, hc, lamb)
+    Vt_imp = Vrf[None, :] + V_i
+    dist_old = lamb.get_dist(Vt_imp, ring)
+
+    dist_new = np.zeros(dist_old.shape)
+
+    for i in range(n_iters):
+        lamb.dist = np.array(dist_old)
+        F_new = np.trapz(lamb.dist*np.exp(1j*hc.num*ring.wrf*z/c), z)
+        F_new /= np.trapz(lamb.dist, z)
+        F_mod = np.absolute(np.mean(F_new))
+
+        V_i = landau_cav.get_potentials_imp(ring, hc, lamb)
+        Vt_imp = Vrf[None, :] + V_i
+        dist_new = lamb.get_dist(Vt_imp, ring)
+
+        # V_w = landau_cav.get_potentials_wake(ring, hc, lamb)
+        # Vt_wake = Vrf[None, :] + V_w
+        # dist_new = lamb.get_dist(Vt_wake, ring)
+
+        dif = dist_new - dist_old
+        res = np.trapz(np.absolute(dif), z)
+        conv = np.mean(res)
+        print('{0:03d}: {1:f}, F: {2:f}'.format(i, conv, F_mod))
+
+        if conv < epsilon:
+            break
+
+        dist_old *= param_conv
+        dist_old += dist_new
+        dist_old /= param_conv + 1
+
+    return V_i, Vt_imp, dist_new
