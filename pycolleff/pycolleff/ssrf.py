@@ -41,27 +41,12 @@ def main():
     hc.dw = 57e3 * 2 * np.pi
 
     zlim = 30*sigz
-    npoints = 1501
+    npoints = 2001
     z = np.linspace(-zlim, zlim, npoints)
 
     Ib = np.zeros(h, dtype=float)
-    s_fill = h
-    n_trains = 1
-    s_gap = (h - n_trains * s_fill) // n_trains
-    Ib[:] = It / s_fill / n_trains
-
-    for j in range(n_trains):
-        Ib[j * (s_fill + s_gap) + s_fill:(j + 1) * (s_fill+s_gap)] = 0
-
-    lamb = landau_cav.Lambda(z, Ib, ring)
-
-    zlim = 30*sigz
-    npoints = 1501
-    z = np.linspace(-zlim, zlim, npoints)
-
-    Ib = np.zeros(h, dtype=float)
-    s_fill = h
-    n_trains = 1
+    s_fill = 50
+    n_trains = 10
     s_gap = (h - n_trains * s_fill) // n_trains
     Ib[:] = It / s_fill / n_trains
 
@@ -74,8 +59,11 @@ def main():
                                                            epsilon=1e-5,
                                                            param_conv=15,
                                                            n_iters=1000)
+
     lamb.dist = np.array(dist_new)
     sigma_z_imp = lamb.get_bun_lens()
+    # sigma_z_imp = lamb.get_bun_lens_fwhm() / (2*np.sqrt(2*np.log(2)))
+
     z_ave_i = lamb.get_synch_phases()
     bl_imp = np.mean(sigma_z_imp)
     z_ave_ave_i = np.mean(z_ave_i)
@@ -85,9 +73,15 @@ def main():
 
     # fwhm = 2*np.sqrt(2*np.log(2))
 
+    mask = lamb.cur < 1e-8
+    sigma_z_imp[mask] = np.nan
+    z_ave_i[mask] = np.nan
+    ind_max = np.nanargmax(sigma_z_imp)
+
     print('sync phase: {0:7.3f} mm'.format(z_ave_ave_i*1e3))
     print('bun length: {0:7.3f} mm ({1:7.3f} ps)'.format(bl_imp*1e3,
                                                          bl_imp*1e12/c))
+    print('max bun length factor: {0:1.3f} (Bunch number {1:1g})'.format(np.nanmax(sigma_z_imp)/sigz, ind_max))
     plt.figure(figsize=(10, 14))
     gs = gridspec.GridSpec(4, 1)
     gs.update(left=0.10, right=0.95, bottom=0.10,
@@ -99,7 +93,7 @@ def main():
 
     ph = z*krf
 
-    ax1.plot(ph, dist_new[0, :], label='Distribution 1st bunch')
+    ax1.plot(ph, dist_new[ind_max, :], label='Distribution 1st bunch')
     ax2.plot(lamb.cur, label='Current - [mA]')
 
     mask = lamb.cur < 1e-6
@@ -107,7 +101,7 @@ def main():
     z_ave_i[mask] = np.nan
 
     ax3.plot(sigma_z_imp/ring.bunlen, label='Bunch Lengthening factor')
-    ax4.plot(ring.synch_phase + z_ave_i*krf, label='Synch Phase')
+    ax4.plot(ring.synch_phase - np.pi/2 - z_ave_i*krf, label='Synch Phase')
 
     ax1.legend(loc='best')
     ax2.legend(loc='best')

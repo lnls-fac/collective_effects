@@ -54,7 +54,7 @@ def main():
     lamb = landau_cav.Lambda(z, Ib, ring)
 
     _, _, dist_new = landau_cav.calc_equilibrium_potential(ring, lamb, hc, z,
-                                                           epsilon=1e-5,
+                                                           epsilon=1e-6,
                                                            param_conv=15,
                                                            n_iters=1000)
     lamb.dist = np.array(dist_new)
@@ -71,7 +71,14 @@ def main():
     print('sync phase: {0:7.3f} mm'.format(z_ave_ave_i*1e3))
     print('bun length: {0:7.3f} mm ({1:7.3f} ps)'.format(bl_imp*1e3,
                                                          bl_imp*1e12/c))
-    plt.figure(figsize=(10, 14))
+
+    mask = lamb.cur < 1e-8
+    sigma_z_imp[mask] = np.nan
+    z_ave_i[mask] = np.nan
+    ind_max = np.nanargmax(sigma_z_imp)
+
+    print('max bun length factor: {0:1.3f} (Bunch number {1:1g})'.format(np.nanmax(sigma_z_imp)/sigz, ind_max))
+    f = plt.figure(figsize=(10, 14))
     gs = gridspec.GridSpec(4, 1)
     gs.update(left=0.10, right=0.95, bottom=0.10,
               top=0.97, wspace=0.35, hspace=0.25)
@@ -82,13 +89,8 @@ def main():
 
     ph = z*krf
 
-    ax1.plot(ph, dist_new[0, :], label='Distribution 1st bunch')
+    ax1.plot(ph, dist_new[40, :], label='Distribution max bunch length')
     ax2.plot(lamb.cur, label='Current - [mA]')
-
-    mask = lamb.cur < 1e-6
-    sigma_z_imp[mask] = np.nan
-    z_ave_i[mask] = np.nan
-
     ax3.plot(sigma_z_imp/ring.bunlen, label='Bunch Lengthening factor')
     ax4.plot(ring.synch_phase + z_ave_i*krf, label='Synch Phase')
 
@@ -101,6 +103,7 @@ def main():
     ax3.grid(True)
     ax4.grid(True)
     plt.show()
+    f.savefig('landau.png')
 
 
 if __name__ == "__main__":

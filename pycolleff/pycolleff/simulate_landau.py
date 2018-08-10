@@ -3,6 +3,7 @@ import scipy.integrate as scy_int
 import mathphys as _mp
 import resource
 import simulate_landau as landau_cav
+import matplotlib.pyplot as plt
 
 c = _mp.constants.light_speed
 
@@ -157,7 +158,7 @@ class HarmCav:
                                                   self.num**4*self._r**2)))
         self.psi = np.pi/2 - self.num * self.harm_phase
         # self.psi = np.pi - np.abs(np.arccos(self.k * ring.peak_rf / 2 / It /
-                                            # self.shunt_imp/F))
+        #                                    self.shunt_imp/F))
         self.form_fact = F
 
     def print_param(self, ring):
@@ -218,6 +219,14 @@ class Lambda:
         z_2 = np.trapz(self.dist * zl * zl, self.z)
         return np.sqrt(z_2 - z_m * z_m)
 
+    def get_bun_lens_fwhm(self):
+        sigma_fwhm = np.zeros(len(self.cur))
+        maxi = self.dist.max(axis=1)
+        ind = self.dist >= maxi[:, None]/2
+        for i in range(len(self.cur)):
+            sigma_fwhm[i] = self.z[ind[i, :]][-1] - self.z[ind[i, :]][0]
+        return sigma_fwhm
+
 
 def get_potentials_wake(ring, harm_cav, lamb):
     E0 = ring.E0
@@ -246,7 +255,7 @@ def get_potentials_wake(ring, harm_cav, lamb):
     return -T0/E0 * 2*alpha*Rs*(Vt.real - alpha/harm_cav.wrb*Vt.imag)
 
 
-def get_potentials_imp(ring, harm_cav, lamb, n_terms=5):
+def get_potentials_imp(ring, harm_cav, lamb, n_terms=100):
 
     E0 = ring.E0
     C0 = ring.C0
@@ -265,20 +274,44 @@ def get_potentials_imp(ring, harm_cav, lamb, n_terms=5):
 
     ind_b = np.arange(h)
     dif = ind_b[:, None] - ind_b[None, :]
-    Vt = np.zeros([h, len(z)])
 
-    if np.all(cur[1:] == cur[:-1]):
-        n_terms = 0
-
-    for p in range(p0-n_terms, p0+n_terms+1):
-        wp = p*w0
-        B = np.exp(-1j * wp * dif * C0 / h / c)
-        lamb_w = cur * np.trapz(lamb.dist*np.exp(-1j * wp * z / c)[None, :], z)
+    def potential_freq(w):
+        B = np.exp(-1j * w * dif * C0 / h / c)
+        lamb_w = cur * np.trapz(lamb.dist*np.exp(-1j * w * z / c)[None, :], z)
         V = np.dot(B, lamb_w)
-        Zp = Rs/(1 - 1j * Q * (wr / wp - wp / wr))
-        V_hat = (w0 / 2 / np.pi * Zp * np.exp(1j*wp*z/c))[None, :] * V[:, None]
-        Vt += 2 * V_hat.real
-    return - T0 / E0 * Vt
+        Zp = Rs/(1 - 1j * Q * (wr / w - w / wr))
+        V_hat = (w0 / 2 / np.pi * Zp * np.exp(1j*w*z/c))[None, :] * V[:, None]
+        return 2 * V_hat.real
+
+    Vtn = np.zeros([h, len(z)])
+    Vtp = np.zeros([h, len(z)])
+    Vt_old = np.zeros([h, len(z)])
+    Vt_new = np.zeros([h, len(z)])
+
+    wp0 = p0*w0
+    V_p0 = potential_freq(w=wp0)
+
+    cvg_r = 1e-12
+    cvg_a = 1e-8
+
+    Vt_new = np.array(V_p0)
+    for k in range(1, n_terms+1):
+        Vt_old = np.array(Vt_new)
+
+        wpn = (p0-k)*w0
+        Vtn = potential_freq(w=wpn)
+        wpp = (p0+k)*w0
+        Vtp = potential_freq(w=wpp)
+        V_add = Vtp+Vtn
+        Vt_new += V_add
+
+        # Zpp = np.abs(1/(1 - 1j * Q * (wr / wpp - wpp / wr)))
+        # Zpn = np.abs(1/(1 - 1j * Q * (wr / wpn - wpn / wr)))
+
+        if np.allclose(Vt_new, Vt_old, rtol=cvg_r, atol=cvg_a):
+            break
+    # print(np.mean(Vt_new), np.max(np.abs(Vt_old-Vt_new)/Vt_old), Zpp, Zpn)
+    return - T0 / E0 * Vt_new, k
 
 
 def get_potential_analytic_uni_fill(ring, harm_cav, z):
@@ -295,35 +328,37 @@ def get_potential_analytic_uni_fill(ring, harm_cav, z):
 
 def calc_equilibrium_potential(ring, lamb, hc, z, epsilon=1e-6, param_conv=15,
                                n_iters=1000):
+    def form_factor(distr):
+        F = np.trapz(distr*np.exp(1j*hc.num*ring.wrf*z/c), z)
+        F /= np.trapz(distr, z)
+        return F
 
     Vrf = ring.get_Vrf(z)
     dist_old = lamb.get_gauss_dist(hc.length_shift, ring.bunlen)
     lamb.dist = np.array(dist_old)
 
-    V_i = landau_cav.get_potentials_imp(ring, hc, lamb)
-    Vt_imp = Vrf[None, :] + V_i
-    dist_old = lamb.get_dist(Vt_imp, ring)
+    # eval_fun = landau_cav.get_potentials_imp
+    eval_fun = landau_cav.get_potentials_wake
 
+    V = eval_fun(ring, hc, lamb)
+    Vt = Vrf[None, :] + V
+    dist_old = lamb.get_dist(Vt, ring)
+    F_old = form_factor(dist_old)
     dist_new = np.zeros(dist_old.shape)
 
     for i in range(n_iters):
         lamb.dist = np.array(dist_old)
-        F_new = np.trapz(lamb.dist*np.exp(1j*hc.num*ring.wrf*z/c), z)
-        F_new /= np.trapz(lamb.dist, z)
-        F_mod = np.absolute(np.mean(F_new))
+        V = eval_fun(ring, hc, lamb)
+        Vt = Vrf[None, :] + V
+        dist_new = lamb.get_dist(Vt, ring)
+        F_new = form_factor(dist_new)
+        pf = 1
+        conv = np.max(np.absolute((F_new - F_old) / F_old))
 
-        V_i = landau_cav.get_potentials_imp(ring, hc, lamb)
-        Vt_imp = Vrf[None, :] + V_i
-        dist_new = lamb.get_dist(Vt_imp, ring)
-
-        # V_w = landau_cav.get_potentials_wake(ring, hc, lamb)
-        # Vt_wake = Vrf[None, :] + V_w
-        # dist_new = lamb.get_dist(Vt_wake, ring)
-
-        dif = dist_new - dist_old
-        res = np.trapz(np.absolute(dif), z)
-        conv = np.mean(res)
-        print('{0:03d}: {1:f}, F: {2:f}'.format(i, conv, F_mod))
+        # dif = dist_new - dist_old
+        # res = np.trapz(np.absolute(dif), z)
+        # conv = np.mean(res)
+        print('{0:03d}: {1:f}, F: {2:f}, p: {3:g}'.format(i, conv, np.mean(np.abs(F_new)), pf))
 
         if conv < epsilon:
             break
@@ -331,5 +366,5 @@ def calc_equilibrium_potential(ring, lamb, hc, z, epsilon=1e-6, param_conv=15,
         dist_old *= param_conv
         dist_old += dist_new
         dist_old /= param_conv + 1
-
-    return V_i, Vt_imp, dist_new
+        F_old = F_new
+    return V, Vt, dist_new
