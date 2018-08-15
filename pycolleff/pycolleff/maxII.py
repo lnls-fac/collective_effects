@@ -54,21 +54,6 @@ def main():
 
     lamb = landau_cav.Lambda(z, Ib, ring)
 
-    zlim = 30*sigz
-    npoints = 1501
-    z = np.linspace(-zlim, zlim, npoints)
-
-    Ib = np.zeros(h, dtype=float)
-    s_fill = h
-    n_trains = 1
-    s_gap = (h - n_trains * s_fill) // n_trains
-    Ib[:] = It / s_fill / n_trains
-
-    for j in range(n_trains):
-        Ib[j * (s_fill + s_gap) + s_fill:(j + 1) * (s_fill+s_gap)] = 0
-
-    lamb = landau_cav.Lambda(z, Ib, ring)
-
     _, _, dist_new = landau_cav.calc_equilibrium_potential(ring, lamb, hc, z,
                                                            epsilon=1e-5,
                                                            param_conv=15,

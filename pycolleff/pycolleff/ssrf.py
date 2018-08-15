@@ -20,7 +20,7 @@ def main():
     ring.harm_num = 720
     ring.mom_cmpct = 4.2e-4
     ring.en_lost_rad = 1.44e6
-    ring.peak_rf = 4.8e6
+    ring.peak_rf = 4.0e6
     ring.nom_cur = 300e-3
 
     r = ring.en_lost_rad/ring.peak_rf
@@ -31,22 +31,23 @@ def main():
     It = ring.nom_cur
     sigz = ring.bunlen
 
-    Q = 1.5e8
-    hc = landau_cav.HarmCav(wrf, n=3, Q=Q, Rs=180*Q, r=r)  # SSRF
+    Q = 1.5e5
+    Rs = 180*Q
+    hc = landau_cav.HarmCav(wrf, n=3, Q=Q, Rs=Rs, r=r)  # SSRF
 
     F = np.exp(-(sigz*hc.num*wrf/c)**2)
 
     hc.calc_flat_potential(ring, F=F)
 
-    hc.dw = 57e3 * 2 * np.pi
+    hc.dw = 63e3 * 2 * np.pi
 
     zlim = 30*sigz
     npoints = 2001
     z = np.linspace(-zlim, zlim, npoints)
 
     Ib = np.zeros(h, dtype=float)
-    s_fill = 50
-    n_trains = 10
+    s_fill = h
+    n_trains = 1
     s_gap = (h - n_trains * s_fill) // n_trains
     Ib[:] = It / s_fill / n_trains
 
@@ -62,7 +63,7 @@ def main():
 
     lamb.dist = np.array(dist_new)
     sigma_z_imp = lamb.get_bun_lens()
-    # sigma_z_imp = lamb.get_bun_lens_fwhm() / (2*np.sqrt(2*np.log(2)))
+    sigma_z_imp_fwhm = lamb.get_bun_lens_fwhm() / 2.35
 
     z_ave_i = lamb.get_synch_phases()
     bl_imp = np.mean(sigma_z_imp)
@@ -82,6 +83,7 @@ def main():
     print('bun length: {0:7.3f} mm ({1:7.3f} ps)'.format(bl_imp*1e3,
                                                          bl_imp*1e12/c))
     print('max bun length factor: {0:1.3f} (Bunch number {1:1g})'.format(np.nanmax(sigma_z_imp)/sigz, ind_max))
+    print('max bun length factor FWHM: {0:1.3f} (Bunch number {1:1g})'.format(np.nanmax(sigma_z_imp_fwhm)/sigz, ind_max))
     plt.figure(figsize=(10, 14))
     gs = gridspec.GridSpec(4, 1)
     gs.update(left=0.10, right=0.95, bottom=0.10,
@@ -93,7 +95,7 @@ def main():
 
     ph = z*krf
 
-    ax1.plot(ph, dist_new[ind_max, :], label='Distribution 1st bunch')
+    ax1.plot(ph, dist_new[ind_max, :], label='Distribution max bunch')
     ax2.plot(lamb.cur, label='Current - [mA]')
 
     mask = lamb.cur < 1e-6

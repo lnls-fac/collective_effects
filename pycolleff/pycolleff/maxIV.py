@@ -54,11 +54,13 @@ def main():
     lamb = landau_cav.Lambda(z, Ib, ring)
 
     _, _, dist_new = landau_cav.calc_equilibrium_potential(ring, lamb, hc, z,
-                                                           epsilon=1e-6,
+                                                           epsilon=1e-10,
                                                            param_conv=15,
                                                            n_iters=1000)
     lamb.dist = np.array(dist_new)
     sigma_z_imp = lamb.get_bun_lens()
+    sigma_z_imp_fwhm = lamb.get_bun_lens_fwhm() / 2.35
+
     z_ave_i = lamb.get_synch_phases()
     bl_imp = np.mean(sigma_z_imp)
     z_ave_ave_i = np.mean(z_ave_i)
@@ -68,16 +70,16 @@ def main():
 
     # fwhm = 2*np.sqrt(2*np.log(2))
 
-    print('sync phase: {0:7.3f} mm'.format(z_ave_ave_i*1e3))
-    print('bun length: {0:7.3f} mm ({1:7.3f} ps)'.format(bl_imp*1e3,
-                                                         bl_imp*1e12/c))
-
     mask = lamb.cur < 1e-8
     sigma_z_imp[mask] = np.nan
     z_ave_i[mask] = np.nan
     ind_max = np.nanargmax(sigma_z_imp)
 
+    print('sync phase: {0:7.3f} mm'.format(z_ave_ave_i*1e3))
+    print('bun length: {0:7.3f} mm ({1:7.3f} ps)'.format(bl_imp*1e3,
+                                                         bl_imp*1e12/c))
     print('max bun length factor: {0:1.3f} (Bunch number {1:1g})'.format(np.nanmax(sigma_z_imp)/sigz, ind_max))
+    print('max bun length factor FWHM: {0:1.3f} (Bunch number {1:1g})'.format(np.nanmax(sigma_z_imp_fwhm)/sigz, ind_max))
     f = plt.figure(figsize=(10, 14))
     gs = gridspec.GridSpec(4, 1)
     gs.update(left=0.10, right=0.95, bottom=0.10,
