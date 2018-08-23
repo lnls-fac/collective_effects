@@ -36,7 +36,7 @@ def main():
 
     hc.calc_flat_potential(ring, F=F)
 
-    hc.psi = 103.717*np.pi/180
+    hc.psi = -103.717*np.pi/180
 
     zlim = 30*sigz
     npoints = 1501

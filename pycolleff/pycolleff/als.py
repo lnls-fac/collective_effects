@@ -16,12 +16,12 @@ def main():
     # SLS
     ring.E0 = 1.9e9
     ring.en_spread = 8.1e-4
-    ring.frf = 499.660e6
+    ring.frf = 499.654e6
     ring.harm_num = 328
     ring.mom_cmpct = 1.62e-3
-    ring.en_lost_rad = 245e3
+    ring.en_lost_rad = 320e3
     ring.peak_rf = 1.1e6
-    ring.nom_cur = 400e-3
+    ring.nom_cur = 300e-3
 
     r = ring.en_lost_rad/ring.peak_rf
 
@@ -32,7 +32,7 @@ def main():
     sigz = ring.bunlen
 
     Q = 21e3
-    Rs = 3*1.7e6
+    Rs = 3 * 80.4 * Q
 
     hc = []
 
@@ -46,15 +46,15 @@ def main():
 
     hc_landau.calc_flat_potential(ring, F=F)
 
-    hc_landau.psi = np.pi/2 - 3*(-0.0275)
-    hc_main.psi = - hc_landau.psi
+    hc_landau.psi = np.pi/2 + 3*(-0.0275)
+    hc_main.psi = -hc_landau.psi
 
-    zlim = 30*sigz
-    npoints = 1501
+    zlim = 15*sigz
+    npoints = 5501
     z = np.linspace(-zlim, zlim, npoints)
 
     Ib = np.zeros(h, dtype=float)
-    s_fill = h
+    s_fill = 272
     n_trains = 1
     s_gap = (h - n_trains * s_fill) // n_trains
     Ib[:] = It / s_fill / n_trains
@@ -64,10 +64,10 @@ def main():
 
     lamb = landau_cav.Lambda(z, Ib, ring)
 
-    _, _, dist_new = landau_cav.calc_equilibrium_potential(ring, lamb, hc, z,
-                                                           epsilon=1e-5,
-                                                           param_conv=15,
-                                                           n_iters=1000)
+    Vc, _, dist_new = landau_cav.calc_equilibrium_potential(ring, lamb, hc, z,
+                                                            epsilon=1e-5,
+                                                            param_conv=15,
+                                                            n_iters=1000)
 
     lamb.dist = np.array(dist_new)
     sigma_z_imp = lamb.get_bun_lens()
@@ -77,55 +77,66 @@ def main():
     bl_imp = np.mean(sigma_z_imp)
     z_ave_ave_i = np.mean(z_ave_i)
 
-    print('LANDAU CAVITY')
+    print('==============================')
+    print('HARMONIC CAVITY PARAMETERS')
+    print('==============================')
     hc_landau.print_param(ring)
 
     # fwhm = 2*np.sqrt(2*np.log(2))
 
-    mask = lamb.cur < 1e-8
+    mask = lamb.cur < 1e-6
+    sigma_z_imp_fwhm[mask] = np.nan
     sigma_z_imp[mask] = np.nan
     z_ave_i[mask] = np.nan
+    # Vc = np.sqrt(np.mean(Vc * Vc, axis=1)) * ring.E0 * 1e-3
+    Vc = np.max(Vc, axis=1) * ring.E0 * 1e-3
+    Vc[mask] = np.nan
     ind_max = np.nanargmax(sigma_z_imp)
+
+    print('==============================')
+    print('BUNCH PARAMETERS')
+    print('==============================')
 
     print('sync phase: {0:7.3f} mm'.format(z_ave_ave_i*1e3))
     print('natural bun length: {0:7.3f} mm ({1:7.3f} ps)'.format(sigz*1e3,
-                                                         sigz*1e12/c))
+                                                          sigz*1e12/c))
     print('average bun length: {0:7.3f} mm ({1:7.3f} ps)'.format(bl_imp*1e3,
                                                          bl_imp*1e12/c))
     print('average bun length factor: {0:1.3f}'.format(np.nanmean(sigma_z_imp)/sigz))
     print('average bun length factor FWHM: {0:1.3f}'.format(np.nanmean(sigma_z_imp_fwhm)/sigz))
     print('max bun length factor: {0:1.3f} (Bunch number {1:1g})'.format(np.nanmax(sigma_z_imp)/sigz, ind_max))
     print('max bun length factor FWHM: {0:1.3f} (Bunch number {1:1g})'.format(np.nanmax(sigma_z_imp_fwhm)/sigz, ind_max))
+    print('mean harm. voltage: {0:1.3f} kV'.format(np.nanmean(Vc)))
     plt.figure(figsize=(10, 14))
-    gs = gridspec.GridSpec(4, 1)
+    gs = gridspec.GridSpec(5, 1)
     gs.update(left=0.10, right=0.95, bottom=0.10,
               top=0.97, wspace=0.35, hspace=0.25)
     ax1 = plt.subplot(gs[0, 0])
     ax2 = plt.subplot(gs[1, 0])
     ax3 = plt.subplot(gs[2, 0], sharex=ax2)
     ax4 = plt.subplot(gs[3, 0], sharex=ax2)
+    ax5 = plt.subplot(gs[4, 0], sharex=ax2)
 
     ph = z*krf
 
-    ax1.plot(ph, dist_new[ind_max, :], label='Distribution max bunch length')
+    ax1.plot(ph, dist_new[ind_max, :], label='Distribution max bunch')
     ax2.plot(lamb.cur, label='Current - [mA]')
-
-    mask = lamb.cur < 1e-8
-    sigma_z_imp[mask] = np.nan
-    z_ave_i[mask] = np.nan
-
     ax3.plot(sigma_z_imp/ring.bunlen, label='Bunch Lengthening factor')
-    ax4.plot(z_ave_i*krf, label='Synch Phase')
+    ax4.plot(ring.synch_phase + z_ave_i*krf - np.pi/2, label='Synch Phase')
+    ax5.plot(Vc, label='Harmonic Voltage (kV)')
 
     ax1.legend(loc='best')
     ax2.legend(loc='best')
     ax3.legend(loc='best')
     ax4.legend(loc='best')
+    ax5.legend(loc='best')
     ax1.grid(True)
     ax2.grid(True)
     ax3.grid(True)
     ax4.grid(True)
+    ax5.grid(True)
     plt.show()
+
 
 if __name__ == "__main__":
     landau_cav.memory_limit()   # Limitates maximum memory usage to half
