@@ -95,25 +95,17 @@ class HarmCav:
         self.psi = np.arctan(delta*2*self.quality_fact)
 
     @property
-    def harm_phase(self):
-        return (np.pi/2 - self.psi)/self.num
-
-    @harm_phase.setter
-    def harm_phase(self, phih):
-        self.psi = np.pi/2 - self.num*phih
-
-    @property
     def dw(self):
-        return self.num * self._wrf - self.wr
+        return self.wr - self.num * self._wrf
 
     @dw.setter
     def dw(self, dw):
-        self.wr = self.num * self._wrf - dw
+        self.wr = -(dw + self.num * self._wrf)
 
     @property
     def wr(self):
         delta = self.delta
-        return self.num*self._wrf*(-delta + np.sqrt(delta*delta + 1))
+        return self.num*self._wrf*(delta + np.sqrt(delta*delta + 1))
 
     @wr.setter
     def wr(self, wr):
@@ -156,10 +148,9 @@ class HarmCav:
 
     def calc_flat_potential(self, ring, F=1):
         It = ring.nom_cur
-        self.harm_phase = (1/self.num)*np.arctan(-self.num*self._r /
-                                                 (np.sqrt((self.num**2-1)**2 -
-                                                  self.num**4*self._r**2)))
-        self.psi = np.pi/2 - self.num * self.harm_phase
+        ratio = self.num**2 / (self.num**2 - 1) * self._r
+        phi_h = np.arctan(ratio / np.sqrt(1 - ratio * ratio) / self.num)
+        self.psi = np.pi/2 - phi_h
         # self.psi = np.pi - np.abs(np.arccos(self.k * ring.peak_rf / 2 / It /
         #                                    self.shunt_imp/F))
         self.form_fact = F
@@ -173,7 +164,6 @@ class HarmCav:
                                                             np.pi*180,
                                                             self.length_shift *
                                                             1e3))
-        print('Harm. cav. phase {0:7.3f}°'.format(self.harm_phase * 180/np.pi))
         print('Shunt Impedance {0:6.4f}M'.format(self.shunt_imp*1e-6))
         print('Form factor {0:6.4f}'.format(self.form_fact))
         print('Harm. cav. detuning {0:7.3f}kHz'.format(self.dw / 2
@@ -327,7 +317,7 @@ def get_potential_analytic_uni_fill(ring, harm_cav, z):
     z0 = harm_cav.length_shift
     wrf = ring.wrf
     z_n = z - z0
-    return -2*It*Rs*F*np.cos(psi)*np.cos(n*wrf*z_n/c-psi)/ring.E0
+    return -2*It*Rs*F*np.cos(psi)*np.cos(n*wrf*z_n/c+psi)/ring.E0
 
 
 def form_factor(w, z, dist):
@@ -345,11 +335,12 @@ def calc_equilibrium_potential(ring, lamb, hc, z, epsilon=1e-6, param_conv=15,
     Vrf = ring.get_Vrf(z)
     Vc_t = np.zeros((ring.harm_num, len(z)))
 
-    eval_fun = _partial(get_potentials_imp, cvg_r=1e-5)
-    # eval_fun = get_potentials_wake
+    # eval_fun = _partial(get_potentials_imp, cvg_r=1e-5)
+    eval_fun = get_potentials_wake
 
     dist_old = lamb.get_gauss_dist(hc[0].length_shift, ring.bunlen)
     lamb.dist = np.array(dist_old)
+
     for cav in hc:
         Vc, k = eval_fun(ring, cav, lamb)
         Vc_t += Vc
@@ -365,9 +356,11 @@ def calc_equilibrium_potential(ring, lamb, hc, z, epsilon=1e-6, param_conv=15,
         Vt = Vrf[None, :]
         Vc_t = np.zeros((ring.harm_num, len(z)))
 
-        for cav in hc:
+        for j, cav in enumerate(hc):
             Vc, pf = eval_fun(ring, cav, lamb)
             Vc_t += Vc
+            if not j:
+                V_keep = Vc
 
         Vt = Vrf[None, :] + Vc_t
 
@@ -386,4 +379,5 @@ def calc_equilibrium_potential(ring, lamb, hc, z, epsilon=1e-6, param_conv=15,
         dist_old += dist_new
         dist_old /= param_conv + 1
         F_old = F_new
-    return Vc, Vt, dist_new
+        hc[0].form_fact = np.mean(np.abs(F_new))
+    return V_keep, Vt, dist_new
