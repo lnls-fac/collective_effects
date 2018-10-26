@@ -1,4 +1,7 @@
 
+al_cond     = 3.7e7
+al_rel_time = 7.2e-15
+
 cu_cond     = 5.9e7
 cu_rel_time = 27e-15
 
