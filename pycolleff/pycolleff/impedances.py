@@ -4,7 +4,7 @@ import numpy as _np
 import matplotlib.pyplot as _plt
 import scipy.special as _scyspe
 import scipy.signal as _scysig
-import mathphys as _mp
+import lnls as _lnls
 
 _c = _mp.constants.light_speed
 _mu0 = _mp.constants.vacuum_permeability
@@ -107,11 +107,11 @@ class Element:
 
     def save(self):
         name = self.name.replace(' ', '_').lower()
-        _mp.utils.save_pickle(_os.path.sep.join([self.path, name]),element=self)
+        _lnls.utils.save_pickle(_os.path.sep.join([self.path, name]),element=self)
 
     def load(self):
         name = self.name.replace(' ','_').lower()
-        data = _mp.utils.load_pickle(_os.path.sep.join([self.path, name]))
+        data = _lnls.utils.load_pickle(_os.path.sep.join([self.path, name]))
         return data['element']
 
     def plot(self, props='all', logscale=True, show = True, save = False, name='',figsize=(8,4)):
@@ -219,11 +219,11 @@ class Budget(list):
 
     def save(self):
         name = self.name.replace(' ','_').lower()
-        _mp.utils.save_pickle(_os.path.sep.join([self.path,name]),budget=self)
+        _lnls.utils.save_pickle(_os.path.sep.join([self.path,name]),budget=self)
 
     def load(self):
         name = self.name.replace(' ','_').lower()
-        data = _mp.utils.load_pickle(_os.path.sep.join([self.path,name]))
+        data = _lnls.utils.load_pickle(_os.path.sep.join([self.path,name]))
         return data['budget']
 
     def plot(self, props='all', logscale=True, show = True, save = False,
@@ -267,12 +267,12 @@ class Budget(list):
         if show: _plt.show()
 
 def load_budget(fname):
-        data = _mp.utils.load_pickle(fname)
+        data = _lnls.utils.load_pickle(fname)
         return data['budget']
 
 
 def load_element(fname):
-        data = _mp.utils.load_pickle(fname)
+        data = _lnls.utils.load_pickle(fname)
         return data['element']
 
 
