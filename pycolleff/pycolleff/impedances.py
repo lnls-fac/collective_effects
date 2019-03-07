@@ -5,6 +5,7 @@ import matplotlib.pyplot as _plt
 import scipy.special as _scyspe
 import scipy.signal as _scysig
 import lnls as _lnls
+import mathphys as _mp
 
 _c = _mp.constants.light_speed
 _mu0 = _mp.constants.vacuum_permeability
