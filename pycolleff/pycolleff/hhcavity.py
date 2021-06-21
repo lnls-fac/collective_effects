@@ -16,6 +16,8 @@ import pycolleff.impedances as imp
 import pycolleff.sirius as si
 import pycolleff.colleff as colleff
 
+_c = mathphys.constants.light_speed
+_pi = np.pi
 
 class Params:
     """."""
@@ -46,7 +48,7 @@ class Params:
         self.I0 = 350e-3
         self.E0 = 3e9
         self.alpha = 1.6446539e-4
-        self.sync_phase = 163.1219 * np.pi/180
+        self.sync_phase = 163.1219 * _pi/180
         self.tunes = 4.6520358017681e-3
         self.bunlen = 2.46e3
         self.espread = 8.43589e-4
@@ -61,7 +63,7 @@ class Params:
         self.I0 = 500e-3
         self.E0 = 3e9
         self.alpha = 3.07e-4
-        self.sync_phase = 148.32 * np.pi/180
+        self.sync_phase = 148.32 * _pi/180
         self.tunes = 1.994e-3
         self.bunlen = 10.1e-3
         self.espread = 7.82e-4
@@ -106,12 +108,12 @@ class HarmonicCavity:
         phih = self.phih_harmonic()
         kh = self.k_harmonic()
         arg = U0/Vrf - kh*np.sin(nharm*phih)
-        return np.pi - np.arcsin(arg)
+        return _pi - np.arcsin(arg)
 
     def psih_harmonic(self):
         """."""
         phih = self.phih_harmonic()
-        return np.pi/2 - self.params.nharm * phih
+        return _pi/2 - self.params.nharm * phih
 
     def shunt_impedance(self, form_factor=1):
         """."""
@@ -125,7 +127,7 @@ class HarmonicCavity:
         """."""
         Q = self.params.Q
         nharm = self.params.nharm
-        wrf = 2*np.pi*self.params.frf
+        wrf = 2*_pi*self.params.frf
         return np.arctan(Q * (wr/(nharm*wrf) - nharm*wrf/wr))
 
     # def wr_flat_potential(nharm, wrf, phih, quality):
@@ -137,7 +139,7 @@ class HarmonicCavity:
         """."""
         Q = self.params.Q
         nharm = self.params.nharm
-        wrf = 2*np.pi*self.params.frf
+        wrf = 2*_pi*self.params.frf
         return nharm*wrf/(1+np.tan(detune_angle)/2/Q)
 
     def detune_passive_cavity(self, Rs, form_factor=1):
@@ -157,12 +159,12 @@ class HarmonicCavity:
         st += 'shunt impedance flat [M.ohm]  : {:+08.4f} \n'
         st += 'unperturbed sync. phase [deg] : {:+08.3f} \n'
         st += 'perturbed sync. phase [deg]   : {:+08.3f} \n'
-        rad2deg = 180/np.pi
+        rad2deg = 180/_pi
 
         kh = self.k_harmonic()
         phih = self.phih_harmonic()
         psih = self.psih_harmonic()
-        fr = self.detune_wr(detune_angle=psih)/2/np.pi
+        fr = self.detune_wr(detune_angle=psih)/2/_pi
         df = self.params.nharm*self.params.frf - fr
         Rs_fp = self.shunt_impedance()
         phis = self.params.sync_phase
@@ -174,8 +176,7 @@ class HarmonicCavity:
 
     def integrated_potential(self, z, harmonic=True):
         """."""
-        c = mathphys.constants.light_speed
-        wrf = 2*np.pi*self.params.frf
+        wrf = 2*_pi*self.params.frf
         alpha = self.params.alpha
         sigmae = self.params.espread
         phis = self.params.sync_phase
@@ -187,7 +188,7 @@ class HarmonicCavity:
         kh = 0
         if harmonic:
             kh = self.k_harmonic()
-        phase = wrf*z/c
+        phase = wrf*z/_c
         pot = (alpha**2 * sigmae**2)/(np.cos(phis)*(h*alpha*sigmae/tunes)**2)
         t1 = np.cos(new_phis)
         t2 = np.cos(phase + new_phis)
@@ -205,12 +206,11 @@ class HarmonicCavity:
         dist /= np.trapz(dist, z)
         return dist.ravel()
 
-    def form_factor(self, z, rho):
+    @staticmethod
+    def complex_form_factor(z, w, rho):
         """."""
-        nh = self.params.nharm
-        wrf = 2*np.pi*self.params.frf
-        c = mathphys.constants.light_speed
-        return np.trapz(rho*np.exp(-1j*nh*wrf*z/c))/np.trapz(rho)
+        return np.trapz(
+            rho*np.exp(1j*w*z/HarmonicCavity._c), z)/np.trapz(rho, z)
 
     def robinson_growth_rate(self, w, wr, approx=False):
         """."""
@@ -220,11 +220,11 @@ class HarmonicCavity:
         E0 = self.params.E0
         Rs = self.params.Rs
         Q = self.params.Q
-        w0 = 2*np.pi*self.params.frf/h
+        w0 = 2*_pi*self.params.frf/h
         ws = self.params.tunes * w0
         wp = w + ws
         wn = w - ws
-        const = I0*alpha*w0/(4*np.pi*ws*E0)
+        const = I0*alpha*w0/(4*_pi*ws*E0)
         if approx:
             x = w/wr
             const_approx = const*4*ws
@@ -242,7 +242,7 @@ class HarmonicCavity:
         """."""
         ring = si.create_ring()
         ring.nus = self.params.tunes
-        ring.w0 = 2*np.pi*self.params.frf/self.params.h
+        ring.w0 = 2*_pi*self.params.frf/self.params.h
         ring.mom_cmpct = self.params.alpha
         ring.E = self.params.E0
         ring.nbun = nbun_fill if nbun_fill is not None else self.params.h
@@ -262,16 +262,15 @@ class HarmonicCavity:
 
     def calc_voltages(self, z):
         """."""
-        c = mathphys.constants.light_speed
         Vrf = self.params.Vrf
-        wrf = 2*np.pi*self.params.frf
+        wrf = 2*_pi*self.params.frf
         phis0 = self.params.sync_phase
         phis_pert = self.perturbed_sync_phase()
         kh = self.k_harmonic()
         nh = self.params.nharm
         phih = self.phih_harmonic()
 
-        phase = wrf*z/c
+        phase = wrf*z/_c
         Vmain0 = Vrf * np.sin(phase + phis0)
         Vmain_pert = Vrf * np.sin(phase + phis_pert)
         Vharm = Vrf*kh*np.sin(nh*phase + nh*phih)
