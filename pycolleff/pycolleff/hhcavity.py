@@ -210,7 +210,7 @@ class HarmonicCavity:
     def complex_form_factor(z, w, rho):
         """."""
         return np.trapz(
-            rho*np.exp(1j*w*z/HarmonicCavity._c), z)/np.trapz(rho, z)
+            rho*np.exp(1j*w*z/_c), z)/np.trapz(rho, z)
 
     def robinson_growth_rate(self, w, wr, approx=False):
         """."""
@@ -231,14 +231,14 @@ class HarmonicCavity:
             growth = const_approx
             growth *= Rs*Q**2
             growth *= (1-x**2)*(1 + x**2)
-            growth /= x**4*(1 + Q**2 * (1/x - x)**2)**2
+            growth /= x**4 * (1 + Q**2 * (1/x - x)**2)**2
         else:
             Zlp = imp.longitudinal_resonator(Rs=Rs, Q=Q, wr=wr, w=wp)
             Zln = imp.longitudinal_resonator(Rs=Rs, Q=Q, wr=wr, w=wn)
             growth = const*(wp*Zlp.real - wn*Zln.real)
         return growth
 
-    def tuneshifts_cbi(self, wr, w, m=1, nbun_fill=None):
+    def tuneshifts_cbi(self, w, wr, m=1, nbun_fill=None, radiation=False):
         """."""
         ring = si.create_ring()
         ring.nus = self.params.tunes
@@ -249,7 +249,8 @@ class HarmonicCavity:
         ring.nom_cur = self.params.I0
         ring.dampte = np.inf
         ring.bunlen = self.params.bunlen
-
+        if not radiation:
+            ring.dampe = np.inf
         Rs = self.params.Rs
         Q = self.params.Q
         Zl = imp.longitudinal_resonator(Rs=Rs, Q=Q, wr=wr, w=w)
