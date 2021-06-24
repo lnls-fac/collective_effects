@@ -50,7 +50,7 @@ class Params:
         self.alpha = 1.6446539e-4
         self.sync_phase = 163.1219 * _pi/180
         self.tunes = 4.6520358017681e-3
-        self.bunlen = 2.46e3
+        self.bunlen = 2.46e-3
         self.espread = 8.43589e-4
         self.nharm = 3
 
