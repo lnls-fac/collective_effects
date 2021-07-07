@@ -2,22 +2,20 @@
 
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
-import matplotlib.cm as cm
 from matplotlib import rcParams, rc
-import matplotlib.style
-import matplotlib as mpl
-import matplotlib.colors as mcol
 
 import numpy as np
 import mathphys
+from numpy.lib.shape_base import expand_dims
+from pycolleff.simulate_landau import form_factor
 import scipy.integrate as integrate
 
 import pycolleff.impedances as imp
 import pycolleff.sirius as si
-import pycolleff.colleff as colleff
 
 _c = mathphys.constants.light_speed
 _pi = np.pi
+
 
 class Params:
     """."""
@@ -76,8 +74,11 @@ class HarmonicCavity:
 
     def __init__(self, params=None):
         """."""
-        self.params = params if params is None else Params()
+        self.params = params or Params()
+        self._form_factor = 1
+        self._wr = 0
 
+    @property
     def k_harmonic(self):
         """."""
         nharm = self.params.nharm
@@ -86,6 +87,7 @@ class HarmonicCavity:
         kharm = 1/nharm**2 - ((U0/Vrf)**2)/(nharm**2-1)
         return kharm**(1/2)
 
+    @property
     def phih_harmonic(self):
         """."""
         nharm = self.params.nharm
@@ -97,50 +99,82 @@ class HarmonicCavity:
         arg = -numer/(denom)**(1/2)
         return np.arctan(arg)/nharm
 
-    # def perturbed_sync_phase(nharm, U0, Vrf):
-    #     return nharm*nharm * (U0/Vrf)/(nharm*nharm - 1)
+    @phih_harmonic.setter
+    def phih_harmonic(self, value):
+        self.psih_harmonic = _pi/2 - self.params.nharm * value
 
+    @property
+    def psih_harmonic(self):
+        """."""
+        return _pi/2 - self.params.nharm * self.phih_harmonic
+
+    @psih_harmonic.setter
+    def psih_harmonic(self, value):
+        self.phih_harmonic = (_pi/2 - value)/self.params.nharm
+
+    @property
     def perturbed_sync_phase(self):
         """."""
         nharm = self.params.nharm
         U0 = self.params.U0
         Vrf = self.params.Vrf
-        phih = self.phih_harmonic()
-        kh = self.k_harmonic()
+        phih = self.phih_harmonic
+        kh = self.k_harmonic
         arg = U0/Vrf - kh*np.sin(nharm*phih)
         return _pi - np.arcsin(arg)
 
-    def psih_harmonic(self):
+    @property
+    def shunt_impedance(self):
         """."""
-        phih = self.phih_harmonic()
-        return _pi/2 - self.params.nharm * phih
-
-    def shunt_impedance(self, form_factor=1):
-        """."""
-        kharm = self.k_harmonic()
-        psih = self.psih_harmonic()
+        kharm = self.k_harmonic
+        psih = self.psih_harmonic
         Vrf = self.params.Vrf
         I0 = self.params.I0
-        return kharm * Vrf / (2 * I0 * abs(form_factor) * abs(np.cos(psih)))
+        ffact = self.form_factor
+        return kharm * Vrf / (2 * I0 * abs(ffact) * abs(np.cos(psih)))
 
-    def detune_angle(self, wr):
+    @property
+    def wr(self):
+        """."""
+        return self._wr
+
+    @wr.setter
+    def wr(self, value):
+        self._wr = value
+
+    @property
+    def form_factor(self):
+        """."""
+        return self._form_factor
+
+    @form_factor.setter
+    def form_factor(self, value):
+        self._form_factor = value
+
+    @property
+    def detune_angle(self):
         """."""
         Q = self.params.Q
         nharm = self.params.nharm
         wrf = 2*_pi*self.params.frf
+        wr = self.wr
+        if wr == 0:
+            raise Exception('wr cannot be zero!')
+        if wrf == 0:
+            raise Exception('wrf cannot be zero!')
         return np.arctan(Q * (wr/(nharm*wrf) - nharm*wrf/wr))
+
+    @detune_angle.setter
+    def detune_angle(self, value):
+        Q = self.params.Q
+        nharm = self.params.nharm
+        wrf = 2*_pi*self.params.frf
+        self.wr = nharm*wrf/(1+np.tan(value)/2/Q)
 
     # def wr_flat_potential(nharm, wrf, phih, quality):
     #     alpha = nharm * wrf * phih/2/quality
     #     wrp = alpha * (1 + np.sqrt(1+(nharm*wrf/alpha)**2))
     #     return wrp
-
-    def detune_wr(self, detune_angle):
-        """."""
-        Q = self.params.Q
-        nharm = self.params.nharm
-        wrf = 2*_pi*self.params.frf
-        return nharm*wrf/(1+np.tan(detune_angle)/2/Q)
 
     def detune_passive_cavity(self, Rs, form_factor=1):
         """."""
@@ -161,14 +195,15 @@ class HarmonicCavity:
         st += 'perturbed sync. phase [deg]   : {:+08.3f} \n'
         rad2deg = 180/_pi
 
-        kh = self.k_harmonic()
-        phih = self.phih_harmonic()
-        psih = self.psih_harmonic()
-        fr = self.detune_wr(detune_angle=psih)/2/_pi
+        kh = self.k_harmonic
+        phih = self.phih_harmonic
+        psih = self.psih_harmonic
+        self.detune_angle = psih
+        fr = self.wr/2/_pi
         df = self.params.nharm*self.params.frf - fr
-        Rs_fp = self.shunt_impedance()
+        Rs_fp = self.shunt_impedance
         phis = self.params.sync_phase
-        new_phis = self.perturbed_sync_phase()
+        new_phis = self.perturbed_sync_phase
         print(
             st.format(
                 kh, phih*rad2deg, psih*rad2deg, df*1e-3, Rs_fp*1e-6,
@@ -182,12 +217,12 @@ class HarmonicCavity:
         phis = self.params.sync_phase
         h = self.params.h
         tunes = self.params.tunes
-        new_phis = self.perturbed_sync_phase()
+        new_phis = self.perturbed_sync_phase
         nh = self.params.nharm
-        phih = self.phih_harmonic()
+        phih = self.phih_harmonic
         kh = 0
         if harmonic:
-            kh = self.k_harmonic()
+            kh = self.k_harmonic
         phase = wrf*z/_c
         pot = (alpha**2 * sigmae**2)/(np.cos(phis)*(h*alpha*sigmae/tunes)**2)
         t1 = np.cos(new_phis)
@@ -205,6 +240,18 @@ class HarmonicCavity:
         dist = np.exp(-pot/(alpha**2 * espread**2))
         dist /= np.trapz(dist, z)
         return dist.ravel()
+
+    @staticmethod
+    def calc_sync_phase(z, dist):
+        """."""
+        return np.trapz(z*dist, z)
+
+    @staticmethod
+    def calc_bunch_length(z, dist):
+        """."""
+        zm = HarmonicCavity.calc_sync_phase(z, dist)
+        z2 = np.trapz(z**2 * dist, z)
+        return np.sqrt(z2 - zm**2)
 
     @staticmethod
     def complex_form_factor(z, w, rho):
@@ -254,22 +301,22 @@ class HarmonicCavity:
         Rs = self.params.Rs
         Q = self.params.Q
         Zl = imp.longitudinal_resonator(Rs=Rs, Q=Q, wr=wr, w=w)
-        deltaw = ring.longitudinal_cbi(
+        deltaw, wp, interpol_Z, spectrum = ring.longitudinal_cbi(
             w=w, Zl=Zl, bunlen=ring.bunlen(), m=m, inverse=False)
 
         # Relative tune-shifts must be multiplied by ws
         deltaw *= self.params.tunes * ring.w0
-        return deltaw
+        return deltaw, Zl, wp, interpol_Z, spectrum
 
     def calc_voltages(self, z):
         """."""
         Vrf = self.params.Vrf
         wrf = 2*_pi*self.params.frf
         phis0 = self.params.sync_phase
-        phis_pert = self.perturbed_sync_phase()
-        kh = self.k_harmonic()
+        phis_pert = self.perturbed_sync_phase
+        kh = self.k_harmonic
         nh = self.params.nharm
-        phih = self.phih_harmonic()
+        phih = self.phih_harmonic
 
         phase = wrf*z/_c
         Vmain0 = Vrf * np.sin(phase + phis0)
@@ -277,9 +324,18 @@ class HarmonicCavity:
         Vharm = Vrf*kh*np.sin(nh*phase + nh*phih)
         return Vmain0, Vmain_pert, Vharm
 
-    def plot_voltages(self, z):
+    def calc_passive_voltage(self, z, Rs, detune_phase, form_factor=1):
         """."""
-        vmain, vmain_pert, vharm = self.calc_voltages(z)
+        I0 = self.params.I0
+        wrf = 2*_pi*self.params.frf
+        phase = wrf*z/_c
+        nh = self.params.nharm
+        volt = - 2*I0*Rs*form_factor
+        volt *= np.cos(detune_phase)*np.cos(nh*phase-detune_phase)
+        return volt
+
+    def plot_voltages(self, z, vmain, vmain_pert, vharm):
+        """."""
         vtotal = vmain_pert + vharm
 
         fig = plt.figure(figsize=(6, 4))
@@ -294,7 +350,6 @@ class HarmonicCavity:
 
         ax1.set_xlabel(r'$z$ [cm]')
         ax1.set_ylabel('RF voltage [MV]')
-
         ax1.legend(loc='upper right')
         ax1.grid(ls='--', alpha=0.5)
         return fig
