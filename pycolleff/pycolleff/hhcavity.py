@@ -1,6 +1,5 @@
 #!/usr/bin/env python-sirius
 
-import math
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
 
@@ -9,6 +8,7 @@ import mathphys
 
 import pycolleff.impedances as imp
 import pycolleff.sirius as si
+import scipy.integrate as scy_int
 
 _c = mathphys.constants.light_speed
 _pi = _np.pi
@@ -21,10 +21,10 @@ class Params:
 
     def __init__(self):
         """."""
-        self.U0 = None
-        self.Vrf = None
-        self.frf = None
-        self.h = None
+        self._U0 = None
+        self._Vrf = None
+        self._frf = None
+        self._h = None
         self.I0 = None
         self.E0 = None
         self.alpha = None
@@ -66,6 +66,42 @@ class Params:
         self.espread = 7.82e-4
         self.Q = 21600
         self.nharm = 3
+
+    @property
+    def U0(self):
+        """."""
+        return self._U0
+
+    @U0.setter
+    def U0(self, value):
+        self._U0 = value
+
+    @property
+    def Vrf(self):
+        """."""
+        return self._Vrf
+
+    @Vrf.setter
+    def Vrf(self, value):
+        self._Vrf = value
+
+    @property
+    def frf(self):
+        """."""
+        return self._frf
+
+    @frf.setter
+    def frf(self, value):
+        self._frf = value
+
+    @property
+    def h(self):
+        """."""
+        return self._h
+
+    @h.setter
+    def h(self, value):
+        self._h = value
 
     @property
     def wrf(self):
@@ -125,7 +161,7 @@ class HarmonicCavity:
         """."""
         self.params = params or Params()
 
-        self._form_factor = 1
+        self._form_factor = 1 + 1j*0
         self._wr = 0
         self._psih_harmonic = 0
         self._harmonic_phase = 0
@@ -189,7 +225,7 @@ class HarmonicCavity:
     def shunt_impedance(self):
         """."""
         kharm = self.k_harmonic_flat_potential
-        psih = self.psih_harmonic
+        psih = self.detune_angle
         Vrf = self.params.Vrf
         I0 = self.params.I0
         ib = 2*I0*abs(self.form_factor)
@@ -276,34 +312,42 @@ class HarmonicCavity:
                 kh, phih*rad2deg, psih*rad2deg, df*1e-3, Rs_fp*1e-6,
                 phis*rad2deg, new_phis*rad2deg))
 
-    def integrated_potential(self, z, harmonic=True):
+    def integrated_potential(self, z, voltage=None, harmonic=True):
         """."""
-        wrf = 2*_pi*self.params.frf
         alpha = self.params.alpha
-        sigmae = self.params.espread
-        phis = self.params.sync_phase
-        h = self.params.h
-        tunes = self.params.tunes
-        new_phis = self.perturbed_sync_phase
-        nh = self.params.nharm
-        phih = self.harmonic_phase
-        kh = 0
-        if harmonic:
-            kh = self.k_harmonic_flat_potential
-        phase = wrf*z/_c
-        pot = (alpha**2 * sigmae**2)/(_np.cos(phis)*(h*alpha*sigmae/tunes)**2)
-        t1 = _np.cos(new_phis)
-        t2 = _np.cos(phase + new_phis)
-        t3 = kh/nh * (_np.cos(nh*phih) - _np.cos(nh*phase + nh*phih))
-        t4 = (_np.sin(new_phis) + kh*_np.sin(nh*phih))*phase
-        pot *= (t1 - t2 + t3 - t4)
+        if voltage is None:
+            wrf = 2*_pi*self.params.frf
+            sigmae = self.params.espread
+            phis = self.params.sync_phase
+            h = self.params.h
+            tunes = self.params.tunes
+            new_phis = self.perturbed_sync_phase
+            nh = self.params.nharm
+            phih = self.harmonic_phase
+            kh = 0
+            if harmonic:
+                kh = self.k_harmonic_flat_potential
+            phase = wrf*z/_c
+            pot = (alpha**2 * sigmae**2)
+            pot /= _np.cos(phis)*(h*alpha*sigmae/tunes)**2
+            t1 = _np.cos(new_phis)
+            t2 = _np.cos(phase + new_phis)
+            t3 = kh/nh * (_np.cos(nh*phih) - _np.cos(nh*phase + nh*phih))
+            t4 = (_np.sin(new_phis) + kh*_np.sin(nh*phih))*phase
+            pot *= (t1 - t2 + t3 - t4)
+        else:
+            dpot = (voltage - self.params.U0)/self.params.E0
+            pot = -scy_int.cumtrapz(dpot, z, initial=0)
+            pot -= _np.min(pot)
+            pot *= alpha/self.params.L0
         return pot
 
-    def calc_distribution(self, z, harmonic=True):
+    def calc_distribution(self, z, voltage=None, harmonic=True):
         """."""
-        pot = self.integrated_potential(z=z, harmonic=harmonic)
         alpha = self.params.alpha
         espread = self.params.espread
+        pot = self.integrated_potential(
+            z=z, voltage=voltage, harmonic=harmonic)
         dist = _np.exp(-pot/(alpha**2 * espread**2))
         dist /= _np.trapz(dist, z)
         return dist.ravel()
