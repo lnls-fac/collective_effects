@@ -115,6 +115,7 @@ class EMSimulData:
         self._kckqyW = None
 
     def copy(self):
+        """."""
         other = EMSimulData()
         other.code = self.code
         other.bunlen = self.bunlen
@@ -143,7 +144,7 @@ class EMSimulData:
         """."""
         if self._klossW:
             return self._klossW
-        T0, sigs, spos = self.model.T0, self.bunlen, self.s
+        sigs, spos = self.bunlen, self.s
         wake = self.Wll
         if wake is None or _np.allclose(wake, 0, atol=0):
             return None
@@ -165,7 +166,7 @@ class EMSimulData:
         kick = getattr(self, '_kck'+pl+'W')
         if kick:
             return kick
-        T0, sigs, spos = self.model.T0, self.bunlen, self.s
+        sigs, spos = self.bunlen, self.s
         wake = getattr(self, 'W'+pl)
         if wake is None or _np.all(wake == 0):
             return None
@@ -276,35 +277,29 @@ def _GdfidL_get_integration_path(info):
     return x, y
 
 
-def _GdfidL_get_longitudinal_info(path, filelist, pl='ll', silent=False):
-    if not silent:
-        print('Loading longitunal Wake file:')
+def _GdfidL_get_longitudinal_info(path, filelist, pl='ll'):
+    _log.info('Loading longitunal Wake file:')
     fn = [f for f in filelist if f.find('Wq_AT_XY') >= 0]
     if not fn:
-        if not silent:
-            print('No longitudinal wake file found. It is needed to have one')
-        raise Exception(
-            'No longitudinal wake file found. It is needed to have one')
+        msg = 'No longitudinal wake file found. It is needed to have one'
+        _log.info(msg)
+        raise Exception(msg)
     if len(fn) > 1:
-        if not silent:
-            print(
-                'More than one longitudinal wake file found. '
-                'It is only allowed 1')
-        raise Exception(
-            'More than one longitudinal wake file found. It is only allowed 1')
+        msg = 'More than one longitudinal wake file found. Only 1 is allowed'
+        _log.info(msg)
+        raise Exception(msg)
 
     dados, info = _GdfidL_load_dados_info(_jnPth([path, fn[0]]))
     charge = _GdfidL_get_charge(info)
     xd, yd = _GdfidL_get_integration_path(info)
     spos, wake = _np.loadtxt(dados, unpack=True)  # dados is a list of strings
-    if not silent:
-        print(f'Charge of the driving bunch: {charge*1e12:5.3g} pC')
-    if pl == 'll' and (abs(xd) > 1e-10 or abs(yd) > 1e-10) and not silent:
-        print(
+    _log.info(f'Charge of the driving bunch: {charge*1e12:5.3g} pC')
+    if pl == 'll' and (abs(xd) > 1e-10 or abs(yd) > 1e-10):
+        _log.info(
             'Driving particle not in the origin. '
             'Are you sure this is what you want?')
-    elif pl != 'll' and abs(xd) < 1e-10 and abs(yd) < 1e-10 and not silent:
-        print(
+    elif pl != 'll' and abs(xd) < 1e-10 and abs(yd) < 1e-10:
+        _log.info(
             'The driving bunch is too close to origin. '
             'Are you sure this is what you want?')
 
@@ -314,20 +309,18 @@ def _GdfidL_get_longitudinal_info(path, filelist, pl='ll', silent=False):
     wake = -wake[:a]/charge  # V/C (minus sign because of convention)
     spos = spos[:a]  # m
     bunlen = -sbun[0]/6  # gdfidl uses a bunch with 6-sigma
-    if not silent:
-        print(f'Bunch length of the driving bunch: {bunlen*1e3:7.4g} mm')
+    _log.info(f'Bunch length of the driving bunch: {bunlen*1e3:7.4g} mm')
     return spos, wake, sbun, bun, bunlen, xd, yd
 
 
-def _GdfidL_get_transversal_info(path, filelist, pl='qx', silent=False):
+def _GdfidL_get_transversal_info(path, filelist, pl='qx'):
     stri = 'W{0:s}_AT_XY'.format(pl[1].upper())
     fn = [f for f in filelist if f.find(stri) >= 0]
     if not fn:
-        if not silent:
-            print(f'No W{pl:s} wake file found. Skipping to next')
+        _log.info(f'No W{pl:s} wake file found. Skipping to next')
         return None
-    if not silent:
-        print(f"{len(fn):2d} W{pl:s} wake file found: {', '.join(fn):s}")
+    _log.info(f"{len(fn):2d} W{pl:s} wake file found: {', '.join(fn):s}")
+
     dados, info = _GdfidL_load_dados_info(_jnPth([path, fn[0]]))
     charge = _GdfidL_get_charge(info)
     if pl[1] == 'x':
@@ -335,7 +328,7 @@ def _GdfidL_get_transversal_info(path, filelist, pl='qx', silent=False):
     else:
         _, delta1 = _GdfidL_get_integration_path(info)
     _, wake1 = _np.loadtxt(dados, unpack=True)
-    print(f'Integration path at {pl[1]:s} = {delta1*1e6:8.4g} um ', end='')
+    _log.info(f'Integration path at {pl[1]:s} = {delta1*1e6:8.4g} um ')
 
     wake = wake1/delta1/charge  # V/C/m
     if len(fn) > 1:
@@ -345,18 +338,18 @@ def _GdfidL_get_transversal_info(path, filelist, pl='qx', silent=False):
         else:
             _, delta2 = _GdfidL_get_integration_path(info)
         _, wake2 = _np.loadtxt(dados, unpack=True)
-        print(f'and {delta2*1e6:8.4g} um')
+        _log.info(f'and {delta2*1e6:8.4g} um')
         if pl[0] == 'd':
             wake = (wake1/delta1 - wake2/delta2)
             wake /= (1/delta1-1/delta2) * charge  # V/C
         else:
             wake = (wake1 - wake2)/(delta1-delta2)/charge  # V/C/m
     else:
-        print()
+        _log.info('')
     return wake
 
 
-def _GdfidL_load_data(simul_data, path, anal_pl, silent=False):
+def _GdfidL_load_data(simul_data, path, anal_pl):
     # list all the files that match the name pattern for wakefields
     f_in_dir = _sh.ls(path).stdout.decode()
     f_match = _re.findall(FNAME_GDFIDL, f_in_dir)
@@ -371,20 +364,19 @@ def _GdfidL_load_data(simul_data, path, anal_pl, silent=False):
         else:
             cond = [f for f in f_match if f.find('WX_AT_XY') >= 0]
             anal_pl = 'dx' if cond else 'dy'
-        if not silent:
-            print(
-                'There is symmetry y=x, calculation performed in the ' +
-                anal_pl[1].upper() + ' plane.')
+        _log.info(
+            'There is symmetry y=x, calculation performed in the ' +
+            anal_pl[1].upper() + ' plane.')
 
     if anal_pl in {'ll'}:
         if not f_match:
-            if not silent:
-                print('No files found for longitudinal analysis.')
-            raise Exception('No files found for longitudinal analisys')
+            msg = 'No files found for longitudinal analysis.'
+            _log.info(msg)
+            raise Exception(msg)
 
         # Load longitudinal Wake
         spos, wake, sbun, bun, bunlen, xd, yd = _GdfidL_get_longitudinal_info(
-            path, f_match, pl='ll', silent=silent)
+            path, f_match, pl='ll')
         simul_data.Wll = wake
         simul_data.s = spos
         simul_data.bun = bun
@@ -392,60 +384,53 @@ def _GdfidL_load_data(simul_data, path, anal_pl, silent=False):
         simul_data.bunlen = bunlen
 
         # And quadrupolar Wakes, if existent:
-        if not silent:
-            print('Loading Horizontal Quadrupolar Wake file:')
+        _log.info('Loading Horizontal Quadrupolar Wake file:')
         wake = _GdfidL_get_transversal_info(
-            path, f_match, pl='qx', silent=silent)  # V/C/m
+            path, f_match, pl='qx')  # V/C/m
         if wake is not None:
             simul_data.Wqx = wake
-        if not silent:
-            print('Loading Vertical Quadrupolar Wake file:')
+
+        _log.info('Loading Vertical Quadrupolar Wake file:')
         wake = _GdfidL_get_transversal_info(
-            path, f_match, pl='qy', silent=silent)  # V/C/m
+            path, f_match, pl='qy')  # V/C/m
         if wake is not None:
             simul_data.Wqy = wake
-        if not silent:
-            print('Longitudinal Data Loaded.')
+        _log.info('Longitudinal Data Loaded.')
 
     elif anal_pl in {'dx', 'dy'}:
         if not f_match:
-            if not silent:
-                print('There is no wake files in this folder.')
+            _log.info('There is no wake files in this folder.')
             elec_fol = _jnPth([path, 'elec'])
             if _os.path.isdir(elec_fol):
-                if not silent:
-                    print(
-                        ' I found a folder named "elec". I will assume the '
-                        'simulation has this symmetry.')
+                _log.info(
+                    ' I found a folder named "elec". I will assume the '
+                    'simulation has this symmetry.')
                 f_in_dir = _sh.ls(elec_fol).stdout.decode()
                 f_match = _re.findall(FNAME_GDFIDL, f_in_dir)
                 elec_symm = True
         if not f_match:
-            if not silent:
-                print(' I will assume there is no symmetry.')
+            _log.info(' I will assume there is no symmetry.')
 
             spos, wake, sbun, bun, bunlen, xd, yd = [], [], [], [], [], [], []
             for sub_fol in ['dpl', 'dmi']:
                 ext_path = _jnPth([path, anal_pl+sub_fol])
-                if not silent:
-                    print('Looking for '+anal_pl+sub_fol+' subfolder:')
+                _log.info('Looking for '+anal_pl+sub_fol+' subfolder:')
                 if not _os.path.isdir(ext_path):
-                    if not silent:
-                        print(
-                            'For non-symmetric structures, there must '
-                            f'be subfolders {anal_pl:s}dpl {anal_pl:s}dmi '
-                            'with the data')
+                    _log.info(
+                        'For non-symmetric structures, there must '
+                        f'be subfolders {anal_pl:s}dpl {anal_pl:s}dmi '
+                        'with the data')
                     raise Exception('Files not found')
                 # list all the files that match the pattern
                 f_in_dir = _sh.ls(ext_path).stdout.decode()
                 f_match = _re.findall(FNAME_GDFIDL, f_in_dir)
                 if not f_match:
-                    if not silent:
-                        print('No files found for transverse analysis.')
-                    raise Exception('No files found for transverse analisys')
+                    msg = 'No files found for transverse analysis.'
+                    _log.info(msg)
+                    raise Exception(msg)
 
                 sp, _, sb, bn, bnln, xdi, ydi = _GdfidL_get_longitudinal_info(
-                    ext_path, f_match, pl=anal_pl, silent=silent)
+                    ext_path, f_match, pl=anal_pl)
                 spos.append(sp)
                 bun.append(bn)
                 sbun.append(sb)
@@ -453,19 +438,17 @@ def _GdfidL_load_data(simul_data, path, anal_pl, silent=False):
                 xd.append(xdi)
                 yd.append(ydi)
 
-                if not silent:
-                    print('Loading {0:s} Dipolar Wake file:'.format(
-                        'Horizontal' if anal_pl == 'dx' else 'Vertical'))
+                _log.info('Loading {0:s} Dipolar Wake file:'.format(
+                    'Horizontal' if anal_pl == 'dx' else 'Vertical'))
                 # V/C
                 wk = _GdfidL_get_transversal_info(
-                    ext_path, f_match, pl=anal_pl, silent=silent)
+                    ext_path, f_match, pl=anal_pl)
                 if wk is not None:
                     wake.append(wk)
                 else:
-                    if not silent:
-                        print(
-                            'Actually there is something wrong, '
-                            'these wake files should be here.')
+                    _log.info(
+                        'Actually there is something wrong, '
+                        'these wake files should be here.')
                     raise Exception(
                         'Transverse {0:s} dipolar wake files not found'.format(
                             'Horizontal' if anal_pl == 'dx' else 'Vertical'))
@@ -481,14 +464,11 @@ def _GdfidL_load_data(simul_data, path, anal_pl, silent=False):
                     _np.allclose(sbun[0], sbun[1], atol=0) and
                     _np.allclose(bun[0], bun[1], atol=0) and
                     _np.allclose(ndel[0], ndel[1], atol=0)):
-                if not silent:
-                    print(
-                        'There is a mismatch between the paramenters of the'
-                        f'simulation in the {anal_pl:s}dpl and {anal_pl:s}dmi '
-                        'folders.')
-                raise Exception(
-                    'Mismatch of the parameters of the simulation in '
-                    'the subfolders.')
+                msg = 'There is a mismatch between the paramenters of the'
+                msg += f'simulation in the {anal_pl:s}dpl and {anal_pl:s}dmi '
+                msg += 'folders.'
+                _log.info(msg)
+                raise Exception(msg)
             simul_data.s = spos[0][:l1]
             simul_data.bun = bun[0]
             simul_data.sbun = sbun[0]
@@ -501,77 +481,69 @@ def _GdfidL_load_data(simul_data, path, anal_pl, silent=False):
                 path = elec_fol
             spos, wake, sbun, bun, bunlen, xd, yd = \
                 _GdfidL_get_longitudinal_info(
-                    path, f_match, pl=anal_pl, silent=silent)
+                    path, f_match, pl=anal_pl)
             simul_data.s = spos
             simul_data.bun = bun
             simul_data.sbun = sbun
             simul_data.bunlen = bunlen
 
-            if not silent:
-                print('Loading {0:s} Dipolar Wake file:'.format(
-                    'Horizontal' if anal_pl == 'dx' else 'Vertical'))
+            _log.info('Loading {0:s} Dipolar Wake file:'.format(
+                'Horizontal' if anal_pl == 'dx' else 'Vertical'))
             wake = _GdfidL_get_transversal_info(
-                path, f_match, pl=anal_pl, silent=silent)  # V/C
+                path, f_match, pl=anal_pl)  # V/C
             if wake is not None:
                 delta = xd if anal_pl == 'dx' else yd
                 delta *= 2 if elec_symm else 1
                 setattr(simul_data, 'W'+anal_pl, wake/delta)  # V/C/m
             else:
-                print(
+                _log.info(
                     'Actually there is something wrong, '
                     'these wake files should be here.')
                 raise Exception(
                     'Transverse {0:s} dipolar wake files not found'.format(
                         'Horizontal' if anal_pl == 'dx' else 'Vertical'))
-        if not silent:
-            print('Transverse Data Loaded.')
+        _log.info('Transverse Data Loaded.')
     else:
-        if not silent:
-            print(
-                f'Plane of analysis {anal_pl:s} does not match any of '
-                'the possible options')
+        _log.info(
+            f'Plane of analysis {anal_pl:s} does not match any of '
+            'the possible options')
         raise Exception(
             f'Plane of analysis {anal_pl:s} does not match any of '
             'the possible options')
 
     if anal_pl_ori:
         anal_pl_comp = 'dx' if anal_pl == 'dy' else 'dy'
-        if not silent:
-            print(
-                'There is symmetry. Copying the data from the ' +
-                '{0:s} plane to the {1:s} plane'.format(
-                    anal_pl[1].upper(), anal_pl_comp[1].upper()))
+        _log.info(
+            'There is symmetry. Copying the data from the ' +
+            f'{anal_pl[1].upper():s} plane to the ' +
+            f'{anal_pl_comp[1].upper():s} plane')
         setattr(
             simul_data, 'W'+anal_pl_comp,
             getattr(simul_data, 'W'+anal_pl).copy())
 
 
-def _ECHOz1_load_data(simul_data, path, anal_pl, silent=False):
+def _ECHOz1_load_data(simul_data, path, anal_pl):
 
     if anal_pl == 'll':
-        if not silent:
-            print('Loading longitudinal Wake file:', end='')
+        _log.info('Loading longitudinal Wake file:')
         fname = _jnPth([path, FNAME_ECHOZ1])
         if _os.path.isfile(fname):
-            if not silent:
-                print('Data found.')
+            _log.info('Data found.')
             loadres = _np.loadtxt(fname, skiprows=0)
         else:
-            if not silent:
-                print('Not found.')
+            _log.info('Not found.')
             raise Exception('Longitudinal wake file not found.')
     else:
-        if not silent:
-            print('ECHOz1 only calculates longitudinal wake.')
-        raise Exception('ECHOz1 only calculates longitudinal wake.')
+        msg = 'ECHOz1 only calculates longitudinal wake.'
+        _log.info(msg)
+        raise Exception(msg)
 
     simul_data.s = loadres[:, 0]/100  # Rescaling cm to m
     # V/C/m (the minus sign is due to convention):
     simul_data.Wll = -loadres[:, 1] * 1e12
 
     # loading driving bunch info
-    if not silent:
-        print('Loading bunch length from wake.dat')
+    _log.info('Loading bunch length from wake.dat')
     sbun = simul_data.s.copy()
     ds = sbun[1] - sbun[0]
     bunlen = abs(sbun[0]-ds/2) / 5
@@ -581,34 +553,28 @@ def _ECHOz1_load_data(simul_data, path, anal_pl, silent=False):
     simul_data.sbun = sbun
     simul_data.bun = _np.exp(-sbun**2/(2*bunlen**2))
     simul_data.bun /= _np.sqrt(2*_np.pi)*bunlen
-    if not silent:
-        print(f'Bunch length of the driving bunch: {bunlen*1e3:7.3g} mm')
-        print('Data Loaded.')
+    _log.info(f'Bunch length of the driving bunch: {bunlen*1e3:7.3g} mm')
+    _log.info('Data Loaded.')
 
 
-def _ECHOz2_load_data(simul_data, path, anal_pl, silent=False):
+def _ECHOz2_load_data(simul_data, path, anal_pl):
 
     anal_pl_ori = None
     if anal_pl == 'db':
         anal_pl_ori = 'db'
         anal_pl = 'dy'
-        if not silent:
-            print(
-                'Even though there is symmetry, '
-                'I am loading data to the Y plane.')
+        _log.info(
+            'Even though there is symmetry, I am loading data to the Y plane.')
 
     if anal_pl == 'll':
-        if not silent:
-            print('Loading longitudinal Wake file:', end='')
+        _log.info('Loading longitudinal Wake file:')
         fname = _jnPth([path, 'wakeL.dat'])
         if _os.path.isfile(fname):
-            if not silent:
-                print('Data found.')
+            _log.info('Data found.')
             spos, wl = _np.loadtxt(
                 fname, skiprows=0, usecols=(0, 1), unpack=True)
         else:
-            if not silent:
-                print('Not found.')
+            _log.info('Not found.')
             Exception('Longitudinal wake file not found.')
 
         simul_data.s = spos/100  # Rescaling cm to m
@@ -617,11 +583,9 @@ def _ECHOz2_load_data(simul_data, path, anal_pl, silent=False):
     elif anal_pl in {'dx', 'dy'}:
         fname = _jnPth([path, 'wakeL.dat'])
         if _os.path.isfile(fname):
-            if not silent:
-                print(
-                    'Calculating Transverse wake from longitudinal wake file:',
-                    end='')
-                print('Data found.')
+            _log.info(
+                'Calculating Transverse wake from longitudinal wake file:')
+            _log.info('Data found.')
             spos, wl = _np.loadtxt(
                 fname, skiprows=0, usecols=(0, 1), unpack=True)
             simul_data.s = spos/100  # Rescaling cm to m
@@ -630,23 +594,18 @@ def _ECHOz2_load_data(simul_data, path, anal_pl, silent=False):
             wt = -_scy_int.cumtrapz(-wl, x=spos/100, initial=0)
             setattr(simul_data, 'W'+anal_pl, wt * 1e12)  # V/C/m
         else:
-            if not silent:
-                print('File not found.')
-                print(
-                    'Loading transverse wake from transverse wake file.:',
-                    end='')
+            _log.info('File not found.')
+            _log.info('Loading transverse wake from transverse wake file.:')
             fname = _jnPth([path, 'wakeT.dat'])
             if _os.path.isfile(fname):
-                if not silent:
-                    print('Data found.')
-                    print(
-                        'Depending on the ECHOz2 program version this '
-                        'may lead to inacurate results.')
+                _log.info('Data found.')
+                _log.info(
+                    'Depending on the ECHOz2 program version this '
+                    'may lead to inacurate results.')
                 spos, wt = _np.loadtxt(
                     fname, skiprows=0, usecols=(0, 1), unpack=True)
             else:
-                if not silent:
-                    print('Not found.')
+                _log.info('Not found.')
                 Exception('Transverse wake file not found.')
             simul_data.s = spos/100  # Rescaling cm to m
             # there is an error in the integration of echoz2.
@@ -655,17 +614,13 @@ def _ECHOz2_load_data(simul_data, path, anal_pl, silent=False):
             setattr(simul_data, 'W'+anal_pl, (wt - wt[0]) * 1e12)
             # V/C/m (minus sign is due to convention)
     else:
-        if not silent:
-            print(
-                f'Plane of analysis {anal_pl:s} does not match any '
-                'of the possible options')
-        raise Exception(
-            f'Plane of analysis {anal_pl:s} does not match any '
-            'of the possible options')
+        msg = f'Plane of analysis {anal_pl:s} does not match any '
+        msg += 'of the possible options'
+        _log.info(msg)
+        raise Exception(msg)
 
     # loading driving bunch info
-    if not silent:
-        print('Loading bunch length from wake file')
+    _log.info('Loading bunch length from wake file')
     sbun = simul_data.s.copy()
     ds = sbun[1]-sbun[0]
     bunlen = abs(sbun[0] - ds/2) / 5
@@ -675,25 +630,22 @@ def _ECHOz2_load_data(simul_data, path, anal_pl, silent=False):
     simul_data.sbun = sbun
     simul_data.bun = _np.exp(-sbun**2/(2*bunlen**2))
     simul_data.bun /= _np.sqrt(2*_np.pi)*bunlen
-    if not silent:
-        print(
-            'Bunch length of the driving bunch: '
-            f'{simul_data.bunlen*1e3:7.3g} mm')
-        print('Data Loaded.')
+    _log.info(
+        f'Bunch length of the driving bunch: {simul_data.bunlen*1e3:7.3g} mm')
+    _log.info('Data Loaded.')
 
     if anal_pl_ori:
         anal_pl_comp = 'dx' if anal_pl == 'dy' else 'dy'
-        if not silent:
-            print(
-                'There is symmetry. Copying the data from the ' +
-                f'{anal_pl[1].upper():s} plane to ' +
-                f'the {anal_pl_comp[1].upper():s} plane')
+        _log.info(
+            'There is symmetry. Copying the data from the ' +
+            f'{anal_pl[1].upper():s} plane to ' +
+            f'the {anal_pl_comp[1].upper():s} plane')
         setattr(
             simul_data, 'W'+anal_pl_comp,
             getattr(simul_data, 'W' + anal_pl).copy())
 
 
-def _ECHO_rect_load_data(simul_data, code, path, anal_pl, silent):
+def _ECHO_rect_load_data(simul_data, code, path, anal_pl):
     def _load_dados(fname, mode, bc, code):
         if code == 'echozr':
             len_unit, charge_unit, header = 1e-2, 1e-12, 3  # cm to m, pC to C
@@ -734,44 +686,39 @@ def _ECHO_rect_load_data(simul_data, code, path, anal_pl, silent):
         return spos, Wm, mstep, wid, bunlen
 
     if anal_pl == 'db':
-        if not silent:
-            print(
-                'Problem: All rectangular geometries does not have symmetry.')
-        raise Exception(
-            'Problem: All rectangular geometries does not have symmetry.')
+        msg = 'Problem: All rectangular geometries does not have symmetry.'
+        _log.info(msg)
+        raise Exception(msg)
 
     bc = 'magn' if anal_pl == 'll' else 'elec'
 
-    if not silent:
-        print(f'Looking for data files in subfolder {bc:s}.')
+    _log.info(f'Looking for data files in subfolder {bc:s}.')
     pname = _jnPth([path, bc])
     if not _os.path.isdir(pname):
         pname = path
         if code == 'echozr':
-            if not silent:
-                print(
-                    'Subfolder not found. It would be better to ' +
-                    'create the subfolder and put the files there...')
-                print('Looking for files in the current folder:')
+            _log.info(
+                'Subfolder not found. It would be better to ' +
+                'create the subfolder and put the files there...')
+            _log.info('Looking for files in the current folder:')
         elif code == 'echo2d':
-            if not silent:
-                print('Files not found. ')
-            raise Exception('Files not found.')
+            msg = 'Files not found.'
+            _log.info(msg)
+            raise Exception(msg)
 
     f_in_dir = _sh.ls(pname).stdout.decode()
     f_match = sorted(_re.findall(FNAME_ECHOZR2D, f_in_dir))
     if not f_match:
-        if not silent:
-            print('Files not found.')
-        raise Exception('Files not found.')
+        msg = 'Files not found.'
+        _log.info(msg)
+        raise Exception(msg)
 
-    if not silent:
-        print(
-            'Files found.\n I am assuming the simulation was performed ' +
-            'with {0:s} boundary condition.'.format(
-                'electric' if bc == 'elec' else 'magnetic'))
-        print('Modes found: ' + ', '.join([m for _, m in f_match]))
-        print('Loading data from files')
+    _log.info(
+        'Files found.\n I am assuming the simulation was performed ' +
+        'with {0:s} boundary condition.'.format(
+            'electric' if bc == 'elec' else 'magnetic'))
+    _log.info('Modes found: ' + ', '.join([m for _, m in f_match]))
+    _log.info('Loading data from files')
 
     spos, W, mode, mesh_size, width, bunlen = [], [], [], [], [], []
     for fn, m in f_match:
@@ -794,8 +741,7 @@ def _ECHO_rect_load_data(simul_data, code, path, anal_pl, silent):
         if cond:
             message = 'Parameters of file {0:s} differ from {1:s}.'.format(
                 f_match[i][0], f_match[0][0])
-            if not silent:
-                print(message)
+            _log.info(message)
             raise Exception(message)
 
     simul_data.s = spos[0]
@@ -806,15 +752,13 @@ def _ECHO_rect_load_data(simul_data, code, path, anal_pl, silent):
     simul_data.sbun = sbun
     simul_data.bun = _np.exp(-sbun**2/(2*bunlen[0]**2))
     simul_data.bun /= _np.sqrt(2*_np.pi)*bunlen[0]
-    if not silent:
-        print(f'Length of the driving bunch: {simul_data.bunlen*1e3:7.4g} mm')
-        print(f'Width of the simulated geometry: {width[0]*1e3:7.4g} mm')
-        print(f'Mesh step used in the simulation: {mesh_size[0]*1e6:7.4g} um')
-        print('All Data Loaded.')
+    _log.info(f'Length of the driving bunch: {simul_data.bunlen*1e3:7.4g} mm')
+    _log.info(f'Width of the simulated geometry: {width[0]*1e3:7.4g} mm')
+    _log.info(f'Mesh step used in the simulation: {mesh_size[0]*1e6:7.4g} um')
+    _log.info('All Data Loaded.')
 
     if anal_pl == 'll':
-        if not silent:
-            print('Calculating longitudinal Wake from data:')
+        _log.info('Calculating longitudinal Wake from data:')
         Wll, frac = None, 1
         for i in range(len(mode)):
             if mode[i] == 1:
@@ -823,18 +767,15 @@ def _ECHO_rect_load_data(simul_data, code, path, anal_pl, silent):
                 Wll += W[i]  # only odd terms
                 frac = _np.max(_np.abs(W[i]/Wll))
         if Wll is None:
-            if not silent:
-                print('There is none odd mode to calculate Longitudinal Wake.')
+            _log.info('There is none odd mode to calculate Longitudinal Wake.')
         else:
-            if not silent:
-                print(
-                    'Maximum influence of last mode in the final result '
-                    f'is: {frac*100:5.2f}%')
+            _log.info(
+                'Maximum influence of last mode in the final result '
+                f'is: {frac*100:5.2f}%')
             Wll *= 2/width[0]
             simul_data.Wll = Wll
 
-        if not silent:
-            print('Calculating Quadrupolar Wake from data:')
+        _log.info('Calculating Quadrupolar Wake from data:')
         Wq, frac = None, 1
         for i in range(len(mode)):
             Kxm = _np.pi/width[0]*mode[i]
@@ -844,21 +785,18 @@ def _ECHO_rect_load_data(simul_data, code, path, anal_pl, silent):
                 Wq += W[i] * Kxm**2  # only odd terms
                 frac = _np.max(_np.abs(W[i]*Kxm**2/Wq))
         if Wq is None:
-            if not silent:
-                print('There is none odd mode to calculate Quadrupolar Wake.')
+            _log.info('There is none odd mode to calculate Quadrupolar Wake.')
         else:
-            if not silent:
-                print(
-                    'Maximum influence of last mode in the final result '
-                    f'is: {frac*100:5.2f}%')
+            _log.info(
+                'Maximum influence of last mode in the final result '
+                f'is: {frac*100:5.2f}%')
             Wq *= 2/width[0]
             # minus sign is due to Panofsky-Wenzel
             Wq = -_scy_int.cumtrapz(Wq, x=spos[0], initial=0)
             simul_data.Wqy = Wq
             simul_data.Wqx = -Wq
 
-        if not silent:
-            print('Calculating Dipolar Horizontal Wake from data:')
+        _log.info('Calculating Dipolar Horizontal Wake from data:')
         Wdx, frac = None, 1
         for i in range(len(mode)):
             Kxm = _np.pi/width[0]*mode[i]
@@ -868,14 +806,12 @@ def _ECHO_rect_load_data(simul_data, code, path, anal_pl, silent):
                 Wdx += W[i] * Kxm**2  # only even terms
                 frac = _np.max(_np.abs(W[i]*Kxm**2/Wdx))
         if Wdx is None:
-            if not silent:
-                print(
-                    "There's no even mode to calculate Dip. Horizontal Wake.")
+            _log.info(
+                "There's no even mode to calculate Dip. Horizontal Wake.")
         else:
-            if not silent:
-                print(
-                    'Maximum influence of last mode in the final result '
-                    f'is: {frac*100:5.2f}%')
+            _log.info(
+                'Maximum influence of last mode in the final result '
+                f'is: {frac*100:5.2f}%')
             Wdx *= 2/width[0]
             # minus sign is due to Panofsky-Wenzel
             Wdx = -_scy_int.cumtrapz(Wdx, x=spos[0], initial=0)
@@ -883,8 +819,7 @@ def _ECHO_rect_load_data(simul_data, code, path, anal_pl, silent):
 
     elif anal_pl in {'dx', 'dy'}:
         pl = 'Vertical' if anal_pl == 'dy' else 'Horizontal'
-        if not silent:
-            print(f'Calculating Dipolar {pl:s} Wake from data:')
+        _log.info(f'Calculating Dipolar {pl:s} Wake from data:')
         Wd, frac = None, 1
         for i in range(len(mode)):
             Kxm = _np.pi/width[0]*mode[i]
@@ -894,14 +829,12 @@ def _ECHO_rect_load_data(simul_data, code, path, anal_pl, silent):
                 Wd += W[i] * Kxm**2  # only odd terms
                 frac = _np.max(_np.abs(W[i]*Kxm**2/Wd))
         if Wd is None:
-            if not silent:
-                print(
-                    f"There's no even mode to calculate Dipolar {pl:s} Wake.")
+            _log.info(
+                f"There's no even mode to calculate Dipolar {pl:s} Wake.")
         else:
-            if not silent:
-                print(
-                    'Maximum influence of last mode in the final result '
-                    f'is: {frac*100:5.2f}%')
+            _log.info(
+                'Maximum influence of last mode in the final result '
+                f'is: {frac*100:5.2f}%')
             Wd *= 2/width[0]
             # minus sign is due to Panofsky-Wenzel
             Wd = -_scy_int.cumtrapz(Wd, x=spos[0], initial=0)
@@ -909,19 +842,17 @@ def _ECHO_rect_load_data(simul_data, code, path, anal_pl, silent):
     else:
         msg = f'Plane of analysis {anal_pl:s} does not match any '
         msg += 'of the possible options'
-        if not silent:
-            print(msg)
+        _log.info(msg)
         raise Exception(msg)
 
 
-def _ECHOzR_load_data(simul_data, path, anal_pl, silent=False):
-    _ECHO_rect_load_data(simul_data, 'echozr', path, anal_pl, silent)
+def _ECHOzR_load_data(simul_data, path, anal_pl):
+    _ECHO_rect_load_data(simul_data, 'echozr', path, anal_pl)
 
 
-def _ECHO2D_load_data(simul_data, path, anal_pl, silent=False):
+def _ECHO2D_load_data(simul_data, path, anal_pl):
 
-    if not silent:
-        print('Trying to find out the geometry type: ', end='')
+    _log.info('Trying to find out the geometry type: ')
 
     if (_os.path.isdir(_jnPth([path, 'magn'])) or
             _os.path.isdir(_jnPth([path, 'elec']))):
@@ -930,31 +861,27 @@ def _ECHO2D_load_data(simul_data, path, anal_pl, silent=False):
             _os.path.isfile(_jnPth([path, 'wakeL_01.txt']))):
         geo_type = 'round'
     else:
-        if not silent:
-            print('not ok.\n Could not find out the geometry type.')
-        raise Exception('Could not find out the geometry type.')
-    if not silent:
-        print(geo_type)
+        msg = 'Could not find out the geometry type.'
+        _log.info(msg)
+        raise Exception(msg)
+    _log.info(geo_type)
 
     if geo_type == 'rectangular':
-        _ECHO_rect_load_data(simul_data, 'echo2d', path, anal_pl, silent)
+        _ECHO_rect_load_data(simul_data, 'echo2d', path, anal_pl)
     else:
         anal_pl_ori = None
         if anal_pl == 'db':
             anal_pl_ori = 'db'
             anal_pl = 'dy'
-            if not silent:
-                print(
-                    'Even though there is symmetry, '
-                    'I am loading data to the Y plane.')
+            _log.info(
+                'Even though there is symmetry, '
+                'I am loading data to the Y plane.')
 
         if anal_pl == 'll':
-            if not silent:
-                print('Loading longitudinal Wake file:', end='')
+            _log.info('Loading longitudinal Wake file:')
             fname = _jnPth([path, 'wakeL_00.txt'])
             if _os.path.isfile(fname):
-                if not silent:
-                    print('Data found.')
+                _log.info('Data found.')
                 with open(fname) as f:
                     f.readline()
                     mstep, offset = _np.fromstring(f.readline(), sep='\t')
@@ -964,16 +891,13 @@ def _ECHO2D_load_data(simul_data, path, anal_pl, silent=False):
                 simul_data.s = spos
                 simul_data.Wll = -Wm  # V/C the minus sign is due to convention
             else:
-                if not silent:
-                    print('Not found.')
+                _log.info('Not found.')
                 Exception('Longitudinal wake file not found.')
         elif anal_pl in {'dx', 'dy'}:
-            if not silent:
-                print('Loading Transverse Wake file:', end='')
+            _log.info('Loading Transverse Wake file:')
             fname = _jnPth([path, 'wakeL_01.txt'])
             if _os.path.isfile(fname):
-                if not silent:
-                    print('Data found.')
+                _log.info('Data found.')
                 with open(fname) as f:
                     f.readline()
                     mstep, offset = _np.fromstring(f.readline(), sep='\t')
@@ -988,25 +912,22 @@ def _ECHO2D_load_data(simul_data, path, anal_pl, silent=False):
                 Wdm = -_scy_int.cumtrapz(-Wm/(y0*y0), x=spos, initial=0)
                 setattr(simul_data, 'W'+anal_pl, Wdm)
             else:
-                if not silent:
-                    print('File not found.')
+                _log.info('File not found.')
                 Exception('Transverse wake file not found.')
         else:
-            if not silent:
-                print(
-                    f'Plane of analysis {anal_pl:s} does not match '
-                    'any of the possible options')
+            _log.info(
+                f'Plane of analysis {anal_pl:s} does not match '
+                'any of the possible options')
             raise Exception(
                 f'Plane of analysis {anal_pl:s} does not match '
                 'any of the possible options')
 
         if anal_pl_ori:
             anal_pl_comp = 'dx' if anal_pl == 'dy' else 'dy'
-            if not silent:
-                print(
-                    'There is symmetry. Copying the data from the ' +
-                    f'{anal_pl[1].upper():s} plane to' +
-                    f' the {anal_pl_comp[1].upper():s} plane')
+            _log.info(
+                'There is symmetry. Copying the data from the ' +
+                f'{anal_pl[1].upper():s} plane to' +
+                f' the {anal_pl_comp[1].upper():s} plane')
             setattr(
                 simul_data, 'W'+anal_pl_comp,
                 getattr(simul_data, 'W'+anal_pl).copy())
@@ -1017,12 +938,11 @@ def _ECHO2D_load_data(simul_data, path, anal_pl, silent=False):
         simul_data.sbun = sbun
         simul_data.bun = _np.exp(-sbun**2/(2*bunlen**2))
         simul_data.bun /= _np.sqrt(2*_np.pi)*bunlen
-        if not silent:
-            print(
-                'Bunch length of the driving bunch: ' +
-                f'{simul_data.bunlen*1e3:7.3g} mm')
-            print(f'Mesh size used in the simulation: {mstep*1e6:7.4g} um')
-            print('Data Loaded.')
+        _log.info(
+            'Bunch length of the driving bunch: ' +
+            f'{simul_data.bunlen*1e3:7.3g} mm')
+        _log.info(f'Mesh size used in the simulation: {mstep*1e6:7.4g} um')
+        _log.info('Data Loaded.')
 
 
 CODES = {
@@ -1035,140 +955,153 @@ CODES = {
     'cst': _CST_load_data}
 
 
+def _get_code(path):
+    # Split the path to try to guess other parameters:
+
+    _log.info('Trying to guess from path: ')
+    path_split = set(path.lower().split(_os.path.sep))
+    code_guess = list(CODES.keys() & path_split)
+    if code_guess:
+        return code_guess[0]
+    _log.info('could not be guessed.')
+
+    _log.info('Trying to guess from files in folder: ')
+    f_in_dir = _sh.ls(path).stdout.decode()
+    if len(_re.findall(FNAME_GDFIDL, f_in_dir)):
+        return 'gdfidl'
+
+    if len(_re.findall(FNAME_ECHOZ1, f_in_dir)):
+        return 'echoz1'
+
+    if len(_re.findall(FNAME_ECHOZ2, f_in_dir)):
+        return 'echoz2'
+
+    f_mat = None
+    if len(_re.findall(FNAME_ECHOZR2D, f_in_dir)):
+        fol = path
+        f_mat = _re.findall(FNAME_ECHOZR2D, f_in_dir)
+    elif _os.path.isdir(_jnPth([path, 'elec'])):
+        fol = _jnPth([path, 'elec'])
+        f_in_fol = _sh.ls(fol).stdout.decode()
+        f_mat = _re.findall(FNAME_ECHOZR2D, f_in_fol)
+    elif _os.path.isdir(_jnPth([path, 'magn'])):
+        fol = _jnPth([path, 'magn'])
+        f_in_fol = _sh.ls(fol).stdout.decode()
+        f_mat = _re.findall(FNAME_ECHOZR2D, f_in_fol)
+    else:
+        msg = 'Simulation Code was not supplied and '
+        msg += 'could not be guessed.'
+        _log.info(msg)
+        raise Exception(msg)
+
+    if _os.path.isfile(_jnPth([fol, f_mat[0][0]])):
+        with open(_jnPth([fol, f_mat[0][0]])) as f:
+            code = 'echozr'
+            if f.readline().find('[cm]') <= 0:
+                code = 'echo2d'
+            return code
+    else:
+        msg = 'Simulation Code was not supplied and '
+        msg += 'could not be guessed.'
+        _log.info(msg)
+        raise Exception(msg)
+
+
+def _get_plane_of_analysis(path, code):
+    # Split the path to try to guess other parameters:
+    path_split = set(path.lower().split(_os.path.sep))
+
+    _log.info('Trying to guess from path: ')
+    anal_pl_guess = list(ANALYSIS_TYPES & path_split)
+    if anal_pl_guess:
+        return anal_pl_guess[0]
+    _log.info('could not be guessed.')
+
+    _log.info('Trying to guess from files in folder and code: ')
+    if code == 'echoz1':
+        return 'll'
+
+    if code == 'echoz2':
+        return 'dy' if _os.path.isfile('wakeT.dat') else 'll'
+
+    if code == 'gdfidl':
+        f_in_dir = _sh.ls(path).stdout.decode()
+        f_mat = _re.findall(
+            r"[\w-]+W([YXq]{2})_AT_XY.[0-9]{4}", f_in_dir)
+        if len(f_mat) > 0:
+            # f_mat = _re.findall(
+            #     r"[\w-]+W([YX]{1})_AT_XY.[0-9]{4}",f_in_dir)
+            # countx = [x for x in f_mat if x=='X']
+            # county = [y for y in f_mat if y=='Y']
+            # anal_pl = 'dy' if len(county) >= len(county) else 'dx'
+            anal_pl = 'd'+f_mat[0][0].lower()
+        else:
+            anal_pl = 'll'
+        return anal_pl
+
+    if code == 'echozr':
+        if _os.path.isdir(_jnPth([path, 'magn'])):
+            return 'll'
+        if _os.path.isdir(_jnPth([path, 'elec'])):
+            return 'dy'
+        if _os.path.isfile('wakeL_01.txt'):
+            w = _np.loadtxt(
+                'wakeL_01.txt', skiprows=3, usecols=(1, ), unpack=True)
+            anal_pl = 'll'
+            if _np.allclose(w, 0, atol=0):
+                anal_pl = 'dy'
+            return anal_pl
+        msg = 'Plane of analysis was not supplied '
+        msg += 'and could not be guessed.'
+        _log.info(msg)
+        raise Exception(msg)
+
+    if code == 'echo2d':
+        if _os.path.isdir(_jnPth([path, 'magn'])):
+            return 'll'
+        if _os.path.isdir(_jnPth([path, 'elec'])):
+            return 'dy'
+
+        anal_pl = 'dy'
+        if _os.path.isfile('wakeL_00.txt'):
+            anal_pl = 'll'
+        return anal_pl
+    else:
+        msg = 'Plane of analysis was not supplied '
+        msg += 'and could not be guessed.'
+        _log.info(msg)
+        raise Exception(msg)
+
+
 def load_raw_data(
         simul_data=None, code=None, path=None, anal_pl=None, silent=False):
     if not simul_data:
         simul_data = EMSimulData()
 
+    _log.basicConfig(level=_log.CRITICAL if silent else _log.INFO)
+
     if path is None:
         path = _os.path.abspath('.')
 
-    if not silent:
-        print('#'*60 + '\nLoading Simulation Data')
-
-    # Split the path to try to guess other parameters:
-    path_split = set(path.lower().split(_os.path.sep))
+    _log.info('#'*60 + '\nLoading Simulation Data')
 
     # First try to guess the code used in simulation, if not supplied:
     if code is None:
-        if not silent:
-            print(
-                'Simulation Code not supplied, trying to guess from path: ',
-                end='')
-        code_guess = list(CODES.keys() & path_split)
-        if code_guess:
-            code = code_guess[0]
-        else:
-            if not silent:
-                print('could not be guessed.')
-            if not silent:
-                print('Trying to guess from files in folder: ', end='')
-            f_mat = None
-            f_in_dir = _sh.ls(path).stdout.decode()
-            if len(_re.findall(FNAME_GDFIDL, f_in_dir)):
-                code = 'gdfidl'
-            elif len(_re.findall(FNAME_ECHOZ1, f_in_dir)):
-                code = 'echoz1'
-            elif len(_re.findall(FNAME_ECHOZ2, f_in_dir)):
-                code = 'echoz2'
-            elif len(_re.findall(FNAME_ECHOZR2D, f_in_dir)):
-                fol = path
-                f_mat = _re.findall(FNAME_ECHOZR2D, f_in_dir)
-            elif _os.path.isdir(_jnPth([path, 'elec'])):
-                fol = _jnPth([path, 'elec'])
-                f_in_fol = _sh.ls(fol).stdout.decode()
-                f_mat = _re.findall(FNAME_ECHOZR2D, f_in_fol)
-            elif _os.path.isdir(_jnPth([path, 'magn'])):
-                fol = _jnPth([path, 'magn'])
-                f_in_fol = _sh.ls(fol).stdout.decode()
-                f_mat = _re.findall(FNAME_ECHOZR2D, f_in_fol)
-            else:
-                raise Exception(
-                    'Simulation Code was not supplied and '
-                    'could not be guessed.')
-            if f_mat is not None:
-                if _os.path.isfile(_jnPth([fol, f_mat[0][0]])):
-                    with open(_jnPth([fol, f_mat[0][0]])) as f:
-                        code = 'echozr'
-                        if f.readline().find('[cm]') <= 0:
-                            code = 'echo2d'
-                else:
-                    raise Exception(
-                        'Simulation Code was not supplied '
-                        'and could not be guessed.')
-    if not silent:
-        print(code)
+        _log.info('Simulation Code not supplied.')
+        code = _get_code(path)
+    _log.info(code)
     simul_data.code = code
 
     # Now try to guess the plane of the analysis:
     if anal_pl is None:
-        if not silent:
-            print(
-                'Plane of Analysis not supplied, trying to guess from path: ',
-                end='')
-        anal_pl_guess = list(ANALYSIS_TYPES & path_split)
-        if anal_pl_guess:
-            anal_pl = anal_pl_guess[0]
-        else:
-            if not silent:
-                print('could not be guessed.')
-            if not silent:
-                print(
-                    'Trying to guess from files in folder and code: ', end='')
-            if code == 'echoz1':
-                anal_pl = 'll'
-            elif code == 'echoz2':
-                anal_pl = 'dy' if _os.path.isfile('wakeT.dat') else 'll'
-            elif code == 'gdfidl':
-                f_in_dir = _sh.ls(path).stdout.decode()
-                f_mat = _re.findall(
-                    r"[\w-]+W([YXq]{2})_AT_XY.[0-9]{4}", f_in_dir)
-                if len(f_mat) > 0:
-                    # f_mat = _re.findall(
-                    #     r"[\w-]+W([YX]{1})_AT_XY.[0-9]{4}",f_in_dir)
-                    # countx = [x for x in f_mat if x=='X']
-                    # county = [y for y in f_mat if y=='Y']
-                    # anal_pl = 'dy' if len(county) >= len(county) else 'dx'
-                    anal_pl = 'd'+f_mat[0][0].lower()
-                else:
-                    anal_pl = 'll'
-            elif code == 'echozr':
-                if _os.path.isdir(_jnPth([path, 'magn'])):
-                    anal_pl = 'll'
-                elif _os.path.isdir(_jnPth([path, 'elec'])):
-                    anal_pl = 'dy'
-                elif _os.path.isfile('wakeL_01.txt'):
-                    w = _np.loadtxt(
-                        'wakeL_01.txt', skiprows=3, usecols=(1, ), unpack=True)
-                    if _np.allclose(w, 0, atol=0):
-                        anal_pl = 'dy'
-                    else:
-                        anal_pl = 'll'
-                else:
-                    raise Exception(
-                        'Plane of analysis was not supplied '
-                        'and could not be guessed.')
-            elif code == 'echo2d':
-                if _os.path.isdir(_jnPth([path, 'magn'])):
-                    anal_pl = 'll'
-                elif _os.path.isdir(_jnPth([path, 'elec'])):
-                    anal_pl = 'dy'
-                elif _os.path.isfile('wakeL_00.txt'):
-                    anal_pl = 'll'
-                else:
-                    anal_pl = 'dy'
-            else:
-                raise Exception(
-                    'Plane of analysis was not supplied '
-                    'and could not be guessed.')
-    if not silent:
-        print(anal_pl)
+        _log.info('Plane of Analysis not supplied.')
+        anal_pl = _get_plane_of_analysis(path, code)
+    _log.info(anal_pl)
 
     # changes in simul_data are made implicitly
-    CODES[code](simul_data, silent=silent, path=path, anal_pl=anal_pl)
+    CODES[code](simul_data, path=path, anal_pl=anal_pl)
 
-    if not silent:
-        print('#'*60+'\n')
+    _log.info('#'*60+'\n')
     return simul_data
 
 
@@ -1206,8 +1139,8 @@ def calc_impedance(
         Z = VHat[indcs]/Jwlist[indcs]
         return freq[indcs], Z
 
-    if not silent:
-        print('#'*60 + '\n' + 'Calculating Impedances')
+    _log.basicConfig(level=_log.CRITICAL if silent else _log.INFO)
+    _log.info('#'*60 + '\n' + 'Calculating Impedances')
 
     planes = PLANES
     if pl is not None:
@@ -1227,40 +1160,33 @@ def calc_impedance(
     p, n = choose_fft_length(spos.shape[0])
     spos = spos[:n]
 
-    if not silent and p > 0:
-        print(
+    if p > 0:
+        _log.info(
             'Last {0:d} point{1:s} of wake {2:s} '.format(
                 p, *(('s', 'were') if p > 1 else ('', 'was'))) +
             'not considered to gain performance in FFT.')
 
     if use_win is True:
-        if not silent:
-            print('Using Half-Hanning Window')
+        _log.info('Using Half-Hanning Window')
         # Half Hanning window to zero the end of the signal
         window = _np.hanning(2*spos.shape[0])[spos.shape[0]:]
     elif isinstance(use_win, str) and use_win.lower().startswith('phase'):
-        if not silent:
-            print('Using Half-Hanning Window to correct the phases')
+        _log.info('Using Half-Hanning Window to correct the phases')
         # Half Hanning window to smooth the final of the signal
         window = _np.hanning(2*spos.shape[0])[spos.shape[0]:]
     else:
-        if not silent:
-            print('Not using Window')
+        _log.info('Not using Window')
         window = _np.ones(spos.shape[0])
 
-    if not silent:
-        print(f'Cutoff frequency w = {cutoff:d}/sigmat')
+    _log.info(f'Cutoff frequency w = {cutoff:d}/sigmat')
 
     for pl in planes:
-        if not silent:
-            print(f'Performing FFT on W{pl:s}: ', end='')
+        _log.info(f'Performing FFT on W{pl:s}: ')
         Wpl = getattr(simul_data, 'W'+pl).copy()
         if Wpl is None or _np.all(Wpl == 0):
-            if not silent:
-                print('No Data found.')
+            _log.info('No Data found.')
             continue
-        if not silent:
-            print('Data found. ', end='')
+        _log.info('Data found. ')
         Wpl = Wpl[inds]
         Wpl = Wpl[:n]
 
@@ -1279,11 +1205,9 @@ def calc_impedance(
             # the Transverse impedance, according to Chao and Ng, is given by:
             # Z == i\int exp(i*2pi*f*t/n) G(t) dt
             setattr(simul_data, 'Z'+pl, 1j*Zpl.conj())
-        if not silent:
-            print('Impedance Calculated.')
+        _log.info('Impedance Calculated.')
 
-    if not silent:
-        print('#'*60 + '\n')
+    _log.info('#'*60 + '\n')
 
 
 def _calc_impedance_naff(
@@ -1551,26 +1475,23 @@ def show_now():
 
 def save_processed_data(simul_data, silent=False, pth2sv=None):
     """."""
-    if not silent:
-        print('#'*60 + '\nSaving Processed data:')
+    _log.basicConfig(level=_log.CRITICAL if silent else _log.INFO)
+    _log.info('#'*60 + '\nSaving Processed data:')
     spos = simul_data.s
     freq = simul_data.freq
 
     if pth2sv is None:
-        if not silent:
-            print('Saving in the same folder of the raw data')
+        _log.info('Saving in the same folder of the raw data')
         pth2sv = _os.path.abspath('.')
     elif type(pth2sv) is str:
-        if not silent:
-            print('Saving to subfolder: ' + pth2sv)
+        _log.info('Saving to subfolder: ' + pth2sv)
         if not _os.path.isdir(pth2sv):
-            if not silent:
-                print('Folder does not exist. Creating it...')
+            _log.info('Folder does not exist. Creating it...')
             _os.mkdir(pth2sv)
     else:
-        if not silent:
-            print('pth2sv must be a string or None object')
-        raise Exception('pth2sv must be a string or None')
+        msg = 'pth2sv must be a string or None object'
+        _log.info(msg)
+        raise Exception(msg)
 
     # Save wakes
     for par in PLANES:
@@ -1581,8 +1502,7 @@ def save_processed_data(simul_data, silent=False, pth2sv=None):
         wake = getattr(simul_data, 'W'+par)
         if wake is None or _np.all(wake == 0):
             continue
-        if not silent:
-            print('Saving W' + par + ' data to .gz file')
+        _log.info('Saving W' + par + ' data to .gz file')
         _np.savetxt(
             fname, _np.array([spos, wake]).transpose(),
             fmt=['%30.16g', '%30.16g'], header=header)
@@ -1598,19 +1518,16 @@ def save_processed_data(simul_data, silent=False, pth2sv=None):
         Z = getattr(simul_data, 'Z'+par)
         if Z is None or _np.allclose(Z, 0, atol=0):
             continue
-        if not silent:
-            print('Saving Z' + par + ' data to .gz file')
+        _log.info('Saving Z' + par + ' data to .gz file')
         _np.savetxt(
             fname, _np.array([freq/1e9, Z.real, Z.imag]).transpose(),
             fmt=['%30.16g', '%30.16g', '%30.16g'], header=header)
 
-    if not silent:
-        print('Saving the Complete EMSimulData structure to a .pickle file.')
+    _log.info('Saving the Complete EMSimulData structure to a .pickle file.')
     with _gzip.open(_jnPth((pth2sv, DEFAULT_FNAME_SAVE)), 'wb') as f:
         _pickle.dump(simul_data, f, _pickle.HIGHEST_PROTOCOL)
 
-    if not silent:
-        print('All Data Saved\n' + '#'*60)
+    _log.info('All Data Saved\n' + '#'*60)
 
 
 def load_processed_data(filename):
