@@ -50,6 +50,7 @@ class Params:
         self.bunlen = 2.46e-3
         self.espread = 8.43589e-4
         self.nharm = 3
+        self.dampte = 13e-3
 
     def maxiv_params(self):
         """."""
@@ -66,6 +67,7 @@ class Params:
         self.espread = 7.82e-4
         self.Q = 21600
         self.nharm = 3
+        self.dampte = 25.6e-3
 
     @property
     def U0(self):
@@ -152,6 +154,11 @@ class Params:
     def ws(self):
         """."""
         return self.tunes * self.w0
+
+    @property
+    def Ib(self):
+        """."""
+        return self.I0/self.h
 
 
 class HarmonicCavity:
@@ -262,9 +269,6 @@ class HarmonicCavity:
             raise Exception('wrf cannot be zero!')
         tan = Q * (wr/(nharm*wrf) - nharm*wrf/wr)
         angle = _np.arctan2(tan, 1)
-        ## with approximation wr ~ nharm*wrf
-        # dw = wr - nharm*wrf
-        # angle = _np.arctan2(2*Q*dw/wr, 1)
         return _pi + angle
 
     @detune_angle.setter
@@ -275,12 +279,10 @@ class HarmonicCavity:
         alpha = _np.tan(value)/Q
         self.wr = nharm*wrf/2
         self.wr *= (alpha + (alpha**2 + 4)**(1/2))
-        ## with approximation wr ~ nharm*wrf
-        # self.wr = nharm*wrf/(1-alpha/2)
 
-    def detune_passive_cavity(self, Rs):
+    def detune_passive_cavity(self, Rs, k=None):
         """."""
-        kh = self.k_harmonic_flat_potential
+        kh = k or self.k_harmonic_flat_potential
         I0 = self.params.I0
         Vrf = self.params.Vrf
         ib = 2*I0*abs(self.form_factor)
@@ -406,6 +408,7 @@ class HarmonicCavity:
         ring.nbun = nbun_fill if nbun_fill is not None else self.params.h
         ring.nom_cur = self.params.I0
         ring.bunlen = self.params.bunlen
+        ring.dampte = self.params.dampte
         if not radiation:
             ring.dampte = _np.inf
         Rs = self.params.Rs
@@ -429,12 +432,12 @@ class HarmonicCavity:
         phih = self.harmonic_phase
 
         phase = wrf*z/_c
-        Vmain0 = Vrf * _np.sin(phase + phis0)
-        Vmain_pert = Vrf * _np.sin(phase + phis_pert)
+        Vmain0 = Vrf*_np.sin(phase + phis0)
+        Vmain_pert = Vrf*_np.sin(phase + phis_pert)
         Vharm = Vrf*kh*_np.sin(nh*phase + nh*phih)
         return Vmain0, Vmain_pert, Vharm
 
-    def calc_passive_voltage(self, z, Rs, detune_phase):
+    def calc_passive_voltage(self, z, Rs, detune_phase, form_factor_phase=0):
         """."""
         I0 = self.params.I0
         wrf = 2*_pi*self.params.frf
@@ -442,7 +445,7 @@ class HarmonicCavity:
         nh = self.params.nharm
         ib = 2*I0*abs(self.form_factor)
         volt = -ib*Rs*_np.cos(detune_phase)
-        volt *= _np.cos(nh*phase+detune_phase)
+        volt *= _np.cos(nh*phase+detune_phase+form_factor_phase)
         return volt
 
     def plot_voltages(self, z, vmain, vmain_pert, vharm):
