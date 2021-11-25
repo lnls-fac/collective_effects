@@ -1192,7 +1192,7 @@ def _ECHO3D_load_data(simul_data, path, anal_pl):
 
         # Horizontal quadrupolar wake
         _log.info('Loading Horizontal Quadrupolar Wake file:')
-        # Panofky-Wenzel:
+        # Panofsky-Wenzel:
         # dWx/dz = -dWl(x, y, z)/dx
         # Wx = -int(dWl(x, y, zp)/dx, zp=-inf, z)
         wakex = _np.gradient(wake[:, :, origy], mstepx, axis=1)
@@ -1203,7 +1203,7 @@ def _ECHO3D_load_data(simul_data, path, anal_pl):
 
         # Vertical quadrupolar wake
         _log.info('Loading Vertical Quadrupolar Wake file:')
-        # Panofky-Wenzel:
+        # Panofsky-Wenzel:
         # dWy/dz = -dWl(x, y, z)/dy
         # Wy = -int(dWl(x, y, zp)/dy, zp=-inf, z)
         wakey = _np.gradient(wake[:, origx, :], mstepy, axis=1)
@@ -1294,7 +1294,7 @@ def _ECHO3D_load_data(simul_data, path, anal_pl):
             xd.append(bunx)
             yd.append(buny)
 
-            # Panofky-Wenzel:
+            # Panofsky-Wenzel:
             # dWt/dz = -dWl(t, z)/dt
             # Wt = -int(dWl(t, zp)/dt, zp=-inf, z)
             # with t in {x, y}
