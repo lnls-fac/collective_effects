@@ -36,6 +36,8 @@ _rc('text', usetex=True)
 # Zx = i*int exp(i*w*s) Wx(s) ds
 
 _jnpth = _os.path.sep.join
+_si = _sirius.create_ring()
+
 DEFAULT_FNAME_SAVE = 'SimulData.pickle'
 FNAME_ECHOZ1 = r"wake.dat"
 FNAME_ECHOZ2 = r"wake[LT]{1}.dat"
@@ -78,7 +80,6 @@ class EMSimulData:
 
     def __init__(self, code=None):
         """."""
-        self.model = _sirius.create_ring()
         # CST, ACE3P, GdfidL, ECHOz1 ECHOz2, ECHOzR, ECHO2D, ECHO3D...
         self.code = code
         # Bunch Length Used in simulation [m]
@@ -158,8 +159,8 @@ class EMSimulData:
 
     def get_PlossW(self, rev_time=None, harm_num=None, Iavg=500e-3):
         """."""
-        rev_time = rev_time or self.model.T0
-        harm_num = harm_num or self.model.harm_num
+        rev_time = rev_time or _si.T0
+        harm_num = harm_num or _si.harm_num
         kW = self.klossW()
         Ploss = kW * Iavg**2 * rev_time * 1e12 / harm_num
         return Ploss
@@ -180,25 +181,25 @@ class EMSimulData:
 
     def get_klossZ(self, bunlen=2.65e-3, nbunches=1):
         """."""
-        self.model.nbun = nbunches
-        klossZ, *_ = self.model.loss_factor(
+        _si.nbun = nbunches
+        klossZ, *_ = _si.loss_factor(
             w=self.freq*2*_np.pi, Zl=self.Zll, bunlen=bunlen)
         return klossZ
 
     def get_kick_factorZ(self, pl='dy', bunlen=2.65e-3, nbunches=1):
         """."""
-        self.model.nbun = nbunches
+        _si.nbun = nbunches
         Z = getattr(self, 'Z'+pl)
         if Z is None or _np.allclose(Z, 0, atol=0):
             return None
-        kckZ, *_ = self.model.kick_factor(
+        kckZ, *_ = _si.kick_factor(
             w=self.freq*2*_np.pi, Z=Z, bunlen=bunlen)
         return kckZ
 
     def get_PlossZ(self, bunlen=2.65e-3, nbunches=1):
         """."""
-        self.model.nbun = nbunches
-        _, PlossZ, *_ = self.model.loss_factor(
+        _si.nbun = nbunches
+        _, PlossZ, *_ = _si.loss_factor(
             w=self.freq*2*_np.pi, Zl=self.Zll, bunlen=bunlen)
         return PlossZ
 
@@ -552,11 +553,11 @@ def plot_losskick_factors(
         simul_data, save_figs=False, pth2sv=None, show=False, pls=None):
     """."""
     # Extracts and Initialize Needed Variables:
-    simul_data.model.nom_cur = 500e-3
+    _si.nom_cur = 500e-3
     # bunch length scenarios:
     sigvec = _np.array([2.65, 5, 8, 10, 15], dtype=float)*1e-3
     # current scenarios
-    Ivec = _np.linspace(10e-3, simul_data.model.nom_cur, num=50)
+    Ivec = _np.linspace(10e-3, _si.nom_cur, num=50)
 
     bunlen = simul_data.bunlen
     sigi = _np.linspace(bunlen, 18e-3, num=50)
@@ -584,14 +585,14 @@ def plot_losskick_factors(
                 kZi = _np.zeros(sigi.shape[0])
                 for j in range(sigi.shape[0]):
                     kZi[j] = simul_data.get_klossZ(
-                        bunlen=sigi[j], n=fill_pat[i]) * 1e-12  # V/pC
+                        bunlen=sigi[j], nbunches=fill_pat[i]) * 1e-12  # V/pC
                 ax.semilogy(
                     sigi * 1e3, kZi * 1e3, 'o', markersize=4,
                     label=r'$n = {0:03d}$'.format(fill_pat[i]))
                 if not i:
                     kZ = kZi[0]
             # Calculates klossW
-            kW = simul_data.klossW() * 1e-12
+            kW = simul_data.get_klossW() * 1e-12
             # Print loss factor calculated in both ways
             ax.semilogy(
                 bunlen * 1e3, kW * 1e3, '*', markersize=7, color=[1, 0, 0],
@@ -611,12 +612,12 @@ def plot_losskick_factors(
                 kZvec[i] = simul_data.get_klossZ(bunlen=sigvec[i])  # V/C
                 labels.append(r'$\sigma = {0:05.2f}$ mm'.format(sigvec[i]*1e3))
             Plossvec = kZvec[None, :] * Ivec[:, None]**2
-            Plossvec *= simul_data.model.T0 / simul_data.model.harm_num
+            Plossvec *= _si.T0 / _si.harm_num
 
             ax.semilogy(Ivec*1e3, Plossvec, markersize=4)
             ax.set_title(
                 'Power Loss for ${0:d}$ equally spaced bunches.'.format(
-                    simul_data.model.harm_num))
+                    _si.harm_num))
             ax.set_xlabel(r'$I_{{avg}}$ [mA]')
             ax.set_ylabel(r'Power [W]')
             ax.legend(labels, loc='best')
@@ -800,11 +801,6 @@ def _get_plane_of_analysis(path, code):
             return 'll'
         if _os.path.isdir(_jnpth([path, 'elec'])):
             return 'dy'
-
-        anal_pl = 'dy'
-        if _os.path.isfile('wakeL_00.txt'):
-            anal_pl = 'll'
-        return anal_pl
 
     msg = 'Plane of analysis was not supplied '
     msg += 'and could not be guessed.'
@@ -1081,13 +1077,15 @@ def _ECHO2D_load_data(simul_data, path, anal_pl):
 
 
 def _ECHO3D_load_wakes(path):
-    fname = _jnpth([path, FNAME_ECHO3D])
+    fname = _jnpth([path, 'Results', FNAME_ECHO3D])
     nz, nx, ny = _np.fromfile(fname, dtype=_np.int32, count=3)
     data = _np.fromfile(fname, dtype=_np.float64, offset=4*3)
     x = data[:nx] * 1e-2  # from cm to m
     y = data[nx:nx+ny] * 1e-2  # from cm to m
     wake = data[nx+ny:]
-    wake = -wake.reshape(nz, nx, ny)  # the minus sign is due to convention
+    wake = wake.reshape(nz, nx, ny)
+    wake *= -1  # the minus sign is due to convention
+    wake *= 1e12  # from V/pC to V/C
 
     # find the index with the origin
     origx = _np.isclose(x, 0.0).nonzero()[0]
@@ -1132,10 +1130,18 @@ def _ECHO3D_load_info(path):
     return dic
 
 
+def _ECHO3D_find_files(path):
+    path_ = _jnpth([path, 'Results'])
+    f_match = None
+    if _os.path.isdir(path_):
+        f_in_dir = ' '.join(_os.listdir(path_))
+        f_match = _re.findall(FNAME_ECHO3D, f_in_dir)
+    return f_match
+
+
 def _ECHO3D_load_data(simul_data, path, anal_pl):
     # list all files that match the name pattern for wakefields
-    f_in_dir = ' '.join(_os.listdir(path))
-    f_match = _re.findall(FNAME_ECHO3D, f_in_dir)
+    f_match = _ECHO3D_find_files(path)
 
     if anal_pl == 'll':
         if not f_match:
@@ -1237,8 +1243,7 @@ def _ECHO3D_load_data(simul_data, path, anal_pl):
             _log.info(
                 ' I found a folder named "elec". I will assume the '
                 'simulation has this symmetry.')
-            f_in_dir = ' '.join(_os.listdir(elec_fol))
-            f_match = _re.findall(FNAME_ECHO3D, f_in_dir)
+            f_match = _ECHO3D_find_files(elec_fol)
             elec_symm = True
 
     if not f_match:
@@ -1256,8 +1261,7 @@ def _ECHO3D_load_data(simul_data, path, anal_pl):
                     'with the data')
                 raise Exception('Files not found')
             # list all files that match the pattern
-            f_in_dir = ' '.join(_os.listdir(ext_path))
-            f_match = _re.findall(FNAME_ECHO3D, f_in_dir)
+            f_match = _ECHO3D_find_files(ext_path)
             if not f_match:
                 msg = 'No files found for transverse analysis.'
                 _log.info(msg)
@@ -1268,7 +1272,7 @@ def _ECHO3D_load_data(simul_data, path, anal_pl):
             wake, origx, origy = _ECHO3D_load_wakes(ext_path)
             nz = wake.shape[0]
 
-            dic = _ECHO3D_load_info(path)
+            dic = _ECHO3D_load_info(ext_path)
             bunlen = dic['BunchSigma']*1e-3  # in m
             mstepz = dic['Steps'][0]*1e-3  # in m
             mstepx = dic['Steps'][1]*1e-3  # in m
@@ -1295,22 +1299,23 @@ def _ECHO3D_load_data(simul_data, path, anal_pl):
             # Wt = -int(dWl(t, zp)/dt, zp=-inf, z)
             # with t in {x, y}
             orig = origx if anal_pl == 'dx' else origy
+            origo = origy if anal_pl == 'dx' else origx
             mstep = mstepx if anal_pl == 'dx' else mstepy
-            axis = 1 if anal_pl == 'dx' else 2
+            bunp = bunx if anal_pl == 'dx' else buny
             origs.append(orig)
             msteps.append(mstep)
 
-            waket = wake.take(orig, axis=axis)
+            waket = wake.take(origo, axis=2 if anal_pl == 'dx' else 1)
             waket = _np.gradient(waket, mstep, axis=1)
             waket = -_scy_int.cumtrapz(waket, x=spos, initial=0, axis=0)
-            wakes.append(waket)
+            wakes.append(waket[:, orig] / (mstep*(bunp-orig)))
 
         # If the simulation is not ready yet the lenghts may differ.
         # This line is used to truncate the longer wake in the length of
         # the shorter:
         l1 = min(len(sposs[0]), len(sposs[1]))
 
-        delta = xd if anal_pl == 'dx' else yd
+        bunp = xd if anal_pl == 'dx' else yd
         ndel = yd if anal_pl == 'dx' else xd
         if not (_np.allclose(sposs[0][:l1], sposs[1][:l1], atol=0) and
                 _np.allclose(sbuns[0], sbuns[1], atol=0) and
@@ -1321,41 +1326,58 @@ def _ECHO3D_load_data(simul_data, path, anal_pl):
             msg += 'folders.'
             _log.info(msg)
             raise Exception(msg)
-        simul_data.s = spos[0][:l1]
-        simul_data.bun = bun[0]
-        simul_data.sbun = sbun[0]
-        simul_data.bunlen = bunlen[0]
+        simul_data.s = sposs[0][:l1]
+        simul_data.bun = buns[0]
+        simul_data.sbun = sbuns[0]
+        simul_data.bunlen = bunlens[0]
 
-        waket = wake[0][:l1, origs[0]] - wake[1][:l1, origs[1]]
-        waket /= (msteps[0]*(delta[0]-origs[0])-msteps[1]*(delta[1]-origs[1]))
-        setattr(
-            simul_data, 'W'+anal_pl, waket)  # V/C/m
+        waket = (wakes[0][:l1] + wakes[1][:l1]) / 2
+        setattr(simul_data, 'W'+anal_pl, waket)  # V / pC / m
     else:
         if elec_symm:
             path = elec_fol
-        spos, wake, sbun, bun, bunlen, xd, yd = \
-            _GdfidL_get_longitudinal_info(
-                path, f_match, pl=anal_pl)
+
+        wake, origx, origy = _ECHO3D_load_wakes(path)
+        nz = wake.shape[0]
+
+        dic = _ECHO3D_load_info(path)
+        bunlen = dic['BunchSigma']*1e-3  # in m
+        mstepz = dic['Steps'][0]*1e-3  # in m
+        mstepx = dic['Steps'][1]*1e-3  # in m
+        mstepy = dic['Steps'][2]*1e-3  # in m
+        bunx = dic['BunchPosition'][0]  # in step index
+        buny = dic['BunchPosition'][1]  # in step index
+
+        spos = mstepz*_np.arange(nz, dtype=float)
+        spos -= 5 * bunlen
+        a = _np.argmin(_np.abs(spos + spos[0])) + 1
+        sbun = spos[:a]
+        bun = _np.exp(-sbun**2/(2*bunlen*bunlen))
+        bun /= _np.sqrt(2*_np.pi)*bunlen
+
         simul_data.s = spos
         simul_data.bun = bun
         simul_data.sbun = sbun
         simul_data.bunlen = bunlen
 
-        _log.info('Loading {0:s} Dipolar Wake file:'.format(
-            'Horizontal' if anal_pl == 'dx' else 'Vertical'))
-        wake = _GdfidL_get_transversal_info(
-            path, f_match, pl=anal_pl)  # V/C
-        if wake is not None:
-            delta = xd if anal_pl == 'dx' else yd
-            delta *= 2 if elec_symm else 1
-            setattr(simul_data, 'W'+anal_pl, wake/delta)  # V/C/m
-        else:
-            _log.info(
-                'Actually there is something wrong, '
-                'these wake files should be here.')
-            raise Exception(
-                'Transverse {0:s} dipolar wake files not found'.format(
-                    'Horizontal' if anal_pl == 'dx' else 'Vertical'))
+        # Panofsky-Wenzel:
+        # dWt/dz = -dWl(t, z)/dt
+        # Wt = -int(dWl(t, zp)/dt, zp=-inf, z)
+        # with t in {x, y}
+        orig = origx if anal_pl == 'dx' else origy
+        origo = origy if anal_pl == 'dx' else origx
+        mstep = mstepx if anal_pl == 'dx' else mstepy
+        bunp = bunx if anal_pl == 'dx' else buny
+
+        axis = 1 if anal_pl == 'dx' else 2
+
+        waket = wake.take(origo, axis=axis)
+        waket = _np.gradient(waket, mstep, axis=1)[:, orig]
+        waket = -_scy_int.cumtrapz(waket, x=spos, initial=0, axis=0)
+
+        mstep *= 2 if elec_symm else 1
+        waket /= mstep * (bunp-orig)
+        setattr(simul_data, 'W'+anal_pl, waket)  # V/C/m
     _log.info('Transverse Data Loaded.')
 
     if anal_pl_ori:
