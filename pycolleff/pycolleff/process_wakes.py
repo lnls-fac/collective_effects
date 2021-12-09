@@ -1096,6 +1096,7 @@ def _ECHO3D_load_wakes(path):
         origx = _np.argmin(_np.abs(x))
     else:
         origx = origx[0]
+
     origy = _np.isclose(y, 0.0).nonzero()[0]
     if not origy.size:
         _log.warning(
@@ -1369,9 +1370,9 @@ def _ECHO3D_load_data(simul_data, path, anal_pl):
         mstep = mstepx if anal_pl == 'dx' else mstepy
         bunp = bunx if anal_pl == 'dx' else buny
 
-        axis = 1 if anal_pl == 'dx' else 2
+        axiso = 2 if anal_pl == 'dx' else 1
 
-        waket = wake.take(origo, axis=axis)
+        waket = wake.take(origo, axis=axiso)
         waket = _np.gradient(waket, mstep, axis=1)[:, orig]
         waket = -_scy_int.cumtrapz(waket, x=spos, initial=0, axis=0)
 
