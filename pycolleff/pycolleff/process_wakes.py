@@ -1251,7 +1251,7 @@ def _ECHO3D_load_data(simul_data, path, anal_pl):
         _log.info(' I will assume there is no symmetry.')
 
         sposs, wakes, sbuns, buns, bunlens, xd, yd = [], [], [], [], [], [], []
-        origs, msteps = [], []
+        origs, bunsp, msteps = [], [], []
         for sub_fol in ['dpl', 'dmi']:
             ext_path = _jnpth([path, anal_pl+sub_fol])
             _log.info('Looking for '+anal_pl+sub_fol+' subfolder:')
@@ -1304,12 +1304,13 @@ def _ECHO3D_load_data(simul_data, path, anal_pl):
             mstep = mstepx if anal_pl == 'dx' else mstepy
             bunp = bunx if anal_pl == 'dx' else buny
             origs.append(orig)
+            bunsp.append(bunp)
             msteps.append(mstep)
 
             waket = wake.take(origo, axis=2 if anal_pl == 'dx' else 1)
             waket = _np.gradient(waket, mstep, axis=1)
             waket = -_scy_int.cumtrapz(waket, x=spos, initial=0, axis=0)
-            wakes.append(waket[:, orig] / (mstep*(bunp-orig)))
+            wakes.append(waket[:, orig])
 
         # If the simulation is not ready yet the lenghts may differ.
         # This line is used to truncate the longer wake in the length of
@@ -1332,7 +1333,8 @@ def _ECHO3D_load_data(simul_data, path, anal_pl):
         simul_data.sbun = sbuns[0]
         simul_data.bunlen = bunlens[0]
 
-        waket = (wakes[0][:l1] + wakes[1][:l1]) / 2
+        waket = wakes[0][:l1] - wakes[1][:l1]
+        waket /= (bunsp[0]-origs[0])*msteps[0] - (bunsp[1]-origs[1])*msteps[1]
         setattr(simul_data, 'W'+anal_pl, waket)  # V / pC / m
     else:
         if elec_symm:
