@@ -372,6 +372,119 @@ class HarmonicCavity:
         return _np.trapz(
             rho*_np.exp(1j*w*z/_c), z)/_np.trapz(rho, z)
 
+    def loop_form_factor(
+            self, z, dist0, kh=None, include_phase=True, update_detune=False):
+        """."""
+        wrf = self.params.wrf
+        nharm = self.params.nharm
+        Rs = self.params.Rs
+        Vrf = self.params.Vrf
+        self.form_factor = self.complex_form_factor(
+            z, nharm*wrf, dist0)
+
+        if update_detune:
+            k = kh or self.k_harmonic_flat_potential
+            detune = self.detune_passive_cavity(self.params.Rs, k)
+            self.detune_angle = detune
+
+        ffang = _np.angle(self.form_factor)
+        if not include_phase:
+            ffang = 0
+
+        self.harmonic_phase = (self.detune_angle + _pi/2)/nharm
+
+        vharm0 = self.calc_passive_voltage(
+            z=0, Rs=Rs, detune_phase=self.detune_angle,
+            form_factor_phase=-ffang)
+        arg = (self.params.U0 - vharm0)/Vrf
+        phis_pert = _pi - _np.arcsin(arg)
+        vmain_pert = Vrf * _np.sin(wrf*z/_c + phis_pert)
+
+        vharm = self.calc_passive_voltage(
+            z=z, Rs=Rs, detune_phase=self.detune_angle,
+            form_factor_phase=-ffang)
+        dist = self.calc_distribution(z=z, voltage=vmain_pert+vharm)
+        return vmain_pert, vharm, dist
+
+    def convergence_distribution(
+            self, z, rho0, niter, tol, beta, method='type1',
+            kh=None, include_phase=True, update_detune=False,
+            print_iter=False):
+        """."""
+        err_hist = []
+        entropy_hist = []
+        rho_n = rho0
+        X_k = []
+        G_k = []
+
+        def haissinski(
+                rho0, z=z, kh=kh,
+                include_phase=include_phase,
+                update_detune=update_detune):
+            _, _, rho_new = self.loop_form_factor(
+                z, rho0, kh=kh,
+                include_phase=include_phase, update_detune=update_detune)
+            return rho_new
+
+        xs_ = [rho0, haissinski(rho0)]
+        gs_ = [haissinski(rhoval) - rhoval for rhoval in xs_]
+        G_k = [gs_[1] - gs_[0], ]
+        X_k = [xs_[1] - xs_[0], ]
+        m = 3
+        for nit in range(niter):
+            rho = haissinski(rho0)
+            rho_n_1 = rho
+            diff = rho_n_1 - rho_n
+            err = _np.sqrt(_np.trapz(diff**2, z))
+            err *= (1+beta)
+            sint = rho*_np.log(rho)
+            filt = _np.logical_not(_np.isnan(sint))
+            entropy = -_np.trapz(sint[filt], z[filt])
+            err_hist.append(err)
+            entropy_hist.append(entropy)
+            if print_iter:
+                print('{:03d}: {:.2e}'.format(nit, err))
+            if err < tol:
+                break
+            if method == 'type1':
+                rho_n_2 = rho_n
+                rho_n = (rho_n_1 + beta*rho_n_2)/(1+beta)
+            elif method == 'type2':
+                _, _, rho_n = haissinski(rho_n)
+            elif method == 'anderson_acc':
+                mk_ = min(m, nit)
+                Xkmat = _np.array(X_k, ndmin=3)
+                Gkmat = _np.array(G_k, ndmin=3)
+                gamma_k = []
+                xk_ = []
+                for grid, _ in enumerate(z):
+                    # print(Gkmat[:, :, grid])
+                    # print(gs_[nit][grid])
+                    gamma_ki = _np.linalg.lstsq(
+                        Gkmat[:, :, grid], [gs_[nit][grid]], rcond=None)[0]
+                    gamma_k.append(gamma_ki)
+                    xki_p1 = xs_[nit][grid] + gs_[nit][grid]
+                    mat = Xkmat[:, :, grid] + Gkmat[:, :, grid]
+                    xki_p1 -= mat @ gamma_ki
+                    xki_p1 *= beta
+                    xki_p2 = xs_[nit][grid] - Xkmat[:, :, grid] @ gamma_ki
+                    xki_p2 *= (1-beta)
+                    xk_.append((xki_p1 + xki_p2)[0])
+                xs_.append(xk_)
+                gs_.append(haissinski(xs_[-1]) - xs_[-1])
+                G_k.append(gs_[nit+1] - gs_[nit])
+                X_k.append(_np.array(xs_[nit+1]) - _np.array(xs_[nit]))
+                rho = xs_[-1]
+                rho_n = rho
+                if len(X_k) > mk_:
+                    X_k = X_k[-m:]
+                    G_k = G_k[-m:]
+                # print(err)
+                if abs(err) < tol:
+                    break
+            rho0 = rho_n
+        return rho, _np.array(err_hist), _np.array(entropy_hist), nit
+
     def robinson_growth_rate(self, w, wr, approx=False):
         """."""
         alpha = self.params.alpha
@@ -448,16 +561,16 @@ class HarmonicCavity:
         volt *= _np.cos(nh*phase+detune_phase+form_factor_phase)
         return volt
 
-    def plot_voltages(self, z, vmain, vmain_pert, vharm):
+    def plot_voltages(self, z, vmain, vharm, vtotal):
         """."""
-        vtotal = vmain_pert + vharm
         fig = plt.figure(figsize=(6, 4))
         gs = mpl_gs.GridSpec(1, 1)
         ax1 = plt.subplot(gs[0, 0])
 
-        ax1.plot(z*100, vmain * 1e-6, label=r'$V_{rf}$ Main')
-        ax1.plot(z*100, vharm * 1e-6, label=r'$V_{3h}$ 3HC')
-        ax1.plot(z*100, vtotal * 1e-6, label=r'$V_{rf} + V_{3h}$ Total')
+        ax1.plot(z*100, vmain * 1e-6, label=r'$V_{rf}$ Main', color='C0')
+        ax1.plot(z*100, vharm * 1e-6, label=r'$V_{3h}$ 3HC', color='C1')
+        ax1.plot(
+            z*100, vtotal * 1e-6, label=r'$V_{rf} + V_{3h}$ Total', color='C3')
         ax1.axhline(
             y=self.params.U0*1e-6, color='tab:gray', ls='--', label=r'$U_0$')
 
