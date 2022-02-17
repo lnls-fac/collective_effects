@@ -291,7 +291,9 @@ class HarmonicCavity:
 
     def print_flat_potential(self):
         """."""
-        st =  'k flat potential              : {:+08.3f} \n'
+        st = ''
+        st += 'form factor                   : {:+08.3f} \n'
+        st += 'k flat potential              : {:+08.3f} \n'
         st += 'harmonic phase [deg]          : {:+08.3f} \n'
         st += 'harmonic tuning angle [deg]   : {:+08.3f} \n'
         st += 'detuning frequency    [kHz]   : {:+08.3f} \n'
@@ -305,13 +307,14 @@ class HarmonicCavity:
         psih = self.psih_harmonic_flat_potential
         self.detune_angle = psih
         fr = self.wr/2/_pi
-        df = fr-self.params.nharm*self.params.frf
-        Rs_fp = self.shunt_impedance
+        df = (fr-self.params.nharm*self.params.frf)*1e-3
+        Rs_fp = self.shunt_impedance*1e-6
         phis = self.params.sync_phase
         new_phis = self.perturbed_sync_phase
+        ffactor = self.form_factor
         print(
             st.format(
-                kh, phih*rad2deg, psih*rad2deg, df*1e-3, Rs_fp*1e-6,
+                ffactor, kh, phih*rad2deg, psih*rad2deg, df, Rs_fp,
                 phis*rad2deg, new_phis*rad2deg))
 
     def integrated_potential(self, z, voltage=None, harmonic=True):
