@@ -512,7 +512,7 @@ class HarmonicCavity:
             Zlp = imp.longitudinal_resonator(Rs=Rs, Q=Q, wr=wr, w=wp)
             Zln = imp.longitudinal_resonator(Rs=Rs, Q=Q, wr=wr, w=wn)
             growth = const*(wp*Zlp.real - wn*Zln.real)
-        return growth
+        return growth - 1/self.params.dampte
 
     def tuneshifts_cbi(self, w, wr, m=1, nbun_fill=None, radiation=False):
         """."""
