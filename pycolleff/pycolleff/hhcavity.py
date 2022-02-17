@@ -50,7 +50,7 @@ class Params:
         self.bunlen = 2.46e-3
         self.espread = 8.43589e-4
         self.nharm = 3
-        self.dampte = 13e-3
+        self.dampte = 13e-3 * 400/871
 
     def maxiv_params(self):
         """."""
@@ -534,7 +534,7 @@ class HarmonicCavity:
             w=w, Zl=Zl, bunlen=ring.bunlen(), m=m, inverse=False)
 
         # Relative tune-shifts must be multiplied by ws
-        deltaw *= self.params.tunes * ring.w0
+        deltaw *= (self.params.tunes * ring.w0)
         return deltaw, Zl, wp, interpol_Z, spectrum
 
     def calc_voltages(self, z):
