@@ -5,6 +5,8 @@
 - sudo pip3 install matplotlib scipy sh pandas tk notebook
 - sudo apt-get install git
 - sudo apt-get install python3-tk
+- sudo apt install texlive-latex-base
+- sudo apt-get install texlive-latex-extra texlive-fonts-recommended dvipng cm-super
 
 2) The second step is to create an SSH key to clone the git repositories:
 
