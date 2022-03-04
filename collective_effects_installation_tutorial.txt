@@ -1,0 +1,55 @@
+1) The first step is to install eveything that will be needed:
+
+- sudo apt update 
+- sudo apt install python3-pip
+- sudo pip3 install matplotlib scipy sh pandas tk notebook
+- sudo apt-get install git
+- sudo apt-get install python3-tk
+- sudo apt install texlive-latex-base
+- sudo apt-get install texlive-latex-extra texlive-fonts-recommended dvipng cm-super
+
+2) The second step is to create an SSH key to clone the git repositories:
+
+- cd .ssh
+- ssh-keygen
+- cat id_rsa.pub
+
+Copy the generated key and paste it in the "SSH and GPG keys" from GitHub settings
+
+3) The third step is to clone the required repositories:
+
+- git clone git@github.com:lnls-fac/collective_effects
+- git clone git@github.com:lnls-fac/mathphys
+- git clone git@github.com:lnls-fac/lnls
+
+4) The fourth step is to install the required setups:
+
+- cd collective_effects/pycolleff
+- sudo python3 setup.py develop
+
+- cd collective_effects/scripts
+- sudo make install
+
+5) The fifth step is to link pip-sirius and python-sirius to pip3 and python3, respectvely:
+
+- cd /usr/bin
+- ls -la pip*
+- sudo ln -s pip3 pip-sirius
+
+- cd /usr/bin
+- ls -la python*
+- sudo ln -s python3 python-sirius
+
+6) The sixth step is to install the packages from mathphys and lnls:
+
+- cd mathphys
+- make develop-install
+
+- cd lnls
+- make develop-install
+
+7) The seventh step is to check if everything is working properly:
+
+- ems-wake-analysis.py --help
+
+If the help message appears, the packages were correctly installed.

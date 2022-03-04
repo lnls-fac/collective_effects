@@ -4,6 +4,9 @@ __pycache_/_
 cppcolleff.py
 *.egg-info/
 
+# vscode files
+.vscode/
+
 # Object files
 *.o
 *.ko
