@@ -373,7 +373,6 @@ class Ring:
 
         if bunlen is None:
             bunlen = self.bunlen(I_tot/nb)
-        w, Zt = self._prepare_input_impedance(budget, element, w, Zt, imp)
 
         alpe = 1/taue/w0/nus
         alpt = 1/taut/w0/nus
@@ -394,6 +393,8 @@ class Ring:
                 w - nucro*w0, bunlen, n_rad=0, n_azi=m, only=True)**2
             Z = (alpt + abs(m)*alpe)/(I_tot*w0/(4*_np.pi)/(nus*w0)/E)/h
             return Z
+
+        w, Zt = self._prepare_input_impedance(budget, element, w, Zt, imp)
 
         h = self.calc_spectrum(wpcro, bunlen, n_rad=0, n_azi=m, only=True)**2
         # Complex interpolation is ill-defined
