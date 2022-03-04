@@ -292,7 +292,7 @@ class HarmonicCavity:
     def print_flat_potential(self):
         """."""
         st = ''
-        st += 'form factor                   : {:+08.3f} \n'
+        st += 'form factor                   : {:+8.03f} \n'
         st += 'k flat potential              : {:+08.3f} \n'
         st += 'harmonic phase [deg]          : {:+08.3f} \n'
         st += 'harmonic tuning angle [deg]   : {:+08.3f} \n'
@@ -375,8 +375,54 @@ class HarmonicCavity:
         return _np.trapz(
             rho*_np.exp(1j*w*z/_c), z)/_np.trapz(rho, z)
 
+    def calc_voltages(self, z):
+        """."""
+        Vrf = self.params.Vrf
+        wrf = 2*_pi*self.params.frf
+        phis0 = self.params.sync_phase
+        phis_pert = self.perturbed_sync_phase
+        kh = self.k_harmonic_flat_potential
+        nh = self.params.nharm
+        phih = self.harmonic_phase
+
+        phase = wrf*z/_c
+        Vmain0 = Vrf*_np.sin(phase + phis0)
+        Vmain_pert = Vrf*_np.sin(phase + phis_pert)
+        Vharm = Vrf*kh*_np.sin(nh*phase + nh*phih)
+        return Vmain0, Vmain_pert, Vharm
+
+    def calc_passive_voltage(self, z, Rs, detune_phase, form_factor_phase=0):
+        """."""
+        I0 = self.params.I0
+        wrf = 2*_pi*self.params.frf
+        phase = wrf*z/_c
+        nh = self.params.nharm
+        ib = 2*I0*abs(self.form_factor)
+        volt = -ib*Rs*_np.cos(detune_phase)
+        volt *= _np.cos(nh*phase+detune_phase+form_factor_phase)
+        return volt
+
+    def plot_voltages(self, z, vmain, vharm, vtotal):
+        """."""
+        fig = plt.figure(figsize=(6, 4))
+        gs = mpl_gs.GridSpec(1, 1)
+        ax1 = plt.subplot(gs[0, 0])
+
+        ax1.plot(z*100, vmain * 1e-6, label=r'$V_{rf}$ Main', color='C0')
+        ax1.plot(z*100, vharm * 1e-6, label=r'$V_{3h}$ 3HC', color='C1')
+        ax1.plot(
+            z*100, vtotal * 1e-6, label=r'$V_{rf} + V_{3h}$ Total', color='C3')
+        ax1.axhline(
+            y=self.params.U0*1e-6, color='tab:gray', ls='--', label=r'$U_0$')
+
+        ax1.set_xlabel(r'$z$ [cm]')
+        ax1.set_ylabel('RF voltage [MV]')
+        ax1.legend(loc='upper right')
+        ax1.grid(ls='--', alpha=0.5)
+        return fig
+
     def loop_form_factor(
-            self, z, dist0, kh=None, include_phase=True, update_detune=False):
+            self, z, dist0, kh=None, update_detune=False):
         """."""
         wrf = self.params.wrf
         nharm = self.params.nharm
@@ -391,9 +437,6 @@ class HarmonicCavity:
             self.detune_angle = detune
 
         ffang = _np.angle(self.form_factor)
-        if not include_phase:
-            ffang = 0
-
         self.harmonic_phase = (self.detune_angle + _pi/2)/nharm
 
         vharm0 = self.calc_passive_voltage(
@@ -410,9 +453,8 @@ class HarmonicCavity:
         return vmain_pert, vharm, dist
 
     def convergence_distribution(
-            self, z, rho0, niter, tol, beta, method='type1',
-            kh=None, include_phase=True, update_detune=False,
-            print_iter=False):
+            self, z, rho0, niter, tol, beta, method='anderson_acc',
+            kh=None, update_detune=False, print_iter=False):
         """."""
         err_hist = []
         entropy_hist = []
@@ -421,12 +463,9 @@ class HarmonicCavity:
         G_k = []
 
         def haissinski(
-                rho0, z=z, kh=kh,
-                include_phase=include_phase,
-                update_detune=update_detune):
+                rho0, z=z, kh=kh, update_detune=update_detune):
             _, _, rho_new = self.loop_form_factor(
-                z, rho0, kh=kh,
-                include_phase=include_phase, update_detune=update_detune)
+                z, rho0, kh=kh, update_detune=update_detune)
             return rho_new
 
         xs_ = [rho0, haissinski(rho0)]
@@ -440,9 +479,10 @@ class HarmonicCavity:
             diff = rho_n_1 - rho_n
             err = _np.sqrt(_np.trapz(diff**2, z))
             err *= (1+beta)
-            sint = rho*_np.log(rho)
+            idx_nzeros = (rho > 1e-12)
+            sint = rho[idx_nzeros]*_np.log(rho[idx_nzeros])
             filt = _np.logical_not(_np.isnan(sint))
-            entropy = -_np.trapz(sint[filt], z[filt])
+            entropy = -_np.trapz(sint[filt], z[idx_nzeros][filt])
             err_hist.append(err)
             entropy_hist.append(entropy)
             if print_iter:
@@ -461,8 +501,6 @@ class HarmonicCavity:
                 gamma_k = []
                 xk_ = []
                 for grid, _ in enumerate(z):
-                    # print(Gkmat[:, :, grid])
-                    # print(gs_[nit][grid])
                     gamma_ki = _np.linalg.lstsq(
                         Gkmat[:, :, grid], [gs_[nit][grid]], rcond=None)[0]
                     gamma_k.append(gamma_ki)
@@ -482,7 +520,6 @@ class HarmonicCavity:
                 if len(X_k) > mk_:
                     X_k = X_k[-m:]
                     G_k = G_k[-m:]
-                # print(err)
                 if abs(err) < tol:
                     break
             rho0 = rho_n
@@ -536,49 +573,3 @@ class HarmonicCavity:
         # Relative tune-shifts must be multiplied by ws
         deltaw *= (self.params.tunes * ring.w0)
         return deltaw, Zl, wp, interpol_Z, spectrum
-
-    def calc_voltages(self, z):
-        """."""
-        Vrf = self.params.Vrf
-        wrf = 2*_pi*self.params.frf
-        phis0 = self.params.sync_phase
-        phis_pert = self.perturbed_sync_phase
-        kh = self.k_harmonic_flat_potential
-        nh = self.params.nharm
-        phih = self.harmonic_phase
-
-        phase = wrf*z/_c
-        Vmain0 = Vrf*_np.sin(phase + phis0)
-        Vmain_pert = Vrf*_np.sin(phase + phis_pert)
-        Vharm = Vrf*kh*_np.sin(nh*phase + nh*phih)
-        return Vmain0, Vmain_pert, Vharm
-
-    def calc_passive_voltage(self, z, Rs, detune_phase, form_factor_phase=0):
-        """."""
-        I0 = self.params.I0
-        wrf = 2*_pi*self.params.frf
-        phase = wrf*z/_c
-        nh = self.params.nharm
-        ib = 2*I0*abs(self.form_factor)
-        volt = -ib*Rs*_np.cos(detune_phase)
-        volt *= _np.cos(nh*phase+detune_phase+form_factor_phase)
-        return volt
-
-    def plot_voltages(self, z, vmain, vharm, vtotal):
-        """."""
-        fig = plt.figure(figsize=(6, 4))
-        gs = mpl_gs.GridSpec(1, 1)
-        ax1 = plt.subplot(gs[0, 0])
-
-        ax1.plot(z*100, vmain * 1e-6, label=r'$V_{rf}$ Main', color='C0')
-        ax1.plot(z*100, vharm * 1e-6, label=r'$V_{3h}$ 3HC', color='C1')
-        ax1.plot(
-            z*100, vtotal * 1e-6, label=r'$V_{rf} + V_{3h}$ Total', color='C3')
-        ax1.axhline(
-            y=self.params.U0*1e-6, color='tab:gray', ls='--', label=r'$U_0$')
-
-        ax1.set_xlabel(r'$z$ [cm]')
-        ax1.set_ylabel('RF voltage [MV]')
-        ax1.legend(loc='upper right')
-        ax1.grid(ls='--', alpha=0.5)
-        return fig
