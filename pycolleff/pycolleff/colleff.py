@@ -295,8 +295,9 @@ class Ring:
         else:
             raise Exception('Incorrect impedance input.')
 
-    def longitudinal_cbi(self, budget=None, element=None, w=None,
-                         Zl=None, bunlen=None, m=0, inverse=False):
+    def longitudinal_cbi(
+            self, budget=None, element=None, w=None,
+            Zl=None, bunlen=None, m=1, inverse=False, full=False):
         """Calculate the complex coeherent frequency shifts of the beam for all
         the oscilation modes, considering a Gaussian beam and only azimuthal
         mode k=0;
@@ -331,23 +332,32 @@ class Ring:
 
         h = self.calc_spectrum(wp,bunlen,n_rad=0,n_azi=m,only=True)**2
         # Complex interpolation is ill-defined
-        interpol_Z  = 1j*_np.interp(wp, w, Zl.imag) # imaginary must come first
-        interpol_Z +=    _np.interp(wp, w, Zl.real)
-        Zl_eff = (interpol_Z/wp * h).sum(1)
+        if callable(Zl):
+            Zl_interp = Zl(wp)
+        else:
+            # imaginary must come first:
+            Zl_interp  = _np.interp(wp, w, Zl.imag) * 1j
+            Zl_interp += _np.interp(wp, w, Zl.real)
+        Zl_eff = (Zl_interp/wp * h).sum(1)
 
         # Returns the relative Tune Shift:
-        deltaw = 1j*(-abs(m)*alpe +
-                     m*I_tot*w0*eta/(2*_np.pi)/E/(nus*w0*bunlen/_c)**2*Zl_eff)
+        deltaw = 1j*(
+            -abs(m)*alpe +
+            m*I_tot*w0*eta/(2*_np.pi)/E/(nus*w0*bunlen/_c)**2*Zl_eff)
+
+        if full:
+            return deltaw, wp, Zl_interp, Zl_eff
         return deltaw
 
-    def transverse_cbi(self, budget=None, element=None, w=None, Zt=None,
-                       bunlen=None, m=0,  plane='y', inverse=False):
+    def transverse_cbi(
+            self, budget=None, element=None, w=None, Zt=None,
+            bunlen=None, m=0,  plane='y', inverse=False, full=False):
         """Calcula a impedância transversal efetiva dos nb modos de oscilacao,
         considerando um feixe gaussiano, para o modo azimutal m e radial k=0;
         E calcula as instabilidades de Coupled_bunch a partir dela.
 
-        deltaw = transverse_cbi(w,Z, bunlen, nb, w0, nus, nut,
-                                chrom, eta, m, E, I_tot)
+        deltaw = transverse_cbi(
+            w, Z, bunlen, nb, w0, nus, nut, chrom, eta, m, E, I_tot)
         """
         nus = self.nus()
         w0 = self.w0
@@ -380,8 +390,8 @@ class Ring:
         wpcro = wp - nucro*w0
 
         if inverse:
-            h = self.calc_spectrum(w - nucro*w0, bunlen, n_rad=0,
-                                   n_azi=m, only=True)**2
+            h = self.calc_spectrum(
+                w - nucro*w0, bunlen, n_rad=0, n_azi=m, only=True)**2
             Z = (alpt + abs(m)*alpe)/(I_tot*w0/(4*_np.pi)/(nus*w0)/E)/h
             return Z
 
@@ -391,10 +401,22 @@ class Ring:
         interpol_Z += _np.interp(wp, w, Zt.real)
         Zt_eff = (interpol_Z * h).sum(1)
 
+        if callable(Zt):
+            Zt_interp = Zt(wp)
+        else:
+            # imaginary must come first:
+            Zt_interp  = _np.interp(wp, w, Zt.imag) * 1j
+            Zt_interp += _np.interp(wp, w, Zt.real)
+        Zt_eff = (Zt_interp * h).sum(1)
+
+
         # Calculate Coupled_bunch Instability
         # Returns the relative Tune Shift:
-        deltaw = -1j*(alpt + abs(m)*alpe +
-                      I_tot*w0/(4*_np.pi)/(nus*w0)/E * Zt_eff)
+        deltaw = -1j*(
+            alpt + abs(m)*alpe + I_tot*w0/(4*_np.pi)/(nus*w0)/E * Zt_eff)
+
+        if full:
+            return deltaw, wp, Zt_interp, Zt_eff
         return deltaw
 
     def calc_spectrum(self,wp,bunlen,n_rad=4,n_azi=3,only=False):
@@ -415,19 +437,16 @@ class Ring:
                 chave2 = abs(azi)+2*rad
                 if chave2 not in spect.keys():
                     spect[chave2] = my_pow(sigW,chave2)
-                spectrum[chave] = (1/_np.math.sqrt(float(_factorial(abs(azi)+rad) *
-                                           _factorial(rad))) * spect[chave2] * expo)
-        if only: spectrum = spectrum[chave]
+                fact = 1/_np.math.sqrt(float(
+                    _factorial(abs(azi)+rad) * _factorial(rad)))
+                spectrum[chave] = fact * spect[chave2] * expo
+        if only:
+            spectrum = spectrum[chave]
         return spectrum
 
-    def longitudinal_mode_coupling(self,
-                                   budget=None,  element=None,
-                                   w=None,  Zl=None,
-                                   bunlen=None,
-                                   n_azi=10,  n_rad=12,
-                                   mu=0,
-                                   use_fokker=True):
-
+    def longitudinal_mode_coupling(
+            self, budget=None, element=None, w=None, Zl=None, bunlen=None,
+            n_azi=10, n_rad=12, mu=0, use_fokker=True):
         def calc_Fokker_Planck(alpe, n_azi, n_rad, use_fokker):
             F = _np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
             if use_fokker:
@@ -503,14 +522,18 @@ class Ring:
         nb    = self.nbun
         alpe  = 1/self.dampte
 
-        F     = calc_Fokker_Planck(alpe, n_azi, n_rad,use_fokker)
-        if bunlen is None: bunlen = self.bunlen(I_b)
-        if isinstance(bunlen,(float,_np.float_)): bunlen = [bunlen]
+        F = calc_Fokker_Planck(alpe, n_azi, n_rad,use_fokker)
+        if bunlen is None:
+            bunlen = self.bunlen(I_b)
+        if isinstance(bunlen,(float,_np.float_)):
+            bunlen = [bunlen]
 
         w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zll')
 
-        pmin  = _np.ceil( (w[0] -(mu + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a +infinito
-        pmax  = _np.floor((w[-1]-(mu + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a -infinito
+        # rounds towards +infinity
+        pmin  = _np.ceil( (w[0] -(mu + n_azi*nus)*w0)/(w0*nb))
+        # rounds towars -infinity
+        pmax  = _np.floor((w[-1]-(mu + n_azi*nus)*w0)/(w0*nb))
 
         p = _np.arange(pmin,pmax+1)
         wp = w0*(p*nb + mu + 1*nus)
