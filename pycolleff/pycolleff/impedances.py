@@ -310,11 +310,14 @@ def longitudinal_resonator(Rs, Q, wr, w):
     >>> Zl.shape
     (1000,)
     """
-    Rs = _np.array(Rs,ndmin=1,dtype=float)[:,None] # I am using broadcasting
-    Q  = _np.array(Q, ndmin=1,dtype=float)[:,None]
-    wr = _np.array(wr,ndmin=1,dtype=float)[:,None]
+    # I am using broadcasting
+    ndim = w.ndim + 1
+    Rs = _np.moveaxis(_np.array(Rs, ndmin=ndim, dtype=float), -1, 0)
+    Q  = _np.moveaxis(_np.array(Q,  ndmin=ndim, dtype=float), -1, 0)
+    wr = _np.moveaxis(_np.array(wr, ndmin=ndim, dtype=float), -1, 0)
+    w = _np.array(w, ndmin=ndim)
     Zl = w*Rs / (w+1j*Q*(wr - w**2/wr))
-    return Zl.sum(0).flatten()
+    return _np.squeeze(Zl.sum(0))
 
 
 def transverse_resonator(Rs, Q, wr, w):
@@ -350,11 +353,13 @@ def transverse_resonator(Rs, Q, wr, w):
     >>> Zt.shape
     (1000,)
     """
-    Rs = _np.array(Rs,ndmin=1,dtype=float)[:,None] # I am using broadcasting
-    Q  = _np.array(Q, ndmin=1,dtype=float)[:,None]
-    wr = _np.array(wr,ndmin=1,dtype=float)[:,None]
+    ndim = w.ndim + 1
+    Rs = _np.moveaxis(_np.array(Rs, ndmin=ndim, dtype=float), -1, 0)
+    Q  = _np.moveaxis(_np.array(Q,  ndmin=ndim, dtype=float), -1, 0)
+    wr = _np.moveaxis(_np.array(wr, ndmin=ndim, dtype=float), -1, 0)
+    w = _np.array(w, ndmin=ndim)
     Zt = wr*Rs/(w + 1j*Q*(wr - w**2/wr))
-    return Zt.sum(0).flatten()
+    return _np.squeeze(Zt.sum(0))
 
 
 def wake_longitudinal_resonator(Rs, Q, wr, s):
