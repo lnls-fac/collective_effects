@@ -8,10 +8,10 @@
 - sudo apt install texlive-latex-base
 - sudo apt-get install texlive-latex-extra texlive-fonts-recommended dvipng cm-super
 
-2) The second step is to create an SSH key to clone the git repositories:
+2) The second step is to create an SSH key to clone the git repositories. If a key already exists, skip to the next step.
 
-- cd .ssh
 - ssh-keygen
+- cd .ssh
 - cat id_rsa.pub
 
 Copy the generated key and paste it in the "SSH and GPG keys" from GitHub settings
