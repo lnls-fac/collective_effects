@@ -1,29 +1,33 @@
 #!/usr/bin/env python3
 
-from setuptools import setup
+import pkg_resources
+from setuptools import find_packages, setup
 
 
-# from distutils.version import StrictVersion
-# trackcpp_version = '0.2.0'
-#
-# try:
-#     import trackcpp
-# except ImportError:
-#     raise RuntimeError("trackcpp package not found")
-#
-# if StrictVersion(trackcpp.__version__) < StrictVersion(trackcpp_version):
-#     msg = ("trackcpp package version must be >= " + trackcpp_version +
-#         " (version installed is " + trackcpp.__version__ + ")")
-#     raise RuntimeError(msg)
+def get_abs_path(relative):
+    return pkg_resources.resource_filename(__name__, relative)
 
-with open('VERSION','r') as _f:
+
+with open(get_abs_path("README.md"), "r") as _f:
+    _long_description = _f.read().strip()
+
+with open(get_abs_path("VERSION"), "r") as _f:
+    __version__ = _f.read().strip()
+
+with open(get_abs_path("requirements.txt"), "r") as _f:
+    _requirements = _f.read().strip().split("\n")
+
+
+with open('VERSION', 'r') as _f:
     __version__ = _f.read().strip()
 
 setup(
     name='pycolleff',
     version=__version__,
     author='lnls-fac',
-    description='High level Accelerator Physics package',
+    description='Collective effects calculation package',
+    long_description=_long_description,
+    long_description_content_type="text/markdown",
     url='https://github.com/lnls-fac/collective_effects',
     download_url='https://github.com/lnls-fac/collective_effects',
     license='MIT License',
@@ -32,7 +36,14 @@ setup(
         'Programming Language :: Python',
         'Topic :: Scientific/Engineering'
     ],
-    packages=['pycolleff'],
+    packages=find_packages(),
+    install_requires=_requirements,
     package_data={'pycolleff': ['VERSION']},
-    zip_safe=False
-)
+    include_package_data=True,
+    python_requires=">=3.6",
+    zip_safe=False,
+    scripts=[
+        'scripts/ems-wake-analysis.py',
+        'scripts/echo2d_submit.py',
+        ]
+    )
