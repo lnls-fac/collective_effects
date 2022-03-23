@@ -1,179 +1,75 @@
 #!/usr/bin/env python3
+from os import stat
 import numpy as _np
 import pandas as pd
 import mathphys as _mp
 # import impedances as _imp
 
-_c   = _mp.constants.light_speed
+_LSPEED = _mp.constants.light_speed
 _factorial = _np.math.factorial
-
-_TYPES = dict(version = str,
-          circ        = (float,_np.float_),
-          T0          = (float,_np.float_),
-          f0          = (float,_np.float_),
-          w0          = (float,_np.float_),
-          mom_cmpct   = (float,_np.float_),
-          E           = (float,_np.float_),
-          nuy         = (float,_np.float_),
-          nux         = (float,_np.float_),
-          chromx      = (float,_np.float_),
-          chromy      = (float,_np.float_),
-          harm_num    = (int,_np.int_),
-          nbun        = (int,_np.int_),
-        #   budget      = _imp.Budget,
-          cur_bun     = _np.ndarray,
-          nom_cur     = (float,_np.float_),
-          nus         = (float,_np.float_,type(lambda x:x)),
-          espread     = type(lambda x:x),
-          bunlen      = type(lambda x:x),
-          emitx       = type(lambda x:x),
-          emity       = type(lambda x:x),
-          damptx      = (float,_np.float_),
-          dampty      = (float,_np.float_),
-          dampte      = (float,_np.float_),
-          en_lost_rad = (float,_np.float_))
+_sqrt = _np.math.sqrt
 
 
 class Ring:
+    """."""
     def __init__(self):
-        self.version   = 'version'
-        self.circ      = 0.0  # ring circumference in [m]
-        self.T0        = 0.0  # revolution period in [s]
-        self.f0        = 0.0  # revolution frequency [Hz]
-        self.w0        = 0.0  # revolution angular frequency [rad/s]
+        self.version = 'version'
+        self.circ = 0.0  # ring circumference in [m]
+        self.T0 = 0.0  # revolution period in [s]
+        self.f0 = 0.0  # revolution frequency [Hz]
+        self.w0 = 0.0  # revolution angular frequency [rad/s]
         self.mom_cmpct = 0.0  # momentum compaction factor
-        self.E         = 0.0  # energy [eV]
-        self.nuy       = 0.0  # vertical tune
-        self.nux       = 0.0  # horizontal tune
-        self.chromx    = 0.0  # horizontal chromaticity
-        self.chromy    = 0.0  # vertical chromaticity
-        self.harm_num  = 1    # harmonic Number
-        self.nbun      = 1    # number of bunches filled
+        self.E = 0.0  # energy [eV]
+        self.nuy = 0.0  # vertical tune
+        self.nux = 0.0  # horizontal tune
+        self.chromx = 0.0  # horizontal chromaticity
+        self.chromy = 0.0  # vertical chromaticity
+        self.harm_num = 1    # harmonic Number
+        self.nbun = 1    # number of bunches filled
         # self.budget    = _imp.Budget() # impedance Budget
 
-        I = _np.linspace(0,4,num=40)
-        self.cur_bun     = I*0.0 # bunch current vector in [A]
-        self.nom_cur     = 0.00 # total current [A]
-        self._nus         = 0.00 # synchrotron tune
-        self._espread     = lambda x:0.0+0*x
-        self._bunlen       = lambda x:0.0+0*x # bunch length in [m]
-        self._emitx       = lambda x:0.0+0*x
-        self._emity       = lambda x:0.0+0*x
-        self.damptx      = 0.0 # horizontal damping time in [s]
-        self.dampty      = 0.0 # vertical damping time in [s]
-        self.dampte      = 0.0 # longitudinal damping time in [s]
-        self.en_lost_rad = 0.0 # Energy lost per turn in [eV]
-
-    def nus(self,I=None):
-        if isinstance(self._nus,(int,_np.int,float,_np.float)):
-            return self._nus
-        elif isinstance(self._nus,type(lambda x:x)):
-            if I is None:
-                return self._nus(self.nom_cur/self.nbun)
-            else:
-                return self._nus(I)
-        elif isinstance(self._nus,(_np.ndarray,list,tuple)):
-            if I is None:
-                return _np.interp(self.nom_cur/self.nbun,fp=self._nus,xp=self.cur_bun)
-            else:
-                return _np.interp(I,fp=self._nus,xp=self.cur_bun)
-
-    def espread(self,I=None):
-        if isinstance(self._espread,(int,_np.int,float,_np.float)):
-            return self._espread
-        elif isinstance(self._espread,type(lambda x:x)):
-            if I is None:
-                return self._espread(self.nom_cur/self.nbun)
-            else:
-                return self._espread(I)
-        elif isinstance(self._espread,(_np.ndarray,list,tuple)):
-            if I is None:
-                return _np.interp(self.nom_cur/self.nbun,fp=self._espread,xp=self.cur_bun)
-            else:
-                return _np.interp(I,fp=self._espread,xp=self.cur_bun)
-
-    def bunlen(self,I=None):
-        if isinstance(self._bunlen,(int,_np.int,float,_np.float)):
-            return self._bunlen
-        elif isinstance(self._bunlen,type(lambda x:x)):
-            if I is None:
-                return self._bunlen(self.nom_cur/self.nbun)
-            else:
-                return self._bunlen(I)
-        elif isinstance(self._bunlen,(_np.ndarray,list,tuple)):
-            if I is None:
-                return _np.interp(self.nom_cur/self.nbun,fp=self._bunlen,xp=self.cur_bun)
-            else:
-                return _np.interp(I,fp=self._bunlen,xp=self.cur_bun)
-
-    def emitx(self,I=None):
-        if isinstance(self._emitx,(int,_np.int,float,_np.float)):
-            return self._emitx
-        elif isinstance(self._emitx,type(lambda x:x)):
-            if I is None:
-                return self._emitx(self.nom_cur/self.nbun)
-            else:
-                return self._emitx(I)
-        elif isinstance(self._emitx,(_np.ndarray,list,tuple)):
-            if I is None:
-                return _np.interp(self.nom_cur/self.nbun,fp=self._emitx,xp=self.cur_bun)
-            else:
-                return _np.interp(I,fp=self._emitx,xp=self.cur_bun)
-
-    def emity(self,I=None):
-        if isinstance(self._emity,(int,_np.int,float,_np.float)):
-            return self._emity
-        elif isinstance(self._emity,type(lambda x:x)):
-            if I is None:
-                return self._emity(self.nom_cur/self.nbun)
-            else:
-                return self._emity(I)
-        elif isinstance(self._emity,(_np.ndarray,list,tuple)):
-            if I is None:
-                return _np.interp(self.nom_cur/self.nbun,fp=self._emity,xp=self.cur_bun)
-            else:
-                return _np.interp(I,fp=self._emity,xp=self.cur_bun)
+        # bunch current vector in [A]
+        self.cur_bun = _np.linspace(0, 4, num=40)*0.0
+        self.nom_cur = 0.00  # total current [A]
+        self.nus = 0.00  # synchrotron tune
+        self.espread = 0.0
+        self.bunlen = 0.0  # bunch length in [m]
+        self.emitx = 0.0
+        self.emity = 0.0
+        self.damptx = 0.0  # horizontal damping time in [s]
+        self.dampty = 0.0  # vertical damping time in [s]
+        self.dampte = 0.0  # longitudinal damping time in [s]
+        self.en_lost_rad = 0.0  # Energy lost per turn in [eV]
 
     def __str__(self):
+        tmpl_st = '{0:28s}: {1:^20s}\n'
+        tmpl_f = '{0:28s}: {1:^20.3f}\n'
         string = ''
-        string += '{0:28s}: {1:^20s}\n'.format('Lattice Version',self.version)
-        string += '{0:28s}: {1:^20.3f}\n'.format('Circumference [m]',self.circ)
-        string += '{0:28s}: {1:^20.3f}\n'.format('Revolution Period [us]',self.T0*1e6)
-        string += '{0:28s}: {1:^20.4f}\n'.format('Revolution Frequency [kHz]',self.f0/1e3)
-        string += '{0:28s}: {1:^20.1f}\n'.format('Energy [GeV]',self.E/1e9)
-        string += '{0:28s}: {1:^20.2e}\n'.format('Momentum Compaction',self.mom_cmpct)
-        string += '{0:28s}: {1:^20d}\n'.format('Harmonic Number',self.harm_num)
-        string += '{0:28s}: {1:^20.1f}\n'.format('Current [mA]',self.nom_cur*1e3)
-        string += '{0:28s}: {1:^20.3f}\n'.format('Current per Bunch [mA]',self.nom_cur/self.nbun*1e3)
-        string += '{0:28s}: {1:^20.3e}\n'.format('Synchrotron Tune',self.nus())
-        string += '{0:28s}: {1:>9.3f}/{2:<10.3f}\n'.format('Tunes x/y',self.nux,self.nuy)
-        string += '{0:28s}: {1:>6.1f}/{2:^6.1f}/{3:<6.1f}\n'.format('Damping Times x/y/e [ms]',self.damptx*1e3,self.dampty*1e3,self.dampte*1e3)
-        string += '{0:28s}: {1:^20.2e}\n'.format('Energy Spread',self.espread())
-        string += '{0:28s}: {1:^20.2e}\n'.format('Bunch Length [mm]',self.bunlen(self.nom_cur/self.nbun)*1e3)
+        string += tmpl_st.format('Lattice Version', self.version)
+        string += tmpl_f.format('Circumference [m]', self.circ)
+        string += tmpl_f.format('Revolution Period [us]', self.T0*1e6)
+        string += tmpl_f.format('Revolution Frequency [kHz]', self.f0/1e3)
+        string += tmpl_f.format('Energy [GeV]', self.E/1e9)
+        string += '{0:28s}: {1:^20.2e}\n'.format(
+            'Momentum Compaction', self.mom_cmpct)
+        string += '{0:28s}: {1:^20d}\n'.format(
+            'Harmonic Number', self.harm_num)
+        string += tmpl_f.format('Current [mA]', self.nom_cur*1e3)
+        string += tmpl_f.format(
+            'Current per Bunch [mA]', self.nom_cur/self.nbun*1e3)
+        string += '{0:28s}: {1:^20.3e}\n'.format('Synchrotron Tune', self.nus)
+        string += '{0:28s}: {1:>9.3f}/{2:<10.3f}\n'.format(
+            'Tunes x/y', self.nux, self.nuy)
+        string += '{0:28s}: {1:>6.1f}/{2:^6.1f}/{3:<6.1f}\n'.format(
+            'Damping Times x/y/e [ms]', self.damptx*1e3, self.dampty*1e3,
+            self.dampte*1e3)
+        string += '{0:28s}: {1:^20.2e}\n'.format('Energy Spread', self.espread)
+        string += '{0:28s}: {1:^20.2e}\n'.format(
+            'Bunch Length [mm]', self.bunlen*1e3)
         return string
 
-    def __getattr__(self,attr):
-        if attr in {'nus','bunlen','emitx','emity','espread'}:
-            attr = '_' + attr
-            if isinstance(self.__dict__[attr],(float,_np.float)):
-                return self.__dict__[attr]
-            elif isinstance(self.__dict__[attr],type(lambda x:x)):
-                return self.__dict__[attr](self.nom_cur/self.nbun)
-            elif isinstance(self.__dict__[attr],(_np.ndarray,list,tuple)):
-                return _np.interp(self.nom_cur/self.nbun,xp=self.__dict__[attr],fp=self.cur_bun)
-        else:
-            return self.__dict__[attr]
-
-    def __setattr__(self,attr,value):
-        if attr in {'nus','bunlen','emitx','emity','espread',}:
-            if isinstance(value,(_np.ndarray,list,tuple)) and len(value) != len(self.cur_bun):
-                raise Exception('Length of input must match length of self.cur_bun.')
-            self.__dict__['_'+attr] = value
-        else:
-            self.__dict__[attr] = value
-
-    def loss_factor(self, budget=None, element=None, w=None,
-                    Zl=None, bunlen=None):
+    def loss_factor(
+            self, budget=None, element=None, w=None, Zl=None, bunlen=None):
         """Calculate the loss factor and effective impedance.
 
         Inputs:
@@ -201,7 +97,7 @@ class Ring:
 
         w, Zl = self._prepare_input_impedance(budget, element, w, Zl, 'Zll')
 
-        limw = 5 * _c / bunlen
+        limw = 5 * _LSPEED / bunlen
         maxw = min(w[-1], limw)
         minw = max(w[0], -limw)
 
@@ -210,8 +106,8 @@ class Ring:
         p = _np.arange(pmin, pmax+1)
         wp = w0*p*nb
 
-        # h = _np.exp(-(wp*bunlen/_c)**2)
-        specs = self.calc_spectrum(wp, bunlen, n_rad=0, n_azi=1)
+        # h = _np.exp(-(wp*bunlen/_LSPEED)**2)
+        specs = self.calc_spectrum(wp, bunlen, max_rad=0, max_azi=1)
         h = specs[(0, 0)]**2
         interpol_Z = _np.interp(wp, w, Zl.real)
 
@@ -227,8 +123,9 @@ class Ring:
 
         return lossf, Pl, Zl_eff, wp, lossfp
 
-    def kick_factor(self, budget=None, element=None, w=None,
-                    Z=None, bunlen=None, Imp='Zdy'):
+    def kick_factor(
+            self, budget=None, element=None, w=None, Z=None, bunlen=None,
+            Imp='Zdy'):
         """Calculate the kick factor, tune shift and effective impedance.
 
         Inputs:
@@ -262,7 +159,7 @@ class Ring:
 
         w, Z = self._prepare_input_impedance(budget, element, w, Z, Imp)
 
-        limw = 5 * _c / bunlen
+        limw = 5 * _LSPEED / bunlen
         maxw = min(w[-1], limw)
         minw = max(w[0], -limw)
 
@@ -271,7 +168,7 @@ class Ring:
         p = _np.arange(pmin, pmax+1)
         wp = w0*(p*nb + nut)
 
-        specs = self.calc_spectrum(wp, bunlen, n_rad=0, n_azi=1)
+        specs = self.calc_spectrum(wp, bunlen, max_rad=0, max_azi=1)
         h = specs[(0, 0)]**2
         interpol_Z = _np.interp(wp, w, Z.imag)
 
@@ -283,11 +180,11 @@ class Ring:
 
         return Kick_f, Tush, Zt_eff
 
-    def _prepare_input_impedance(self, budget,element,w,Z,imp='Zll'):
+    def _prepare_input_impedance(self, budget, element, w, Z, imp='Zll'):
         if budget is not None:
-            return budget.w, getattr(budget,imp)
+            return budget.w, getattr(budget, imp)
         elif element is not None:
-            return element.w, getattr(element,imp)
+            return element.w, getattr(element, imp)
         elif w is not None and Z is not None:
             return w, Z
         # elif self.budget is not None:
@@ -303,47 +200,37 @@ class Ring:
         mode k=0;
         """
 
-        assert abs(m) > 0, 'azimuthal mode m must be greater than zero.'
-        nus  = self.nus()
-        w0   = self.w0
-        eta  = self.mom_cmpct
-        E    = self.E
-        nb   = self.nbun
-        I_tot= self.nom_cur
+        if abs(m) <= 0:
+            raise ValueError('azimuthal mode m must be greater than zero.')
+        nus = self.nus
+        w0 = self.w0
+        eta = self.mom_cmpct
+        E = self.E
+        nb = self.nbun
+        I_tot = self.nom_cur
         alpe = 1/self.dampte/nus/w0
         if bunlen is None:
-            bunlen = self.bunlen(I_tot/nb)
+            bunlen = self.bunlen
 
         if inverse:
-            h = self.calc_spectrum(w, bunlen, n_rad=0, n_azi=m, only=True)**2
-            Z = w*alpe/(I_tot*w0*eta/(2*_np.pi)/(nus*w0)**2/E/(bunlen/_c)**2)/h
+            h = self.calc_spectrum(w, bunlen, max_rad=0, max_azi=m, only=True)**2
+            Z = w*alpe
+            Z /= (I_tot*w0*eta/(2*_np.pi)/(nus*w0)**2/E/(bunlen/_LSPEED)**2)*h
             return Z
 
-        w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zll')
+        w, Zl = self._prepare_input_impedance(budget, element, w, Zl, 'Zll')
 
         # Calculate Effective Impedance
-        # arredonda em direcao a +infinito
-        pmin = _np.ceil( (w[ 0] -    m*nus*w0    )/(w0*nb))
-        # arredonda em direcao a -infinito
-        pmax = _np.floor((w[-1] - (nb-1+m*nus)*w0)/(w0*nb))
-
-        p = _np.arange(pmin,pmax+1)
-        wp = w0*(nb*p[None,:] + _np.arange(0,nb)[:,None] + m*nus)
-
-        h = self.calc_spectrum(wp,bunlen,n_rad=0,n_azi=m,only=True)**2
-        # Complex interpolation is ill-defined
-        if callable(Zl):
-            Zl_interp = Zl(wp)
-        else:
-            # imaginary must come first:
-            Zl_interp  = _np.interp(wp, w, Zl.imag) * 1j
-            Zl_interp += _np.interp(wp, w, Zl.real)
+        cbmodes = _np.arange(nb)
+        wp = self._get_sampling_ang_freq(w, w0, nb, m, nus, cbmodes)
+        h = self.calc_spectrum(wp, bunlen, max_rad=0, max_azi=m, only=True)**2
+        Zl_interp = self._get_interpolated_impedance(wp, w, Zl)
         Zl_eff = (Zl_interp/wp * h).sum(1)
 
         # Returns the relative Tune Shift:
         deltaw = 1j*(
             -abs(m)*alpe +
-            m*I_tot*w0*eta/(2*_np.pi)/E/(nus*w0*bunlen/_c)**2*Zl_eff)
+            m*I_tot*w0*eta/(2*_np.pi)/E/(nus*w0*bunlen/_LSPEED)**2*Zl_eff)
 
         if full:
             return deltaw, wp, Zl_interp, Zl_eff
@@ -359,7 +246,7 @@ class Ring:
         deltaw = transverse_cbi(
             w, Z, bunlen, nb, w0, nus, nut, chrom, eta, m, E, I_tot)
         """
-        nus = self.nus()
+        nus = self.nus
         w0 = self.w0
         eta = self.mom_cmpct
         E = self.E
@@ -372,44 +259,29 @@ class Ring:
             taut, nut, chrom, imp = self.dampty, self.nuy, self.chromy, 'Zdy'
 
         if bunlen is None:
-            bunlen = self.bunlen(I_tot/nb)
+            bunlen = self.bunlen
 
         alpe = 1/taue/w0/nus
         alpt = 1/taut/w0/nus
-
-        # Calculate Effective Impedance
-        nucro = chrom/eta
-        # arredonda em direcao a +infinito
-        pmin = _np.ceil((w[0] - (m*nus + nut)*w0)/(w0*nb))
-        # arredonda em direcao a -infinito
-        pmax = _np.floor((w[-1] - (nb-1 + nut + m*nus)*w0)/(w0*nb))
-
-        p = _np.arange(pmin, pmax+1)
-        wp = w0*(nb*p[None, :] + _np.arange(0, nb)[:, None] + nut + m*nus)
-        wpcro = wp - nucro*w0
+        w_crom = chrom/eta * w0
 
         if inverse:
             h = self.calc_spectrum(
-                w - nucro*w0, bunlen, n_rad=0, n_azi=m, only=True)**2
+                w - w_crom, bunlen, max_rad=0, max_azi=m, only=True)**2
             Z = (alpt + abs(m)*alpe)/(I_tot*w0/(4*_np.pi)/(nus*w0)/E)/h
             return Z
 
         w, Zt = self._prepare_input_impedance(budget, element, w, Zt, imp)
 
-        h = self.calc_spectrum(wpcro, bunlen, n_rad=0, n_azi=m, only=True)**2
-        # Complex interpolation is ill-defined
-        interpol_Z = 1j*_np.interp(wp, w, Zt.imag)  # imaginar must come first
-        interpol_Z += _np.interp(wp, w, Zt.real)
-        Zt_eff = (interpol_Z * h).sum(1)
+        # Calculate Effective Impedance
+        cbmodes = _np.arange(nb)
+        wp = self._get_sampling_ang_freq(w, w0, nb, m, nus, cbmodes, nut)
+        wpcro = wp - w_crom
 
-        if callable(Zt):
-            Zt_interp = Zt(wp)
-        else:
-            # imaginary must come first:
-            Zt_interp  = _np.interp(wp, w, Zt.imag) * 1j
-            Zt_interp += _np.interp(wp, w, Zt.real)
+        h = self.calc_spectrum(wpcro, bunlen, max_rad=0, max_azi=m, only=True)
+        h *= h
+        Zt_interp = self._get_interpolated_impedance(wp, w, Zt)
         Zt_eff = (Zt_interp * h).sum(1)
-
 
         # Calculate Coupled_bunch Instability
         # Returns the relative Tune Shift:
@@ -420,374 +292,888 @@ class Ring:
             return deltaw, wp, Zt_interp, Zt_eff
         return deltaw
 
-    def calc_spectrum(self,wp,bunlen,n_rad=4,n_azi=3,only=False):
-        def my_pow(vetor,n):
+    @staticmethod
+    def calc_spectrum(wp, bunlen, max_rad=4, max_azi=3, only=False):
+        """Calculate the bunch spectrum based on eq. 2.43 of ref [1].
+
+        It calculates all bunch spectra up the radial mode defined by `max_rad`
+        and the azimuthal mode defined by `max_azi`.
+
+        This implementation does not add the sign defined by the epsilon_m term
+        of eq. 2.43. This is done to speedup the calculation of the terms of
+        the mode-coupling matrix.
+
+        References:
+            [1] Chin, Y. H. (1985). Transverse Mode Coupling Instabilities in
+                the SPS. In CERN/SPS/85-2 (DI-MST).
+
+        Args:
+            wp (numpy.ndarray, (N, )): frequencies where to calculate the
+                spectrum [rad/s]
+            bunlen (float): bunch length in [m].
+            max_rad (int, optional): Number of radial modes. Defaults to 4.
+            max_azi (int, optional): Number of azimuthal modes. Defaults to 3.
+            only (bool, optional): This flag indicates whether only the mode
+                `m=max_azi` and `k=max_rad` will the returned.
+                Defaults to False.
+
+        Returns:
+            dict: Each key, defined by `(abs(m) + k)`, has as value the bunch
+                spectrum for oscillation mode with azimuthal mode `m` and
+                radial mode `k`. Each bunch spectrum ins a `numpy.ndarray` of
+                shape (N, ).
+
+        """
+        def my_pow(vetor, n):
             res = _np.ones(vetor.shape)
-            for _ in range(n): res *= vetor
+            for _ in range(n):
+                res *= vetor
             return res
 
-        n_azi0, n_rad0 = 0, 0
-        if only: n_azi0, n_rad0 = n_azi, n_rad
-        sigW = wp*bunlen/_c/_np.sqrt(2)
+        max_azi0, max_rad0 = 0, 0
+        if only:
+            max_azi0, max_rad0 = max_azi, max_rad
+        sigW = wp*bunlen/_LSPEED/_sqrt(2)
         spectrum = dict()
-        spect    = dict()
-        expo     = _np.exp(-my_pow(sigW,2))
-        for azi in range(n_azi0, n_azi+1):
-            for rad in range(n_rad0, n_rad+1):
-                chave = (abs(azi),rad)
-                chave2 = abs(azi)+2*rad
-                if chave2 not in spect.keys():
-                    spect[chave2] = my_pow(sigW,chave2)
-                fact = 1/_np.math.sqrt(float(
-                    _factorial(abs(azi)+rad) * _factorial(rad)))
-                spectrum[chave] = fact * spect[chave2] * expo
+        powers = dict()
+        powers[2] = my_pow(sigW, 2)
+        expo = _np.exp(-powers[2])
+        for azi in range(max_azi0, max_azi+1):
+            for rad in range(max_rad0, max_rad+1):
+                chave2 = abs(azi) + 2*rad
+                if chave2 not in powers.keys():
+                    powers[chave2] = my_pow(sigW, chave2)
+
+                fact = _factorial(abs(azi) + rad) * _factorial(rad)
+                fact = 1/_sqrt(fact)
+                chave = (abs(azi), rad)
+                spectrum[chave] = fact * powers[chave2] * expo
         if only:
             spectrum = spectrum[chave]
         return spectrum
 
     def longitudinal_mode_coupling(
-            self, budget=None, element=None, w=None, Zl=None, bunlen=None,
-            n_azi=10, n_rad=12, mu=0, use_fokker=True):
-        def calc_Fokker_Planck(alpe, n_azi, n_rad, use_fokker):
-            F = _np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
-            if use_fokker:
-                for l in range(n_rad+1):
-                    for m in range(-n_azi,n_azi+1):
-                        F[n_azi+m, l, n_azi+m, l] = - alpe*(abs(m) + 2*l)
-                        if m <=-2:
-                            if abs(m-2)<=n_azi and l-1 >= 0:
-                                F[n_azi+m, l, n_azi+m-2, l-1] =  -alpe*_np.sqrt((l+1-m)*l)
-                            if abs(m+2)<=n_azi and l+1 <= n_rad:
-                                F[n_azi+m, l, n_azi+m+2, l+1] =  -alpe*_np.sqrt((l-m)*(l+1))
-                        if m ==-1:
-                            if abs(m-2)<=n_azi and l-1 >= 0:
-                                F[n_azi+m, l, n_azi+m-2, l-1] =  -alpe*_np.sqrt((l+2)*l)
-                            if abs(m+2)<=n_azi and l <= n_rad:
-                                F[n_azi+m, l, n_azi+m+2, l]   =   alpe*(l+1)
-                        if m == 0:
-                            if abs(m-2)<=n_azi and l-1 >= 0:
-                                F[n_azi+m, l, n_azi+m-2, l-1] =  -alpe*_np.sqrt((l+1)*l)
-                            if abs(m+2)<=n_azi and l-1 >= 0:
-                                F[n_azi+m, l, n_azi+m+2, l]   =  -alpe*_np.sqrt(l*(l+1))
-                        if m == 1:
-                            if abs(m-2)<=n_azi and l <= n_rad:
-                                F[n_azi+m, l, n_azi+m-2, l] =    alpe*(l+1)
-                            if abs(m+2)<=n_azi and l-1 >= 0:
-                                F[n_azi+m, l, n_azi+m+2, l-1] =  -alpe*_np.sqrt((l+2)*l)
-                        if m >= 2:
-                            if abs(m-2)<=n_azi and l+1 <= n_rad:
-                                F[n_azi+m, l, n_azi+m-2, l+1] =  -alpe*_np.sqrt((l+m)*(l+1))
-                            if abs(m+2)<=n_azi and l-1 >= 0:
-                                F[n_azi+m, l, n_azi+m+2, l-1] =  -alpe*_np.sqrt((l+1+m)*l)
+            self, budget=None, element=None, w=None, Zl=None,
+            max_azi=10, max_rad=12, cbmode=0, use_fokker=True):
+        """Calculate the transverse mode-coupling eigen-values.
 
-            return F.swapaxes(0,3).swapaxes(1,2).reshape([(1+2*n_azi)*(1+n_rad),(1+2*n_azi)*(1+n_rad)]).transpose()
+        The eigen-values returned here are normalized by the synchrotron
+        frequency, which means they are adimensional. Besides, the
+        implementation does not guarantee any specific ordering.
 
-        def calc_Vlasov(interpol_Z, wp, bunlen, n_azi, n_rad):
-            def fill_M(m,k,n,l,Mmknl):
-                M[n_azi+m, k, n_azi+n, l] =              m*Mmknl
-                M[n_azi-m, k, n_azi+n, l] =      -       m*Mmknl
-                M[n_azi+m, k, n_azi-n, l] =              m*Mmknl
-                M[n_azi-m, k, n_azi-n, l] =      -       m*Mmknl
-                M[n_azi+n, l, n_azi+m, k] =  (-1)**(m-n)*n*Mmknl
-                M[n_azi+n, l, n_azi-m, k] =  (-1)**(m-n)*n*Mmknl
-                M[n_azi-n, l, n_azi+m, k] = -(-1)**(m-n)*n*Mmknl
-                M[n_azi-n, l, n_azi-m, k] = -(-1)**(m-n)*n*Mmknl
+        To get the tune-shifts you must take the real part of the eigen-values.
+        To get the growth rate in [1/s] you must multiply the imaginary part
+        by the angular synchrotron frequency `nus*w0`.
+        If any of the growth rates are larger than 0, It means instability if
+        `use_fokker` is `True`, otherwise, a comparison with the damping times
+        of the machine must be made after the calculation.
 
-            A = _np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
-            M = _np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
-            spectrum = self.calc_spectrum(wp,bunlen,n_rad,n_azi)
-            for k in range(n_rad+1):
-                for m in range(n_azi+1):
-                    Imk = spectrum[(abs(m),k)]
-                    A[n_azi+m, k, n_azi+m, k] =  m
-                    A[n_azi-m, k, n_azi-m, k] = -m
-                    for n in range(m,n_azi+1):
-                        Inl =  spectrum[(abs(n),k)]
-                        Mmknl = (1j)**(m-n)*_np.dot(interpol_Z/wp,Imk*Inl)
-                        fill_M(m,k,n,k,Mmknl)
-                for l in range(k+1,n_rad+1):
-                    for m in range(n_azi+1):
-                        Imk =  spectrum[(abs(m),k)]
-                        for n in range(n_azi+1):
-                            Inl =  spectrum[(abs(n),l)]
-                            Mmknl = (1j)**(m-n)*_np.dot(interpol_Z/wp,Imk*Inl)
-                            fill_M(m,k,n,l,Mmknl)
-            return (A.swapaxes(0,3).swapaxes(1,2).reshape([(1+2*n_azi)*(1+n_rad),(1+2*n_azi)*(1+n_rad)]).transpose(),
-                    M.swapaxes(0,3).swapaxes(1,2).reshape([(1+2*n_azi)*(1+n_rad),(1+2*n_azi)*(1+n_rad)]).transpose())
+        We follow ref.[1] closely, such that the comments in the
+        implementation refer to equation of this reference. Ref. [2] gives
+        identical results of ref. [1] and ref.[3] doesn't give explicit
+        formulas for gaussian beams, so we leave it here only for the
+        interested user.
 
-        I_b   = self.cur_bun
-        E     = self.E
-        w0    = self.w0
-        nus   = self.nus(0.0)
-        eta   = self.mom_cmpct
-        nb    = self.nbun
-        alpe  = 1/self.dampte
+        We make a small generalization of ref. [1], by considering that the
+        ring is filled with several equally spaced identical bunches and that
+        the eigen-values are being calculated for a given coupled-bunch mode
+        of the beam.
 
-        F = calc_Fokker_Planck(alpe, n_azi, n_rad,use_fokker)
-        if bunlen is None:
-            bunlen = self.bunlen(I_b)
-        if isinstance(bunlen,(float,_np.float_)):
-            bunlen = [bunlen]
+        References:
+            [1] Suzuki, T., Chin, Y.-H., & Satoh, K. (1983). Mode-coupling
+                theory and bunch lengthening in spear. Particle Accelerators,
+                13, 179-198.
+            [2] Suzuki, T. (1983). Theory of longitudinal bunched-beam
+                instabilities based on the fokker-planck equation. Particle
+                Accelerators, 14, 91-108.
+            [3] Cai, Y. (2011). A Linear Theory of Microwave Instability in
+                Electron Storage Rings. Physical Review Special Topics -
+                Accelerators and Beams, 14(6), 061002.
+                https://doi.org/10.1103/PhysRevSTAB.14.061002
 
-        w, Zl = self._prepare_input_impedance(budget,element,w,Zl,'Zll')
+        Attributes and properties used by this method:
+            cur_bun
+            E
+            w0
+            nus
+            bunlen
+            mom_cmpct
+            nbun
+            dampte
 
-        # rounds towards +infinity
-        pmin  = _np.ceil( (w[0] -(mu + n_azi*nus)*w0)/(w0*nb))
-        # rounds towars -infinity
-        pmax  = _np.floor((w[-1]-(mu + n_azi*nus)*w0)/(w0*nb))
+        The problem will be solved for all N values of currents in the vector
+        `cur_bun`. I `nus` or `bunlen` are arrays, they must be of the same
+        size as `cur_bun`. If the bunch length is an array, the execution time
+        will be larger because of the need of recalculating the mode-coupling
+        matrix for each current.
 
-        p = _np.arange(pmin,pmax+1)
-        wp = w0*(p*nb + mu + 1*nus)
-        # Complex interpolation is ill-defined
-        interpol_Z  = 1j*_np.interp(wp, w, Zl.imag) # imaginary must come first
-        interpol_Z +=    _np.interp(wp, w, Zl.real)
+        Args:
+            budget (pycolleff.impedances.Budget, optional): Impdedance budget
+                of the machine. If not None, `element`, `w` and `Zt` inputs
+                are ignored. Defaults to None.
+            element (pycolleff.impedances.Element, optional): Impedance
+                element. Only considered if `budget is `None`. If not `None`,
+                `w` and `Zt` are ignored. Defaults to None.
+            w (numpy.ndarray, (M, ), optional): Angular frequency in [rad/s].
+                Only considered if `budget` and `element` are `None`. Defaults
+                to `None`.
+            Zl (numpy.ndarray (M, ), optional): longitudinal impedance in
+                units of [Ohm] evaluated at angular frequencies in `w`.
+                Only considered if `budget` and `element` are `None`.
+                Defaults to None.
+            max_azi (int, optional): Maximum azimuthal mode to consider in the
+                truncation. The solution will consider all `2*max_azi + 1`
+                azimuthal modes whose absolute value are <= than `max_azi`.
+                Defaults to 3.
+            max_rad (int, optional): Maximum radial mode to consider in the
+                truncation. The solution will consider all `max_rad + 1`
+                radial modes <= than `max_rad`. Defaults to 4.
+            cbmode (int, optional): Coupled-bunch mode for which the
+                eigen-values will be found. Must be lower than `nbun`.
+                Defaults to 0.
+            use_fokker (bool, optional): Whether or not to include the
+                fokker-planck terms described in ref. [2]. If False, the
+                Vlasov equation will be considered, like in ref. [1].
+                Defaults to True.
 
-        delta = _np.zeros([len(I_b),(n_rad+1)*(2*n_azi+1)],dtype=complex)
-        if not len(bunlen)==1:
-            for ii in range(len(I_b)):
-                A, M = calc_Vlasov(interpol_Z, wp, bunlen[ii], n_azi, n_rad)
-                K    = I_b[ii]*nb*w0*eta/(2*_np.pi)/(self.nus(I_b[ii])*w0)**2/E/(bunlen[ii]/_c)**2
-                B    = A + 1j*K*M + 1j*F/w0/self.nus(I_b[ii])
-                delta[ii,:] = _np.linalg.eigvals(B)
-        else:
-            A, M = calc_Vlasov(interpol_Z, wp, bunlen[0], n_azi, n_rad)
-            for ii in range(len(I_b)):
-                K = I_b[ii]*nb*w0*eta/(2*_np.pi)/(self.nus(I_b[ii])*w0)**2/E/(bunlen[0]/_c)**2
-                B = A + 1j*K*M + 1j*F/w0/self.nus(I_b[ii])
-                delta[ii,:] = _np.linalg.eigvals(B)
-        return delta
+        Returns:
+            (numpy.ndarray, (N, (2*max_azi+1)*(max_rad+1))): normalized
+                eigen-modes of the mode-coupling problem.
 
-    def reduced_longitudinal_mode_coupling(self,
-                                           budget=None,  element=None,
-                                           w=None,  Zl=None,
-                                           bunlen=None,
-                                           n_azi=10,  n_rad=12,
-                                           mu=0,
-                                           use_fokker=True):
-
-        def calc_Fokker_Planck(alpe, n_azi, n_rad, use_fokker):
-            F = _np.zeros([n_azi, n_rad+1, n_azi, n_rad+1],dtype=complex)
-            if use_fokker:
-                for l in range(n_rad+1):
-                    for m in range(1, n_azi+1):
-                        F[m-1, l, m-1, l] = - alpe*(abs(m) + 2*l)
-                        if m == 1:
-                            if abs(m-2) <= n_azi and l <= n_rad:
-                                F[m-1, l, m-1-2, l] = alpe*(l+1)
-                            if abs(m+2) <= n_azi and l-1 >= 0:
-                                F[m-1, l, m-1+2, l-1] = -alpe*_np.sqrt((l+2)*l)
-                        if m >= 2:
-                            if abs(m-2) <= n_azi and l+1 <= n_rad:
-                                F[m-1, l, m-1-2, l+1] = -alpe*_np.sqrt((l+m)*(l+1))
-                            if abs(m+2) <= n_azi and l-1 >= 0:
-                                F[m-1, l, m-1+2, l-1] = -alpe*_np.sqrt((l+1+m)*l)
-
-            return F.swapaxes(0, 3).swapaxes(1, 2).reshape(
-                            [n_azi*(1+n_rad), n_azi*(1+n_rad)]).transpose()
-
-        def calc_Vlasov(interpol_Z, wp, bunlen, n_azi, n_rad):
-            def fill_M(m, k, n, l, Mmknl):
-                M[m-1, k, n-1, l] = m*m*Mmknl
-                M[n-1, l, m-1, k] = n*n*Mmknl * (-1)**(m-n)
-
-            A = _np.zeros([n_azi, n_rad+1, n_azi, n_rad+1], dtype=complex)
-            M = _np.zeros([n_azi, n_rad+1, n_azi, n_rad+1], dtype=complex)
-            spectrum = self.calc_spectrum(wp, bunlen, n_rad, n_azi)
-            for k in range(n_rad+1):
-                for m in range(n_azi+1):
-                    Imk = spectrum[(abs(m), k)]
-                    A[m-1, k, m-1, k] = m*m
-                    for n in range(m, n_azi+1):
-                        Inl = spectrum[(abs(n), k)]
-                        Mmknl = (1j)**(m-n)*_np.dot(interpol_Z/wp, Imk*Inl)
-                        fill_M(m, k, n, k, Mmknl)
-                for l in range(k+1, n_rad+1):
-                    for m in range(n_azi+1):
-                        Imk = spectrum[(abs(m), k)]
-                        for n in range(n_azi+1):
-                            Inl = spectrum[(abs(n), l)]
-                            Mmknl = (1j)**(m-n)*_np.dot(interpol_Z/wp, Imk*Inl)
-                            fill_M(m, k, n, l, Mmknl)
-            return (A.swapaxes(0, 3).swapaxes(1, 2).reshape(
-                            [n_azi*(1+n_rad), n_azi*(1+n_rad)]).transpose(),
-                    M.swapaxes(0, 3).swapaxes(1, 2).reshape(
-                            [n_azi*(1+n_rad), n_azi*(1+n_rad)]).transpose())
-
+        """
         I_b = self.cur_bun
         E = self.E
         w0 = self.w0
-        nus = self.nus(0.0)
+        bunlen = self.bunlen
+        nus = self.nus
+        eta = self.mom_cmpct
+        nb = self.nbun
+        alpe = 1/self.dampte
+        if cbmode >= nb:
+            cbmode = 0
+            print(
+                'Coupled bunch mode greater than number of bunchs.\n',
+                'Reseting cbmode to 0.')
+
+        # Calculate the fokker-planck matrix:
+        F = self._calc_fokker_planck(max_azi, max_rad, alpe, use_fokker)
+
+        if isinstance(bunlen, (float, _np.float_)):
+            bunlen = [bunlen]
+        if isinstance(nus, (float, _np.float_)):
+            nus = _np.ones(I_b.shape) * nus
+        ws = nus * w0
+
+        w, Zl = self._prepare_input_impedance(budget, element, w, Zl, 'Zll')
+
+        # There is an approximation here which is only valid for broad-band
+        # impedances. I sample the impedance only at the azimuthal mode m=1.
+        wp = self._get_sampling_ang_freq(w, w0, nb, 1, nus[0], [cbmode])
+
+        Zl_interp = self._get_interpolated_impedance(wp, w, Zl)
+        Zl_wp = Zl_interp / wp
+
+        delta = _np.zeros([len(I_b), (max_rad+1)*(2*max_azi+1)], dtype=complex)
+        # if the bunch length is a vector the mode-coupling matrix must be
+        # calculated for each frequency:
+        if not len(bunlen) == 1:
+            for ii in range(len(I_b)):
+                D, M = self._calc_vlasov(
+                    Zl_wp, wp, bunlen[ii], max_azi, max_rad)
+
+                # We separated the K value from the defition of M so that M
+                # could be current independent in case of a constant bunch
+                # length. To understand the equation for K implemented here,
+                # please look at eqs. 41 and 43 of ref. [3]. and notice that
+                # the definition of M_mlnh in 40 has Z/p instead of Z/wp as we
+                # have here:
+                xi = eta * I_b[ii]/nus[ii]**2/E
+                sig_theta = w0*bunlen[ii]/_LSPEED
+                K = xi * w0/(2*_np.pi)/(sig_theta)**2
+                # Lastly we need to multiply by `nb` because of our
+                # generalization to include n equally spaced bunches.
+                K *= nb
+
+                # Please, check eq. 43 of ref. [2]:
+                A = D + 1j*K*M + 1j*F/ws[ii]
+                delta[ii, :] = _np.linalg.eigvals(A)
+        else:
+            D, M = self._calc_vlasov(Zl_wp, wp, bunlen[0], max_azi, max_rad)
+            for ii in range(len(I_b)):
+                xi = eta * I_b[ii]/nus[ii]**2/E
+                sig_theta = w0*bunlen[0]/_LSPEED
+                K = xi * w0/(2*_np.pi)/(sig_theta)**2
+                K *= nb
+
+                A = D + 1j*K*M + 1j*F/ws[ii]
+                delta[ii, :] = _np.linalg.eigvals(A)
+        return delta
+
+    @classmethod
+    def _calc_vlasov(cls, Z_wp, wp, bunlen, max_azi, max_rad):
+        """Calculate the longitudinal mode-coupling matrix.
+
+        We follow ref.[1] closely, such that the comments in the
+        implementation refer to equation of this reference. Ref. [2] gives
+        identical results of ref. [1] and ref.[3] doesn't give explicit
+        formulas for gaussian beams, so we leave it here only for the
+        interested user.
+
+        The mode-coupling matrix is actually an object with 4 indices: Mmknl,
+        because it relates the expansion coefficients of the oscillation modes,
+        which are 2-indices objects, a_mk, being m for the azimuthal modes
+        and k for the radial modes.
+
+        However, after filling this 4-indices "matrix" we cast it in a
+        regular 2D matrix by mapping the m and k coefficients into a single
+        dimension, so we can solve the eigen-value problem with standard
+        techniques.
+
+        References:
+            [1] Suzuki, T., Chin, Y.-H., & Satoh, K. (1983). Mode-coupling
+                theory and bunch lengthening in spear. Particle Accelerators,
+                13, 179-198.
+            [2] Suzuki, T. (1983). Theory of longitudinal bunched-beam
+                instabilities based on the fokker-planck equation. Particle
+                Accelerators, 14, 91-108.
+            [3] Cai, Y. (2011). A Linear Theory of Microwave Instability in
+                Electron Storage Rings. Physical Review Special Topics -
+                Accelerators and Beams, 14(6), 061002.
+                https://doi.org/10.1103/PhysRevSTAB.14.061002
+
+        Args:
+            Z_wp (numpy.ndarray, (N, )): Impedance divided sampled at wp
+                angular frequency and divided by wp. Unit in [Ohm/(rad/s)]
+            wp (numpy.ndarray, (N, )): angular frequency in units of [rad/s]
+            bunlen (float): bunch length in units of [m]
+            max_azi (int): maximum azimuthal mode to consider.
+            max_rad (int): maximum radial mode to consider.
+
+        """
+        def fill_symmetric_terms(m, k, n, l, Mmknl):
+            # Please, note the symmetry relations in eq. 2.46 and also notice
+            # by 2.26 that Mmknl = Mnlmk * (-1)**(m-n):
+            M[max_azi+m, k, max_azi+n, l] = m*Mmknl
+            M[max_azi-m, k, max_azi+n, l] = -m*Mmknl
+            M[max_azi+m, k, max_azi-n, l] = m*Mmknl
+            M[max_azi-m, k, max_azi-n, l] = -m*Mmknl
+            Mnlmk = Mmknl * (-1)**(m-n)
+            M[max_azi+n, l, max_azi+m, k] = n*Mnlmk
+            M[max_azi+n, l, max_azi-m, k] = n*Mnlmk
+            M[max_azi-n, l, max_azi+m, k] = -n*Mnlmk
+            M[max_azi-n, l, max_azi-m, k] = -n*Mnlmk
+
+        D = _np.zeros(
+            [1+2*max_azi, max_rad+1, 1+2*max_azi, max_rad+1], dtype=complex)
+        M = _np.zeros(
+            [1+2*max_azi, max_rad+1, 1+2*max_azi, max_rad+1], dtype=complex)
+        spectrum = cls.calc_spectrum(wp, bunlen, max_rad, max_azi)
+        for m in range(max_azi+1):
+            for k in range(max_rad+1):
+                # D is the current independent diagonal matrix:
+                D[max_azi+m, k, max_azi+m, k] = m
+                D[max_azi-m, k, max_azi-m, k] = -m
+
+                Imk = spectrum[(abs(m), k)]
+                # For l=k it is only necessary to cover n=m..max_azi
+                # because of the symmetry relations of eq. 2.46:
+                for n in range(m, max_azi+1):
+                    Inl = spectrum[(abs(n), k)]
+                    Mmknk = (1j)**(m-n)*_np.dot(Z_wp, Imk*Inl)
+                    fill_symmetric_terms(m, k, n, k, Mmknk)
+
+                # For l!=k it we need to cover n=0..max_azi because of eq. 2.38
+                # but we just need to cover l=k+1..max_rad, because of eq. 2.39
+                for n in range(max_azi+1):
+                    for l in range(k+1, max_rad+1):
+                        Inl = spectrum[(abs(n), l)]
+                        Mmknl = (1j)**(m-n)*_np.dot(Z_wp, Imk*Inl)
+                        fill_symmetric_terms(m, k, n, l, Mmknl)
+        D = cls._reshape_coupling_matrix(D)
+        M = cls._reshape_coupling_matrix(M)
+        return D, M
+
+    def reduced_longitudinal_mode_coupling(
+            self, budget=None,  element=None, w=None, Zl=None,
+            max_azi=10, max_rad=12, cbmode=0, use_fokker=True):
+        """Calculate the transverse mode-coupling eigen-values.
+
+        The eigen-values returned here are normalized by the synchrotron
+        frequency, which means they are adimensional. Besides, the
+        implementation does not guarantee any specific ordering.
+
+        To get the tune-shifts you must take the real part of the eigen-values.
+        To get the growth rate in [1/s] you must multiply the imaginary part
+        by the angular synchrotron frequency `nus*w0`.
+        If any of the growth rates are larger than 0, It means instability if
+        `use_fokker` is `True`, otherwise, a comparison with the damping times
+        of the machine must be made after the calculation.
+
+        We follow ref.[1] closely, such that the comments in the
+        implementation refer to equation of this reference. Ref. [2] gives
+        identical results of ref. [1] and ref.[3] doesn't give explicit
+        formulas for gaussian beams, so we leave it here only for the
+        interested user.
+
+        We make a small generalization of ref. [1], by considering that the
+        ring is filled with several equally spaced identical bunches and that
+        the eigen-values are being calculated for a given coupled-bunch mode
+        of the beam.
+
+        References:
+            [1] Suzuki, T., Chin, Y.-H., & Satoh, K. (1983). Mode-coupling
+                theory and bunch lengthening in spear. Particle Accelerators,
+                13, 179-198.
+            [2] Suzuki, T. (1983). Theory of longitudinal bunched-beam
+                instabilities based on the fokker-planck equation. Particle
+                Accelerators, 14, 91-108.
+            [3] Cai, Y. (2011). A Linear Theory of Microwave Instability in
+                Electron Storage Rings. Physical Review Special Topics -
+                Accelerators and Beams, 14(6), 061002.
+                https://doi.org/10.1103/PhysRevSTAB.14.061002
+
+        Attributes and properties used by this method:
+            cur_bun
+            E
+            w0
+            nus
+            bunlen
+            mom_cmpct
+            nbun
+            dampte
+
+        The problem will be solved for all N values of currents in the vector
+        `cur_bun`. I `nus` or `bunlen` are arrays, they must be of the same
+        size as `cur_bun`. If the bunch length is an array, the execution time
+        will be larger because of the need of recalculating the mode-coupling
+        matrix for each current.
+
+        Args:
+            budget (pycolleff.impedances.Budget, optional): Impdedance budget
+                of the machine. If not None, `element`, `w` and `Zt` inputs
+                are ignored. Defaults to None.
+            element (pycolleff.impedances.Element, optional): Impedance
+                element. Only considered if `budget is `None`. If not `None`,
+                `w` and `Zt` are ignored. Defaults to None.
+            w (numpy.ndarray, (M, ), optional): Angular frequency in [rad/s].
+                Only considered if `budget` and `element` are `None`. Defaults
+                to `None`.
+            Zl (numpy.ndarray (M, ), optional): longitudinal impedance in
+                units of [Ohm] evaluated at angular frequencies in `w`.
+                Only considered if `budget` and `element` are `None`.
+                Defaults to None.
+            max_azi (int, optional): Maximum azimuthal mode to consider in the
+                truncation. The solution will consider all `2*max_azi + 1`
+                azimuthal modes whose absolute value are <= than `max_azi`.
+                Defaults to 3.
+            max_rad (int, optional): Maximum radial mode to consider in the
+                truncation. The solution will consider all `max_rad + 1`
+                radial modes <= than `max_rad`. Defaults to 4.
+            cbmode (int, optional): Coupled-bunch mode for which the
+                eigen-values will be found. Must be lower than `nbun`.
+                Defaults to 0.
+            use_fokker (bool, optional): Whether or not to include the
+                fokker-planck terms described in ref. [2]. If False, the
+                Vlasov equation will be considered, like in ref. [1].
+                Defaults to True.
+
+        Returns:
+            (numpy.ndarray, (N, (2*max_azi+1)*(max_rad+1))): normalized
+                eigen-modes of the mode-coupling problem.
+
+        """
+        I_b = self.cur_bun
+        E = self.E
+        w0 = self.w0
+        nus = self.nus
         eta = self.mom_cmpct
         nb = self.nbun
         alpe = 1/self.dampte
 
-        F = calc_Fokker_Planck(alpe, n_azi, n_rad, use_fokker)
+        F = self.calc_fokker_planck(max_azi, max_rad, alpe, use_fokker)
         if bunlen is None:
-            bunlen = self.bunlen(I_b)
+            bunlen = self.bunlen
         if isinstance(bunlen, (float, _np.float_)):
             bunlen = [bunlen]
 
         w, Zl = self._prepare_input_impedance(budget, element, w, Zl, 'Zll')
 
-        # arredonda em direcao a +infinito
-        pmin = _np.ceil((w[0] - (mu + n_azi*nus)*w0)/(w0*nb))
-        # arredonda em direcao a -infinito
-        pmax = _np.floor((w[-1]-(mu + n_azi*nus)*w0)/(w0*nb))
+        # There is an approximation here which is only valid for broad-band
+        # impedances. I sample the impedance only at the azimuthal mode m=1.
+        wp = self._get_sampling_ang_freq(w, w0, nb, 1, nus, [cbmode])
 
-        p = _np.arange(pmin, pmax+1)
-        wp = w0*(p*nb + mu + 1*nus)
-        # Complex interpolation is ill-defined
-        interpol_Z = _np.interp(wp, w, Zl.imag) * 1j  # imaginary must come first
-        interpol_Z += _np.interp(wp, w, Zl.real)
+        Zl_interp = self._get_interpolated_impedance(wp, w, Zl)
 
-        delta = _np.zeros([len(I_b), (n_rad+1)*n_azi], dtype=complex)
+        delta = _np.zeros([len(I_b), (max_rad+1)*max_azi], dtype=complex)
         if not len(bunlen) == 1:
             for ii in range(len(I_b)):
-                A, M = calc_Vlasov(interpol_Z, wp, bunlen[ii], n_azi, n_rad)
+                A, M = self._calc_vlasov_symm(
+                    Zl_interp, wp, bunlen[ii], max_azi, max_rad)
                 K = (I_b[ii]*nb*w0*eta/(2*_np.pi) /
-                     (self.nus(I_b[ii])*w0)**2/E/(bunlen[ii]/_c)**2)
+                     (self.nus(I_b[ii])*w0)**2/E/(bunlen[ii]/_LSPEED)**2)
                 B = A + 1j*2*K*M + 1j*2*F/w0/self.nus(I_b[ii])
                 delta[ii, :] = _np.linalg.eigvals(B)
         else:
-            A, M = calc_Vlasov(interpol_Z, wp, bunlen[0], n_azi, n_rad)
+            A, M = self._calc_vlasov_symm(
+                Zl_interp, wp, bunlen[0], max_azi, max_rad)
             for ii in range(len(I_b)):
                 K = (I_b[ii]*nb*w0*eta/(2*_np.pi) /
-                     (self.nus(I_b[ii])*w0)**2/E/(bunlen[0]/_c)**2)
+                     (self.nus(I_b[ii])*w0)**2/E/(bunlen[0]/_LSPEED)**2)
                 B = A + 1j*K*M + 1j*F/w0/self.nus(I_b[ii])
                 delta[ii, :] = _np.linalg.eigvals(B)
         return delta
 
-    def transverse_mode_coupling(self,
-                                 budget=None,  element=None,
-                                 w=None,  Zt=None,
-                                 bunlen=None, plane='y',
-                                 n_azi=3,  n_rad=4,
-                                 mu=0,
-                                 use_fokker = True,
-                                 max_w = None):
+    @classmethod
+    def _calc_vlasov_symm(cls, interpol_Z, wp, bunlen, max_azi, max_rad):
+        def fill_M(m, k, n, l, Mmknl):
+            M[m-1, k, n-1, l] = m*m*Mmknl
+            M[n-1, l, m-1, k] = n*n*Mmknl * (-1)**(m-n)
 
-        def calc_Fokker_Planck(alpt, alpe, n_azi, n_rad, use_fokker):
-            F = _np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
-            if use_fokker:
-                for l in range(n_rad+1):
-                    for m in range(-n_azi,n_azi+1):
-                        F[n_azi+m, l, n_azi+m, l] = - alpt - alpe*(abs(m) + 2*l)
-                        if m <=-2:
-                            if abs(m-2)<=n_azi and l-1 >= 0:
-                                F[n_azi+m, l, n_azi+m-2, l-1] =  -alpe*_np.sqrt((l+1-m)*l)
-                            if abs(m+2)<=n_azi and l+1 <= n_rad:
-                                F[n_azi+m, l, n_azi+m+2, l+1] =  -alpe*_np.sqrt((l-m)*(l+1))
-                        if m ==-1:
-                            if abs(m-2)<=n_azi and l-1 >= 0:
-                                F[n_azi+m, l, n_azi+m-2, l-1] =  -alpe*_np.sqrt((l+2)*l)
-                            if abs(m+2)<=n_azi and l <= n_rad:
-                                F[n_azi+m, l, n_azi+m+2, l]   =   alpe*(l+1)
-                        if m == 0:
-                            if abs(m-2)<=n_azi and l-1 >= 0:
-                                F[n_azi+m, l, n_azi+m-2, l-1] =  -alpe*_np.sqrt((l+1)*l)
-                            if abs(m+2)<=n_azi and l-1 >= 0:
-                                F[n_azi+m, l, n_azi+m+2, l]   =  -alpe*_np.sqrt(l*(l+1))
-                        if m == 1:
-                            if abs(m-2)<=n_azi and l <= n_rad:
-                                F[n_azi+m, l, n_azi+m-2, l] =    alpe*(l+1)
-                            if abs(m+2)<=n_azi and l-1 >= 0:
-                                F[n_azi+m, l, n_azi+m+2, l-1] =  -alpe*_np.sqrt((l+2)*l)
-                        if m >= 2:
-                            if abs(m-2)<=n_azi and l+1 <= n_rad:
-                                F[n_azi+m, l, n_azi+m-2, l+1] =  -alpe*_np.sqrt((l+m)*(l+1))
-                            if abs(m+2)<=n_azi and l-1 >= 0:
-                                F[n_azi+m, l, n_azi+m+2, l-1] =  -alpe*_np.sqrt((l+1+m)*l)
+        A = _np.zeros([max_azi, max_rad+1, max_azi, max_rad+1], dtype=complex)
+        M = _np.zeros([max_azi, max_rad+1, max_azi, max_rad+1], dtype=complex)
+        spectrum = cls.calc_spectrum(wp, bunlen, max_rad, max_azi)
+        for k in range(max_rad+1):
+            for m in range(max_azi+1):
+                Imk = spectrum[(abs(m), k)]
+                A[m-1, k, m-1, k] = m*m
+                for n in range(m, max_azi+1):
+                    Inl = spectrum[(abs(n), k)]
+                    Mmknl = (1j)**(m-n)*_np.dot(interpol_Z/wp, Imk*Inl)
+                    fill_M(m, k, n, k, Mmknl)
+            for l in range(k+1, max_rad+1):
+                for m in range(max_azi+1):
+                    Imk = spectrum[(abs(m), k)]
+                    for n in range(max_azi+1):
+                        Inl = spectrum[(abs(n), l)]
+                        Mmknl = (1j)**(m-n)*_np.dot(interpol_Z/wp, Imk*Inl)
+                        fill_M(m, k, n, l, Mmknl)
+        A = cls._reshape_coupling_matrix(A)
+        M = cls._reshape_coupling_matrix(M)
+        return A, M
 
-            return F.swapaxes(0,3).swapaxes(1,2).reshape([(1+2*n_azi)*(1+n_rad),(1+2*n_azi)*(1+n_rad)]).transpose()
+    def transverse_mode_coupling(
+            self, budget=None, element=None, w=None, Zt=None, plane='y',
+            max_azi=3, max_rad=4, cbmode=0, use_fokker=True):
+        """Calculate the transverse mode-coupling eigen-values.
 
-        def calc_Vlasov(interpol_Z, wpcro, bunlen, n_azi, n_rad):
-            def fill_M(m,k,n,l,Mmknl):
-                M[n_azi+m, k, n_azi+n, l] =             Mmknl
-                M[n_azi-m, k, n_azi+n, l] =             Mmknl
-                M[n_azi+m, k, n_azi-n, l] =             Mmknl
-                M[n_azi-m, k, n_azi-n, l] =             Mmknl
-                M[n_azi+n, l, n_azi+m, k] = (-1)**(m-n)*Mmknl
-                M[n_azi+n, l, n_azi-m, k] = (-1)**(m-n)*Mmknl
-                M[n_azi-n, l, n_azi+m, k] = (-1)**(m-n)*Mmknl
-                M[n_azi-n, l, n_azi-m, k] = (-1)**(m-n)*Mmknl
-            A = _np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
-            M = _np.zeros([1 + 2*n_azi, n_rad+1, 1 + 2*n_azi, n_rad+1],dtype=complex)
-            spectrum = self.calc_spectrum(wpcro,bunlen,n_rad,n_azi)
-            for k in range(n_rad+1):
-                for m in range(n_azi+1):
-                    Imk = spectrum[(abs(m),k)]
-                    A[n_azi+m, k, n_azi+m, k] =  m
-                    A[n_azi-m, k, n_azi-m, k] = -m
-                    for n in range(m,n_azi+1):
-                        Inl =  spectrum[(abs(n),k)]
-                        Mmknl = -(1j)**(m-n)*_np.dot(interpol_Z,Imk*Inl)
-                        fill_M(m,k,n,k,Mmknl)
-                for l in range(k+1,n_rad+1):
-                    for m in range(n_azi+1):
-                        Imk =  spectrum[(abs(m),k)]
-                        for n in range(n_azi+1):
-                            Inl =  spectrum[(abs(n),l)]
-                            Mmknl = -(1j)**(m-n)*_np.dot(interpol_Z,Imk*Inl)
-                            fill_M(m,k,n,l,Mmknl)
+        The eigen-values returned here are normalized by the synchrotron
+        frequency, which means they are adimensional. Besides, the
+        implementation does not guarantee any specific ordering.
 
-            return (A.swapaxes(0,3).swapaxes(1,2).reshape([(1+2*n_azi)*(1+n_rad),(1+2*n_azi)*(1+n_rad)]).transpose(),
-                    M.swapaxes(0,3).swapaxes(1,2).reshape([(1+2*n_azi)*(1+n_rad),(1+2*n_azi)*(1+n_rad)]).transpose())
+        To get the tune-shifts you must take the real part of the eigen-values.
+        To get the growth rate in [1/s] you must multiply the imaginary part
+        by the angular synchrotron frequency `nus*w0`.
+        If any of the growth rates are larger than 0, It means instability if
+        `use_fokker` is `True`, otherwise, a comparison with the damping times
+        of the machine must be made after the calculation.
 
-        I_b   = self.cur_bun
-        E     = self.E
-        w0    = self.w0
-        nus   = self.nus(0.0)
-        eta   = self.mom_cmpct
-        nb    = self.nbun
-        alpe  = 1/self.dampte
-        if mu >= nb:
-            mu = 0
-            print('Coupled Bunch Mode greater than Number of Bunchs.\n',
-                  'Reseting mu to 0.')
-        if plane.lower().startswith(('x','h')):
+        We follow ref.[1] closely, such that the comments in the
+        implementation refer to equation of this reference. Ref. [2] gives
+        identical results of ref. [1] and ref.[3] makes a different expansion
+        of oscillation modes, so we leave it here only for the interested user.
+
+        We make a small generalization of ref. [1], by considering that the
+        ring is filled with several equally spaced identical bunches and that
+        the eigen-values are being calculated for a given coupled-bunch mode
+        of the beam.
+
+        References:
+            [1] Chin, Y. H. (1985). Transverse Mode Coupling Instabilities in
+                the SPS. In CERN/SPS/85-2 (DI-MST).
+            [2] Suzuki, T. (1986). Fokker-planck theory of transverse
+                mode-coupling instability. Particle Accelerators, 20, 79-96.
+            [3] Lindberg, R. R. (2016). Fokker-Planck analysis of transverse
+                collective instabilities in electron storage rings. Phys. Rev.
+                Accel. Beams, 19(12), 124402.
+                https://doi.org/10.1103/PhysRevAccelBeams.19.124402
+
+        Attributes and properties used by this method:
+            cur_bun
+            E
+            w0
+            nus
+            bunlen
+            mom_cmpct
+            nbun
+            dampte
+            damptx
+            dampty
+            nux
+            nuy
+            chromx
+            chromy
+
+        The problem will be solved for all N values of currents in the vector
+        `cur_bun`. I `nus` or `bunlen` are arrays, they must be of the same
+        size as `cur_bun`. If the bunch length is an array, the execution time
+        will be larger because of the need of recalculating the mode-coupling
+        matrix for each current.
+
+        Args:
+            budget (pycolleff.impedances.Budget, optional): Impdedance budget
+                of the machine. If not None, `element`, `w` and `Zt` inputs
+                are ignored. Defaults to None.
+            element (pycolleff.impedances.Element, optional): Impedance
+                element. Only considered if `budget is `None`. If not `None`,
+                `w` and `Zt` are ignored. Defaults to None.
+            w (numpy.ndarray, (M, ), optional): Angular frequency in [rad/s].
+                Only considered if `budget` and `element` are `None`. Defaults
+                to `None`.
+            Zt (numpy.ndarray (M, ), optional): Beta weighted transverse
+                impedance in [Ohm] evaluated at angular frequencies in `w`.
+                Only considered if `budget` and `element` are `None`. Defaults
+                to None.
+            plane (str, optional): Plane where to evaluate the analysis. May
+                be in {'x', 'y'}. Defaults to 'y'.
+            max_azi (int, optional): Maximum azimuthal mode to consider in the
+                truncation. The solution will consider all `2*max_azi + 1`
+                azimuthal modes whose absolute value are <= than `max_azi`.
+                Defaults to 3.
+            max_rad (int, optional): Maximum radial mode to consider in the
+                truncation. The solution will consider all `max_rad + 1`
+                radial modes <= than `max_rad`. Defaults to 4.
+            cbmode (int, optional): Coupled-bunch mode for which the
+                eigen-values will be found. Must be lower than `nbun`.
+                Defaults to 0.
+            use_fokker (bool, optional): Whether or not to include the
+                fokker-planck terms described in ref. [2]. If False, the
+                Vlasov equation will be considered, like in ref. [1].
+                Defaults to True.
+
+        Returns:
+            (numpy.ndarray, (N, (2*max_azi+1)*(max_rad+1))): normalized
+                eigen-modes of the mode-coupling problem.
+
+        """
+        I_b = self.cur_bun
+        E = self.E
+        w0 = self.w0
+        bunlen = self.bunlen
+        nus = self.nus
+        eta = self.mom_cmpct
+        nb = self.nbun
+        alpe = 1/self.dampte
+        if cbmode >= nb:
+            cbmode = 0
+            print(
+                'Coupled bunch mode greater than number of bunchs.\n',
+                'Reseting cbmode to 0.')
+
+        if plane.lower().startswith(('x', 'h')):
             alpt, nut, chrom, imp = 1/self.damptx, self.nux, self.chromx, 'Zdx'
         else:
             alpt, nut, chrom, imp = 1/self.dampty, self.nuy, self.chromy, 'Zdy'
 
-        F = calc_Fokker_Planck(alpt, alpe, n_azi, n_rad, use_fokker)
-        if bunlen is None:
-            bunlen = self.bunlen(I_b)
+        # Calculate the fokker-planck matrix:
+        F = self._calc_fokker_planck(max_azi, max_rad, alpe, alpt, use_fokker)
+
         if isinstance(bunlen, (float, _np.float_)):
             bunlen = [bunlen]
+        if isinstance(nus, (float, _np.float_)):
+            nus = _np.ones(I_b.shape) * nus
+        ws = nus * w0
 
         w, Zt = self._prepare_input_impedance(budget, element, w, Zt, imp)
-        if max_w is not None:
-            indcs = _np.abs(w) < max_w
-            w = w[indcs]
-            Zt = Zt[indcs]
 
-        nucro = chrom/eta
-        pmin = _np.ceil( (w[0] -(mu + nut + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a +infinito
-        pmax = _np.floor((w[-1]-(mu + nut + n_azi*nus)*w0)/(w0*nb)) # arredonda em direcao a -infinito
+        # There is an approximation here which is only valid for broad-band
+        # impedances. I sample the impedance only at the azimuthal mode m=1.
+        wp = self._get_sampling_ang_freq(w, w0, nb, 1, nus[0], [cbmode], nut)
+        w_crom = chrom/eta * w0
+        wpcro = wp - w_crom
 
-        p = _np.arange(pmin,pmax+1)
-        wp = w0*(p*nb + mu +nut + 1*nus)
-        # Complex interpolation is ill-defined
-        interpol_Z  = 1j*_np.interp(wp, w, Zt.imag) # imaginary must come first
-        interpol_Z +=    _np.interp(wp, w, Zt.real)
-        wpcro = wp - nucro*w0
+        Zt_interp = self._get_interpolated_impedance(wp, w, Zt)
 
-        delta = _np.zeros([len(I_b),(n_rad+1)*(2*n_azi+1)],dtype=complex)
-        if not len(bunlen)==1:
+        delta = _np.zeros([len(I_b), (max_rad+1)*(2*max_azi+1)], dtype=complex)
+        # if the bunch length is a vector the mode-coupling matrix must be
+        # calculated for each frequency:
+        if not len(bunlen) == 1:
             for ii in range(len(I_b)):
-                A, M = calc_Vlasov(interpol_Z, wpcro, bunlen[ii], n_azi, n_rad)
-                K    = I_b[ii]*nb*w0/(4*_np.pi)/(self.nus(I_b[ii])*w0)/E
-                B    = A + 1j*K*M  + 1j*F/w0/self.nus(I_b[ii])
-                delta[ii,:] = _np.linalg.eigvals(B)
+                D, M = self._calc_vlasov_transverse(
+                    Zt_interp, wpcro, bunlen[ii], max_azi, max_rad)
+
+                # We separated the K value from the defition of M so that M
+                # could be current independent in case of a constant bunch
+                # length. To understand the equation for K implemented here,
+                # please look at eqs. 2.35 and 2.41 of ref. [1]., or to eq. 37
+                # of ref. [2].
+                K = I_b[ii] * w0/(4*_np.pi)/ws[ii]/E
+                # Lastly we need to multiply by `nb` because of our
+                # generalization to include n equally spaced bunches.
+                K *= nb
+
+                # This is the complete matrix described in eq. 2.37 of ref.
+                # [1] with the aditional fokker-plank terms of eq. 37 of
+                # ref. [2] normalized by ws:
+                A = D + K*M + 1j*F/ws[ii]
+                delta[ii, :] = _np.linalg.eigvals(A)
         else:
-            A, M = calc_Vlasov(interpol_Z, wpcro, bunlen[0], n_azi, n_rad)
+            D, M = self._calc_vlasov_transverse(
+                Zt_interp, wpcro, bunlen[0], max_azi, max_rad)
             for ii in range(len(I_b)):
-                K = I_b[ii]*nb*w0/(4*_np.pi)/(self.nus(I_b[ii])*w0)/E
-                B = A + 1j*K*M + 1j*F/w0/self.nus(I_b[ii])
-                delta[ii,:] = _np.linalg.eigvals(B)
+                K = I_b[ii]*nb*w0/(4*_np.pi)/ws[ii]/E
+                A = D + K*M + 1j*F/ws[ii]
+                delta[ii, :] = _np.linalg.eigvals(A)
         return delta
 
-    def budget_summary(self, budget=None):
+    @classmethod
+    def _calc_vlasov_transverse(cls, Z_wp, wpcro, bunlen, max_azi, max_rad):
+        """Calculate the transverse mode-coupling matrix.
+
+        We follow ref.[1] closely, such that the comments in the
+        implementation refer to equation of this reference. Ref. [2] gives
+        identical results of ref. [1] and ref.[3] makes a different expansion
+        of oscillation modes, so we leave it here only for the interested user.
+
+        The mode-coupling matrix is actually an object with 4 indices: Mmknl,
+        because it relates the expansion coefficients of the oscillation modes,
+        which are 2-indices objects, a_mk, being m for the azimuthal modes
+        and k for the radial modes.
+
+        However, after filling this 4-indices "matrix" we cast it in a
+        regular 2D matrix by mapping the m and k coefficients into a single
+        dimension, so we can solve the eigen-value problem with standard
+        techniques.
+
+        References:
+            [1] Chin, Y. H. (1985). Transverse Mode Coupling Instabilities in
+                the SPS. In CERN/SPS/85-2 (DI-MST).
+            [2] Suzuki, T. (1986). Fokker-planck theory of transverse
+                mode-coupling instability. Particle Accelerators, 20, 79-96.
+            [3] Lindberg, R. R. (2016). Fokker-Planck analysis of transverse
+                collective instabilities in electron storage rings. Phys. Rev.
+                Accel. Beams, 19(12), 124402.
+                https://doi.org/10.1103/PhysRevAccelBeams.19.124402
+
+        Args:
+            Z_wp (numpy.ndarray, (N, )): Beta weigthed impedance sampled at wp
+                angular frequency [Ohm]
+            wpcro (numpy.ndarray, (N, )): chromatic shifted angular frequency
+                in units of [rad/s]
+            bunlen (float): bunch length in units of [m]
+            max_azi (int): maximum azimuthal mode to consider.
+            max_rad (int): maximum radial mode to consider.
+
+        """
+        def fill_symmetric_terms(m, k, n, l, Mmknl):
+            # Please, note the symmetry relations in eq. 2.38 e 2.39:
+            M[max_azi+m, k, max_azi+n, l] = Mmknl
+            M[max_azi-m, k, max_azi+n, l] = Mmknl
+            M[max_azi+m, k, max_azi-n, l] = Mmknl
+            M[max_azi-m, k, max_azi-n, l] = Mmknl
+            Mnlmk = Mmknl * (-1)**(m-n)
+            M[max_azi+n, l, max_azi+m, k] = Mnlmk
+            M[max_azi+n, l, max_azi-m, k] = Mnlmk
+            M[max_azi-n, l, max_azi+m, k] = Mnlmk
+            M[max_azi-n, l, max_azi-m, k] = Mnlmk
+
+        D = _np.zeros(
+            [1+2*max_azi, max_rad+1, 1+2*max_azi, max_rad+1], dtype=complex)
+        M = _np.zeros(
+            [1+2*max_azi, max_rad+1, 1+2*max_azi, max_rad+1], dtype=complex)
+        spectrum = cls.calc_spectrum(wpcro, bunlen, max_rad, max_azi)
+        for m in range(max_azi+1):
+            for k in range(max_rad+1):
+                # D is the current independent diagonal matrix of eq. 2.37:
+                D[max_azi+m, k, max_azi+m, k] = m
+                D[max_azi-m, k, max_azi-m, k] = -m
+
+                Imk = spectrum[(abs(m), k)]
+                # For l=k it is only necessary to cover n=m..max_azi
+                # because of the symmetry relations of eq. 2.38 and 2.39:
+                for n in range(m, max_azi+1):
+                    Ink = spectrum[(abs(n), k)]
+                    Mmknk = -1j*(1j)**(m-n)*_np.dot(Z_wp, Imk*Ink)
+                    fill_symmetric_terms(m, k, n, k, Mmknk)
+
+                # For l!=k it we need to cover n=0..max_azi because of eq. 2.38
+                # but we just need to cover l=k+1..max_rad, because of eq. 2.39
+                for n in range(max_azi+1):
+                    for l in range(k+1, max_rad+1):
+                        Inl = spectrum[(abs(n), l)]
+                        Mmknl = -1j*(1j)**(m-n)*_np.dot(Z_wp, Imk*Inl)
+                        fill_symmetric_terms(m, k, n, l, Mmknl)
+        D = cls._reshape_coupling_matrix(D)
+        M = cls._reshape_coupling_matrix(M)
+        return D, M
+
+    @classmethod
+    def _calc_fokker_planck(
+            cls, max_azi, max_rad, alpe, alpt=0, use_fokker=True):
+        """Calculate Fokker-Planck Matrix.
+
+        Refs:
+            [1] Suzuki, T. (1986). Fokker-planck theory of transverse
+                mode-coupling instability. Particle Accelerators, 20, 79-96.
+            [2] Suzuki, T. (1983). Theory of longitudinal bunched-beam
+                instabilities based on the fokker-planck equation. Particle
+                Accelerators, 14, 91-108.
+            [3] Lindberg, R. R. (2016). Fokker-Planck analysis of transverse
+                collective instabilities in electron storage rings. Phys. Rev.
+                Accel. Beams, 19(12), 124402.
+                https://doi.org/10.1103/PhysRevAccelBeams.19.124402
+
+        This implementation is based on the theory developed in refs [1,2].
+        Note that the expansion made in ref.[3] is different than the one
+        performed at refs.[1,2]. Besides the matrix terms are simpler and the
+        author claim they are equal if we expand the ones of the other refs.,
+        but here we decided to follow refs.[1,2].
+
+        To understand the implementation, please follow eq. 37 of ref.[1].
+        Note that this equation is a matrix equation for the coefficients
+        a_ml of the expansion of the perturbed distribution.
+
+        Since these coefficients have to symbols, m and l, being natural to
+        think of them as 2D matrices, it is also natural to think of a four
+        indices "matrix" to compose the eigen-value problem, relating the
+        a_ml to a_kn.
+        However, after filling this four indices "matrix" we cast it in a
+        regular 2D matrix by vectorizing the m and l coefficients so we can
+        solve the eigen-value problem with standard techniques.
+
+        Args:
+            max_azi (int): Maximum azimuthal number before truncation.
+            max_rad (int): Maximum radial number before truncation.
+            alpe (float): longitudinal damping rate [1/s]
+            alpt (int, optional): transverse damping rate [1/s]. Defaults to 0.
+            use_fokker (bool, optional): Whether or not to calculate the
+                fokker planck terms. If False returns a zero matrix.
+                Defaults to True.
+
+        Returns:
+            (numpy.ndarray, (
+                (2*max_azi+1)x(max_rad+1), (2*max_azi+1)x(max_rad+1))):
+                    Square Fokker-Planck matrix that relates a_ml to a_kn.
+
+        """
+        F = _np.zeros(
+            [1+2*max_azi, max_rad+1, 1+2*max_azi, max_rad+1], dtype=complex)
+        if not use_fokker:
+            return cls._reshape_coupling_matrix(F)
+
+        for m in range(-max_azi, max_azi+1):
+            amm2 = abs(m-2)
+            amp2 = abs(m+2)
+            am = abs(m)
+            for l in range(max_rad+1):
+                F[max_azi+m, l, max_azi+m, l] = - alpt - alpe*(abs(m) + 2*l)
+                Fml = F[max_azi+m, l]
+                for k in range(max_rad+1):
+                    if m-2 >= -max_azi:
+                        tm1 = cls._kappa(amm2, am, k, l, 0)
+                        tm2 = cls._kappa(amm2, am, k, l, -1)
+                        tm3 = cls._kappa(amm2, am, k-1, l, -1)
+                        tm1 *= (k + amm2/2 - (m-2)/2) / 2
+                        tm2 *= -(m-1)/4 * (m-2 - amm2 - 2*k)
+                        tm3 *= -(m-1)/2 * _sqrt(k*(amm2 + k))
+                        Fml[max_azi+m-2, k] = (tm1 + tm2 + tm3) * 2 * alpe
+                    if m+2 <= max_azi:
+                        tm1 = cls._kappa(amp2, am, k, l, 0)
+                        tm2 = cls._kappa(amp2, am, k, l, -1)
+                        tm3 = cls._kappa(amp2, am, k-1, l, -1)
+                        tm1 *= (k + amp2/2 + (m+2)/2)/2
+                        tm2 *= -(m+1)/4 * (m+2 + amp2 + 2*k)
+                        tm3 *= +(m+1)/2 * _sqrt(k*(amp2 + k))
+                        Fml[max_azi+m+2, k] = (tm1 + tm2 + tm3) * 2 * alpe
+        return cls._reshape_coupling_matrix(F)
+        # return F
+
+    @classmethod
+    def _kappa(cls, alpha, beta, k, l, N):
+        """Calculate Kappa factor for Fokker-Planck Matrix.
+
+        [1] Suzuki, T. (1986). Fokker-planck theory of transverse
+            mode-coupling instability. Particle Accelerators, 20, 79-96.
+
+        This implementation follow eqs. 42-45 of ref.[1] plus the
+        symmetry relation that can be infered from eq. 39.
+
+        Args:
+            alpha (int): alpha from ref.[1]
+            beta (int): beta from ref.[1]. Must be in {alpha, alpha+2}.
+            k (int): k from ref.[1]
+            l (int): l from ref.[1]
+            N (int): N from ref.[1]. Must be in {0, -1}
+
+        Raises:
+            ValueError: when beta not in {alpha-2, alpha, alpha+2} or
+                N not in {0, -1}.
+
+        Returns:
+            float: kappa value
+
+        """
+        kappa = None
+        if alpha - 2 == beta:
+            # note the symmetry relation in eq. 39 or ref.[1]
+            kappa = cls._kappa(beta, alpha, l, k, N)
+        elif alpha == beta:
+            if not N:
+                kappa = 1 if k == l else 0
+            elif N == -1:
+                kappa = _factorial(alpha+l) / _factorial(alpha+k)
+                kappa *= _factorial(k) / _factorial(l)
+                kappa = _sqrt(kappa)
+                if k <= l:
+                    kappa = 1/kappa
+                kappa /= alpha
+        elif alpha + 2 == beta:
+            if not N:
+                kappa = 0
+                if k <= l:
+                    kappa = _factorial(alpha+k) / _factorial(alpha+l+2)
+                    kappa *= _factorial(l) / _factorial(k)
+                    kappa = _sqrt(kappa)
+                    kappa *= alpha + 1
+                elif k == l + 1:
+                    kappa = -_sqrt((l+1)/(alpha+l+2))
+            elif N == -1:
+                kappa = 0
+                if k <= l:
+                    kappa = _factorial(alpha+k) / _factorial(alpha+l+2)
+                    kappa *= _factorial(l) / _factorial(k)
+                    kappa = _sqrt(kappa)
+                    kappa *= l + 1 - k
+        if kappa is None:
+            raise ValueError(
+                'beta must be in {alpha-2, alpha, alpha+2} and N in {0, -1}.')
+        return kappa
+
+    @staticmethod
+    def _get_sampling_ang_freq(w, w0, nb, m, nus, cbmodes, nut=0):
+        wp = []
+        for cbmode in cbmodes:
+            # round towards +infinity
+            pmin = _np.ceil((w[0]/w0 - (cbmode + m*nus + nut))/nb)
+            # round towards -infinity
+            pmax = _np.floor((w[-1]/w0 - (cbmode + m*nus + nut))/nb)
+
+            p = _np.arange(pmin, pmax+1)
+            wp.append(nb*p + cbmode + nut + m*nus)
+        wp = _np.array(wp).squeeze()
+        wp *= w0
+        return wp
+
+    @staticmethod
+    def _get_interpolated_impedance(wp, w, Z):
+        if callable(Z):
+            Z_interp = Z(wp)
+        else:
+            # Complex interpolation is ill-defined because it gives different
+            # results depending whether you do it in polar or cartesian
+            # coordinates, so we must do it by parts.
+            # Imaginary must come first, so that interpolated variable is
+            # recognized as of complex type:
+            Z_interp = _np.interp(wp, w, Z.imag) * 1j
+            Z_interp += _np.interp(wp, w, Z.real)
+        return Z_interp
+
+    @staticmethod
+    def _reshape_coupling_matrix(M):
+        shap = M.shape
+        siz = shap[0] * shap[1]
+        return M.swapaxes(0, 3).swapaxes(1, 2).reshape([siz, siz]).transpose()
+
+    def budget_summary(self, budget):
         props = ['lsf', 'zln', 'pls', 'kdx', 'kdy', 'kqx', 'kqy',
                  'ktx', 'kty', 'ndx', 'ndy', 'nqx', 'nqy', 'ntx', 'nty']
 
@@ -875,8 +1261,9 @@ class Ring:
             bud_res[el.name] = pd.Series(values)
         return bud_res
 
-    def kicker_power(self, gr, Rshunt=15e3, betak=5, Ab=1e-3,
-                     betab=5, coupled_mode=None, plane='long'):
+    def kicker_power(
+            self, gr, Rshunt=15e3, betak=5, Ab=1e-3, betab=5,
+            coupled_mode=None, plane='long'):
         '''Calculate the minimum transverse bunch by bunch feedback power
             necessary to damp coupled-bunch oscillations, assuming perfect
             tunning of the system.
@@ -893,13 +1280,14 @@ class Ring:
         OUTPUT: RF power needed to damp instability [W].
         '''
         if plane.lower().startswith('l'):
-            P = (2*_np.pi*self.nus(0)*self.E/self.mom_cmpct*gr*Ab/_c)**2
+            P = (2*_np.pi*self.nus(0)*self.E/self.mom_cmpct*gr*Ab/_LSPEED)**2
         else:
             P = 1/betak * self.E**2 * (self.T0*gr)**2 * (Ab**2/betab)
         return P*2/Rshunt
 
-    def calc_energy_spread_increase(self, N=10000000, bunlen=3e-3, wake=1e17,
-                                    larg=50e-6, Ib=1e-3, zz=None):
+    def calc_energy_spread_increase(
+            self, N=10000000, bunlen=3e-3, wake=1e17, larg=50e-6, Ib=1e-3,
+            zz=None):
         zz = zz or bunlen
         po = _np.exp(-zz*zz/2/bunlen/bunlen)/_np.sqrt(2*_np.pi)/bunlen*larg
 
