@@ -16,6 +16,7 @@ class Ring:
 
     def __init__(self):
         """."""
+        self._use_gaussian_noise = False
         self.energy = 3e9  # [eV]
         self.u0 = 871e3  # [eV]
         self.harm_num = 864
@@ -30,6 +31,15 @@ class Ring:
         self.cav_volt_norm = _np.zeros(self.cav_pos.shape)
 
         self.cav_vgap = 3e6  # [V]
+
+    @property
+    def use_gaussian_noise(self):
+        """."""
+        return self._use_gaussian_noise
+
+    @use_gaussian_noise.setter
+    def use_gaussian_noise(self, value):
+        self._use_gaussian_noise = bool(value)
 
     @property
     def u0_norm(self):
@@ -89,11 +99,17 @@ class Ring:
         """."""
         damping = (1 - self.damping_number*self.u0_norm)
         exc_quant = _np.sqrt(1 - damping*damping)*self.espread
+        if not self._use_gaussian_noise:
+            exc_quant *= _np.math.sqrt(12)
+            noise = _np.random.rand(*beam.de.shape)
+            noise -= 0.5
+        else:
+            noise = _np.random.randn(*beam.de.shape)  # 2/7 of exec. time
+        noise *= exc_quant
 
         beam.ss += (self.circum * self.mom_comp) * beam.de
         beam.de *= damping
-        beam.de += exc_quant * _np.random.randn(
-            *beam.de.shape)  # 2/7 of exec. time
+        beam.de += noise
         beam.de += _np.interp(
             beam.ss, self.cav_pos, self.cav_volt_norm)  # 2/7 of exec. time
 
@@ -231,6 +247,7 @@ def track_particles(ring, beam, wakes, num_turns=10000, stats_ev_nt=10):
     """."""
     avg_ss, avg_de = [], []
     std_ss, std_de = [], []
+    pot_wakes = []
 
     t0 = _time.time()
     for turn in range(num_turns):
@@ -245,6 +262,7 @@ def track_particles(ring, beam, wakes, num_turns=10000, stats_ev_nt=10):
             avg_de.append(beam.de.mean(axis=1))
             std_ss.append(beam.ss.std(axis=1))
             std_de.append(beam.de.std(axis=1))
+            pot_wakes.append([wake.pot_phasor for wake in wakes])
         if not (turn % 100):
             pot = 0.0
             if wakes:
@@ -260,5 +278,6 @@ def track_particles(ring, beam, wakes, num_turns=10000, stats_ev_nt=10):
     stats = {
         'avg_ss': _np.array(avg_ss), 'avg_de': _np.array(avg_de),
         'std_ss': _np.array(std_ss), 'std_de': _np.array(std_de),
+        'pot_wakes': _np.array(pot_wakes),
         'time': _np.arange(len(avg_ss)) * stats_ev_nt * ring.rev_time}
     return stats
