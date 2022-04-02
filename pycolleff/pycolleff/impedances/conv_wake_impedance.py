@@ -6,11 +6,29 @@ from scipy.interpolate import PchipInterpolator as _Pchip, \
 
 import mathphys as _mp
 
-_Z0 = _mp.constants.vacuum_impedance
 _LSPEED = _mp.constants.light_speed
 
 
 def from_wake_to_impedance(z, wake, bunlen, cutoff=2):
+    """Convert wake to impedance using DFT.
+
+    This method works well for numerically simulated wakes, but needs to be
+    generalized to work well in general.
+
+    Args:
+        s (numpy.ndarray, (N, )): equally spaced longitudinal position where
+            wake was calculated in [m].
+        wake (numpy.ndarray, (N, )): Wake in units of [V/pC] or similar.
+        bunlen (float): bunch length used in simulation in [m].
+        cutoff (int, optional): Number of sigmas to cutoff the deconvoluted
+            impedance. Defaults to 2.
+
+    Returns:
+        w (numpy.ndarray, (N, )): angular frequencies where impedance was
+            calculated in [rad/s].
+        Z (numpy.ndarray, (N, )): impedance in units of [Ohm] or similar.
+
+    """
     dt = (z[-1]-z[0]) / (z.shape[0]-1) / _LSPEED
     VHat = _np.fft.fft(wake) * dt
     w = 2 * _np.pi * _np.fft.fftfreq(len(z), d=dt)
