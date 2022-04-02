@@ -132,7 +132,7 @@ class Ring:
 
         for el in budget:
             values = dict()
-            w = el.w
+            w = el.ang_freq
 
             Zl = el.Zll * el.quantity
             if len(Zl) != 0:
@@ -1462,9 +1462,9 @@ class Ring:
 
     def _prepare_input_impedance(self, budget, element, w, Z, imp='Zll'):
         if budget is not None:
-            return budget.w, getattr(budget, imp)
+            return budget.ang_freq, getattr(budget, imp)
         elif element is not None:
-            return element.w, getattr(element, imp)
+            return element.ang_freq, getattr(element, imp)
         elif w is not None and Z is not None:
             return w, Z
         else:
