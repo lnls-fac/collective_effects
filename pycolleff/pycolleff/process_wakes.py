@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+"""."""
 
 import os as _os
 import re as _re
@@ -13,7 +13,7 @@ from scipy import integrate as _scy_int
 import matplotlib.pyplot as _plt
 from matplotlib import rc as _rc
 
-from mathphys.constants import light_speed as c
+from mathphys.constants import light_speed as _LSPEED
 
 from . import sirius as _sirius
 
@@ -23,14 +23,11 @@ try:
 except Exception:
     bool_pyaccel = False
 
-_rc('font', **{'family': 'sans-serif', 'sans-serif': ['Helvetica']})
-# for Palatino and other serif fonts use:
-# _rc('font',**{'family':'serif','serif':['Palatino']})
 _rc('text', usetex=True)
 
 # # Troughout the code I am assuming:
 # s positive means particle behind source -->  Wl, Wt = 0 s < 0
-# Wl(s) = -c/Q * int El(ct-s,t) dt
+# Wl(s) = -_LSPEED/Q * int El(ct-s,t) dt
 # Wx(s) = - int_-inf^s dWl/dx ds'
 # Zl =   int exp(i*w*s) Wl(s) ds
 # Zx = i*int exp(i*w*s) Wx(s) ds
@@ -159,7 +156,7 @@ class EMSimulData:
 
     def get_PlossW(self, rev_time=None, harm_num=None, Iavg=500e-3):
         """."""
-        rev_time = rev_time or _si.T0
+        rev_time = rev_time or _si.rev_time
         harm_num = harm_num or _si.harm_num
         kW = self.klossW()
         Ploss = kW * Iavg**2 * rev_time * 1e12 / harm_num
@@ -181,26 +178,26 @@ class EMSimulData:
 
     def get_klossZ(self, bunlen=2.65e-3, nbunches=1):
         """."""
-        _si.nbun = nbunches
-        klossZ, *_ = _si.loss_factor(
-            w=self.freq*2*_np.pi, Zl=self.Zll, bunlen=bunlen)
+        _si.num_bun = nbunches
+        _si.bunlen = bunlen
+        klossZ, *_ = _si.loss_factor(w=self.freq*2*_np.pi, Zl=self.Zll)
         return klossZ
 
     def get_kick_factorZ(self, pl='dy', bunlen=2.65e-3, nbunches=1):
         """."""
-        _si.nbun = nbunches
+        _si.num_bun = nbunches
+        _si.bunlen = bunlen
         Z = getattr(self, 'Z'+pl)
         if Z is None or _np.allclose(Z, 0, atol=0):
             return None
-        kckZ, *_ = _si.kick_factor(
-            w=self.freq*2*_np.pi, Z=Z, bunlen=bunlen)
+        kckZ, *_ = _si.kick_factor(w=self.freq*2*_np.pi, Z=Z)
         return kckZ
 
     def get_PlossZ(self, bunlen=2.65e-3, nbunches=1):
         """."""
-        _si.nbun = nbunches
-        _, PlossZ, *_ = _si.loss_factor(
-            w=self.freq*2*_np.pi, Zl=self.Zll, bunlen=bunlen)
+        _si.num_bun = nbunches
+        _si.bunlen = bunlen
+        _, PlossZ, *_ = _si.loss_factor(w=self.freq*2*_np.pi, Zl=self.Zll)
         return PlossZ
 
 
@@ -254,7 +251,7 @@ def calc_impedance(
 
     def _get_impedance(spos, wake, sigt, cutoff):
         # frequency scale (Hz):
-        dt = (spos[-1]-spos[0]) / (spos.shape[0]-1) / c
+        dt = (spos[-1]-spos[0]) / (spos.shape[0]-1) / _LSPEED
         # fft == \int exp(-i*2pi*f*t/n) G(t) dt:
         VHat = _np.fft.fft(wake, wake.shape[0]) * dt
         freq = _np.fft.fftfreq(wake.shape[0], d=dt)
@@ -262,7 +259,7 @@ def calc_impedance(
         freq = _np.fft.fftshift(freq)  # to the center of the spectrum
         # Longitudinal position shift to match center of the bunch with zero z:
         w = 2*_np.pi*freq
-        VHat *= _np.exp(-1j*w*(spos[0])/c)
+        VHat *= _np.exp(-1j*w*(spos[0])/_LSPEED)
         # find the maximum useable frequency
         wmax = cutoff/sigt
         indcs = _np.abs(w) <= wmax
@@ -279,7 +276,7 @@ def calc_impedance(
         planes = [pl]
 
     # Extracts Needed Variables
-    sigt = simul_data.bunlen / c  # bunch time-length
+    sigt = simul_data.bunlen / _LSPEED  # bunch time-length
     spos = simul_data.s.copy()
 
     if s_min is None:
@@ -351,7 +348,7 @@ def calc_impedance_naff(
             ', '.join(PLANES))
 
     # Extracts Needed Variables
-    sigt = simul_data.bunlen / c  # bunch time-length
+    sigt = simul_data.bunlen / _LSPEED  # bunch time-length
     spos = simul_data.s.copy()
     W = getattr(simul_data, 'W' + pl).copy()
     sizeW = len(W)
@@ -366,7 +363,7 @@ def calc_impedance_naff(
     inds = _np.logical_and(spos >= s_min, spos <= s_max)
     spos = spos[inds]
     W = W[inds]
-    dt = (spos[1]-spos[0])/c
+    dt = (spos[1]-spos[0])/_LSPEED
     leng = len(W) - (len(W)-1) % 6
     spos = spos[-leng:]
     W = W[-leng:]
@@ -385,12 +382,12 @@ def calc_impedance_naff(
     freq = tu/dt
     w = 2*_np.pi*freq
     # Longitudinal position shift to match center of the bunch with zero z:
-    a *= _np.exp(-1j*w*(spos[0])/c)
+    a *= _np.exp(-1j*w*(spos[0])/_LSPEED)
 
     # Reconstruct the signal
     S = _np.zeros(leng, dtype=complex)
     for wi, ai in zip(w, a):
-        S += ai*_np.exp(1j*wi*spos/c)
+        S += ai*_np.exp(1j*wi*spos/_LSPEED)
     S = S.real
 
     # Deconvolve the Transform with a gaussian bunch:
@@ -553,11 +550,11 @@ def plot_losskick_factors(
         simul_data, save_figs=False, pth2sv=None, show=False, pls=None):
     """."""
     # Extracts and Initialize Needed Variables:
-    _si.nom_cur = 500e-3
+    _si.total_current = 500e-3
     # bunch length scenarios:
     sigvec = _np.array([2.65, 5, 8, 10, 15], dtype=float)*1e-3
     # current scenarios
-    Ivec = _np.linspace(10e-3, _si.nom_cur, num=50)
+    Ivec = _np.linspace(10e-3, _si.total_current, num=50)
 
     bunlen = simul_data.bunlen
     sigi = _np.linspace(bunlen, 18e-3, num=50)
@@ -612,7 +609,7 @@ def plot_losskick_factors(
                 kZvec[i] = simul_data.get_klossZ(bunlen=sigvec[i])  # V/C
                 labels.append(r'$\sigma = {0:05.2f}$ mm'.format(sigvec[i]*1e3))
             Plossvec = kZvec[None, :] * Ivec[:, None]**2
-            Plossvec *= _si.T0 / _si.harm_num
+            Plossvec *= _si.rev_time / _si.harm_num
 
             ax.semilogy(Ivec*1e3, Plossvec, markersize=4)
             ax.set_title(
