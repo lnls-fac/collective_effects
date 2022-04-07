@@ -1172,7 +1172,9 @@ def _ECHO3D_load_data(simul_data, path, anal_pl):
                 'longitudinal wake simulation.'
                 'Results might not be accurate.')
 
-        spos = mstepz*_np.arange(nz, dtype=float)
+        spos = _np.arange(nz, dtype=float)
+        spos += 0.5
+        spos *= mstepz
         spos -= 5 * bunlen
         a = _np.argmin(_np.abs(spos + spos[0])) + 1
         sbun = spos[:a]
@@ -1281,7 +1283,9 @@ def _ECHO3D_load_data(simul_data, path, anal_pl):
             bunx = dic['BunchPosition'][0]  # in step index
             buny = dic['BunchPosition'][1]  # in step index
 
-            spos = mstepz*_np.arange(nz, dtype=float)
+            spos = _np.arange(nz, dtype=float)
+            spos += 0.5
+            spos *= mstepz
             spos -= 5 * bunlen
             a = _np.argmin(_np.abs(spos + spos[0])) + 1
             sbun = spos[:a]
@@ -1351,7 +1355,9 @@ def _ECHO3D_load_data(simul_data, path, anal_pl):
         bunx = dic['BunchPosition'][0]  # in step index
         buny = dic['BunchPosition'][1]  # in step index
 
-        spos = mstepz*_np.arange(nz, dtype=float)
+        spos = _np.arange(nz, dtype=float)
+        spos += 0.5
+        spos *= mstepz
         spos -= 5 * bunlen
         a = _np.argmin(_np.abs(spos + spos[0])) + 1
         sbun = spos[:a]
