@@ -16,7 +16,8 @@
     - ls -la python*
     - sudo ln -s python3 python-sirius
 
-3) Create an SSH key to clone the git repositories:
+3) Create an SSH key to clone the git repositories.
+    If a key already exists, skip to the next step:
 
     - cd .ssh
     - ssh-keygen
