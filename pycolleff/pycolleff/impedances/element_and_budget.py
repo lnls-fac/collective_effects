@@ -34,17 +34,17 @@ _BETA = {
     }
 
 
-def _plotlog(x, y, color=None, label=None, ax=None, linewidth=1.5):
+def _plotlogy(x, y, color=None, label=None, ax=None, linewidth=1.5):
     if ax is None:
         ax = _plt.gca()
 
     # NOTE: I tried to use `symlog` of matplotlib, but the result is too ugly.
-    if any(y > 0):
-        ax.loglog(x, y, color=color, label=label, linewidth=linewidth)
-        ax.loglog(x, -y, '--', color=color, linewidth=linewidth)
-    else:
-        ax.loglog(x, -y, '--', color=color, linewidth=linewidth)
-        ax.loglog(x, y, color=color, label=label, linewidth=linewidth)
+    ax.plot(x, y, color=color, label=label, linewidth=linewidth)
+    if (y < 0).any():
+        if isinstance(label, str):
+            label = '(-1)*'+label
+        ax.plot(x, -y, '--', color=color, label=label, linewidth=linewidth)
+    ax.set_yscale('log')
 
 
 def _prepare_props(props):
@@ -183,8 +183,8 @@ class Element:
         self.from_dict(data)
 
     def plot(
-            self, props='all', logscale=True, show=True, save=False, name='',
-            figsize=(8, 4)):
+            self, props='all', logx=True, logy=True, show=True, save=False,
+            name='', figsize=(8, 4)):
         """Create plots for properties.
 
         Args:
@@ -192,8 +192,12 @@ class Element:
                 must assume {'Zll', 'Zdx', 'Zdy', 'Zqx', 'Zqy', 'Wll', 'Wdx',
                 'Wdy', 'Wqx', 'Wqy'}. Can also assume the string 'all', to
                 plot all properties. Defaults to 'all'.
-            logscale (bool, optional): Whether or not to plot results in
-                semilog scale. Defaults to True.
+            logx (bool, optional): Whether or not the horizontal scale will be
+                in log-scale. Negative values of x will not be displayed.
+                Defaults to True.
+            logy (bool, optional): Whether or not the vertical scale will be
+                in log-scale. Negative values of y will be displayed with '--'
+                linestyle. Defaults to True.
             show (bool, optional): Whether or not to show the figures.
                 Defaults to True.
             save (bool, optional): If True the figures will be saved to files.
@@ -208,7 +212,7 @@ class Element:
             name = '_'+name
         props = _prepare_props(props)
 
-        func = _plotlog if logscale else _plt.plot
+        func = _plotlogy if logy else _plt.plot
 
         for prop in props:
             is_imp = prop.startswith('Z')
@@ -225,7 +229,10 @@ class Element:
             else:
                 pos = self.pos
                 func(pos, imp, color='b')
-                ax.set_xlabel(r'$\omega [rad/s]$')
+                ax.set_xlabel('Distance to Source [m]')
+
+            if logx:
+                ax.set_xscale('log')
             ax.legend(loc='best')
             ax.grid(True)
             ax.set_ylabel(Element._YLABEL[prop])
@@ -234,8 +241,8 @@ class Element:
             if save:
                 fig.savefig(
                     _os.path.sep.join((self.path, prop + name + '.svg')))
-        if show:
-            _plt.show()
+            if show:
+                fig.show()
 
 
 class Budget(list):
@@ -434,7 +441,7 @@ class Budget(list):
         self.from_dict(data)
 
     def plot_impedances(
-            self, props='all', logscale=True, show=True, save=False,
+            self, props='all', logx=True, logy=True, show=True, save=False,
             name='', figsize=(8, 6), fontsize=14, linewidth=2):
         """Create plots for impedances.
 
@@ -443,8 +450,12 @@ class Budget(list):
                 must assume {'Zll', 'Zdx', 'Zdy', 'Zqx', 'Zqy'}. Can also
                 assume the string 'all', to plot all properties.
                 Defaults to 'all'.
-            logscale (bool, optional): Whether or not to plot results in
-                semilog scale. Defaults to True.
+            logx (bool, optional): Whether or not the horizontal scale will be
+                in log-scale. Negative values of x will not be displayed.
+                Defaults to True.
+            logy (bool, optional): Whether or not the vertical scale will be
+                in log-scale. Negative values of y will be displayed with '--'
+                linestyle. Defaults to True.
             show (bool, optional): Whether or not to show the figures.
                 Defaults to True.
             save (bool, optional): If True the figures will be saved to files.
@@ -460,7 +471,7 @@ class Budget(list):
             name = '_'+name
         props = _prepare_props(props)
 
-        fun = _plotlog if logscale else _plt.plot
+        fun = _plotlogy if logy else _plt.plot
 
         for prop in props:
             a = True
@@ -484,6 +495,9 @@ class Budget(list):
                 fun(w, imp.real, color=cor, linewidth=linewidth)
                 _plt.sca(axs[1])
                 fun(w, imp.imag, color=cor, label=el.name, linewidth=linewidth)
+
+            if logx:
+                axs[0].set_xscale('log')
             axs[1].legend(loc='best', fontsize=10)
             axs[0].grid(True)
             axs[0].tick_params(labelsize=fontsize)
@@ -497,11 +511,11 @@ class Budget(list):
             if save:
                 fig.savefig(
                     _os.path.sep.join((self.path, prop + name + '.svg')))
-        if show:
-            _plt.show()
+            if show:
+                fig.show()
 
     def plot_wakes(
-            self, props='all', logscale=True, show=True, save=False,
+            self, props='all', logx=True, logy=True, show=True, save=False,
             name='', figsize=(8, 6), fontsize=14, linewidth=2):
         """Create plots for wakes.
 
@@ -510,8 +524,12 @@ class Budget(list):
                 must assume {'Wll', 'Wdx', 'Wdy', 'Wqx', 'Wqy'}. Can also
                 assume the string 'all', to plot all properties.
                 Defaults to 'all'.
-            logscale (bool, optional): Whether or not to plot results in
-                semilog scale. Defaults to True.
+            logx (bool, optional): Whether or not the horizontal scale will be
+                in log-scale. Negative values of x will not be displayed.
+                Defaults to True.
+            logy (bool, optional): Whether or not the vertical scale will be
+                in log-scale. Negative values of y will be displayed with '--'
+                linestyle. Defaults to True.
             show (bool, optional): Whether or not to show the figures.
                 Defaults to True.
             save (bool, optional): If True the figures will be saved to files.
@@ -527,7 +545,7 @@ class Budget(list):
             name = '_'+name
         props = _prepare_props(props)
 
-        fun = _plotlog if logscale else _plt.plot
+        fun = _plotlogy if logy else _plt.plot
 
         for prop in props:
             a = True
@@ -547,7 +565,10 @@ class Budget(list):
                 wake = wake*_FACTOR[prop] * el.quantity * _BETA[prop](el)
                 pos = el.pos
                 cor = color_map(i/size)
-                fun(pos, wake, color=cor, linewidth=linewidth)
+                fun(pos, wake, color=cor, linewidth=linewidth, label=el.name)
+
+            if logx:
+                ax.set_xscale('log')
             ax.legend(loc='best', fontsize=10)
             ax.grid(True)
             ax.tick_params(labelsize=fontsize)
@@ -558,8 +579,8 @@ class Budget(list):
             if save:
                 fig.savefig(
                     _os.path.sep.join((self.path, prop + name + '.svg')))
-        if show:
-            _plt.show()
+            if show:
+                fig.show()
 
     def _get_impedance(self, name):
         ang_freq = self.ang_freq
