@@ -44,13 +44,13 @@ class Params:
         self.h = 864
         self.I0 = 350e-3
         self.E0 = 3e9
-        self.alpha = 1.6446539e-4
+        self.alpha = 1.6446e-4
         self.sync_phase = 163.1219 * _pi/180
         self.tunes = 4.6520358017681e-3
         self.bunlen = 2.46e-3
-        self.espread = 8.43589e-4
+        self.espread = 8.4359e-4
         self.nharm = 3
-        self.dampte = 13e-3 * 400/871
+        self.dampte = 7.02985e-3
 
     def maxiv_params(self):
         """."""
