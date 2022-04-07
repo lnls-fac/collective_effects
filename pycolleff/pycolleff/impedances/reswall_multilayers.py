@@ -83,7 +83,7 @@ def get_impedance_for_negative_w(Z, w=None, impedance_type='ll'):
             ascending order, this vector will maintain this property.
 
     """
-    sig = -1 if impedance_type.startswith('l') else 1
+    sig = 1 if impedance_type.startswith('l') else -1
     Z = _np.r_[sig*_np.flipud(Z.conj()), Z]
     if w is not None:
         w = _np.r_[-_np.flipud(w), w]
