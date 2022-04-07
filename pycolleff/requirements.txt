@@ -1,0 +1,9 @@
+numpy>=1.18
+scipy>=1.5
+mpmath>=1.1
+matplotlib>=3.3
+sh>=1.12
+pandas>=1.1
+numexpr>=2.7.1
+mathphys
+tk
