@@ -1400,7 +1400,7 @@ class Ring:
             max_azi0, max_rad0 = max_azi, max_rad
         sigW = wp*bunlen/_LSPEED/_sqrt(2)
         spectrum = dict()
-        powers = my_pow(sigW, max_azi + 2*max_rad)
+        powers = my_pow(sigW, max(max_azi + 2*max_rad, 2))
         expo = _np.exp(-powers[2])
         for azi in range(max_azi0, max_azi+1):
             for rad in range(max_rad0, max_rad+1):
