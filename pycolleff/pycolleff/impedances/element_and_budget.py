@@ -82,11 +82,8 @@ class Element:
         }
 
     def __init__(
-            self, name='element', path='', betax=0.0, betay=0.0, quantity=1):
+            self, name='element', betax=0.0, betay=0.0, quantity=1):
         """."""
-        if path:
-            path = _os.path.abspath(path)
-        self.path = path or _os.path.abspath('.')
         self.name = name
 
         self.quantity = quantity  # this field must only be used in Budget
@@ -110,8 +107,8 @@ class Element:
     def copy(self):
         """."""
         other = Element(
-            name=self.name, path=self.path, betax=self.betax,
-            betay=self.betay, quantity=self.quantity)
+            name=self.name, betax=self.betax, betay=self.betay,
+            quantity=self.quantity)
         other.ang_freq = self.ang_freq.copy()
         other.Zll = self.Zll.copy()
         other.Zdy = self.Zdy.copy()
@@ -130,7 +127,6 @@ class Element:
         """."""
         return {
             'name': self.name,
-            'path': self.path,
             'betax': self.betax,
             'betay': self.betay,
             'quantity': self.quantity,
@@ -151,7 +147,6 @@ class Element:
     def from_dict(self, dic):
         """."""
         self.name = dic.get('name', self.name)
-        self.path = dic.get('path', self.path)
         self.betax = dic.get('betax', self.betax)
         self.betay = dic.get('betay', self.betay)
         self.quantity = dic.get('quantity', self.quantity)
@@ -172,19 +167,17 @@ class Element:
         """."""
         name = self.name.replace(' ', '_').lower()
         dic = self.to_dict()
-        _save_pickle(
-            dic, _os.path.sep.join([self.path, name]),
-            overwrite=overwrite)
+        _save_pickle(dic, name, overwrite=overwrite)
 
     def load(self):
         """."""
         name = self.name.replace(' ', '_').lower()
-        data = _load_pickle(_os.path.sep.join([self.path, name]))
+        data = _load_pickle(name)
         self.from_dict(data)
 
     def plot(
             self, props='all', logx=True, logy=True, show=True, save=False,
-            name='', figsize=(8, 4)):
+            figname='', figsize=(8, 4)):
         """Create plots for properties.
 
         Args:
@@ -202,14 +195,14 @@ class Element:
                 Defaults to True.
             save (bool, optional): If True the figures will be saved to files.
                 Defaults to False.
-            name (str, optional): suffix for file name. Defaults to ''.
+            figname (str, optional): suffix for file name. Defaults to ''.
             figsize (tuple, optional): figure size. Defaults to (8, 6).
             fontsize (int, optional): fontsize of the plots. Defaults to 14.
             linewidth (int, optional): linewidth of the lines. Defaults to 2.
 
         """
-        if name:
-            name = '_'+name
+        if figname:
+            figname = '_' + figname
         props = _prepare_props(props)
 
         func = _plotlogy if logy else _plt.plot
@@ -239,8 +232,7 @@ class Element:
             ax.set_title(self.name+': '+_TITLE[prop])
             fig.tight_layout()
             if save:
-                fig.savefig(
-                    _os.path.sep.join((self.path, prop + name + '.svg')))
+                fig.savefig(prop + figname + '.svg')
             if show:
                 fig.show()
 
@@ -261,14 +253,13 @@ class Budget(list):
         'Wqx': r'$\beta_x \times W_x^Q [V/pC]$',
         }
 
-    def __init__(self, lista=None, name='budget', path=''):
+    def __init__(self, lista=None, name='budget'):
         """Create a budget element.
 
         Args:
             lista (list or Budget, optional): list of elements.
                 Defaults to None.
             name (str, optional): name of the budget. Defaults to 'budget'.
-            path (str, optional): path of the budget. Defaults to ''.
 
         Raises:
             ValueError: When items in lista are not of type Element.
@@ -278,9 +269,6 @@ class Budget(list):
         if lista and not isinstance(lista[0], Element):
             raise ValueError('Input must be a sequence of Element objects.')
         super().__init__(lista)
-        if path:
-            path = _os.path.abspath(path)
-        self._path = path or _os.path.abspath('.')
         self._name = name
 
     def __str__(self):
@@ -308,15 +296,6 @@ class Budget(list):
     @name.setter
     def name(self, value):
         self._name = value
-
-    @property
-    def path(self):
-        """."""
-        return self._path
-
-    @path.setter
-    def path(self, value):
-        self._path = value
 
     @property
     def ang_freq(self):
@@ -380,26 +359,24 @@ class Budget(list):
 
     def copy(self):
         """."""
-        other = Budget(name=self.name, path=self.path)
+        other = Budget(name=self.name)
         for el in self:
             other.append(el.copy())
         return other
 
-    def budget2element(self, name='', path=''):
+    def budget2element(self, name=''):
         """Transform a Budget object into an Element object.
 
         Args:
             name (str, optional): name of the element.
                 Defaults to 'element_'+self.name.
-            path (str, optional): path of the element. Defaults to self.path.
 
         Returns:
             Element: element object.
 
         """
-        path = path or self.path
         name = name or 'element_'+self.name
-        ele = Element(name=name, path=path)
+        ele = Element(name=name)
         for prop in _IMPS | _WAKES | {'ang_freq', 'pos'}:
             Imp2 = getattr(self, prop)
             if not _np.isclose(Imp2, 0).all():
@@ -411,14 +388,13 @@ class Budget(list):
 
     def to_dict(self):
         """."""
-        dic = {'name': self.name, 'path': self.path}
+        dic = {'name': self.name}
         dic['elements'] = [el.to_dict() for el in self]
         return dic
 
     def from_dict(self, dic):
         """."""
         self.name = dic.get('name', self.name)
-        self.path = dic.get('path', self.path)
         if 'elements' not in dic:
             return
         for el_data in dic['elements']:
@@ -430,19 +406,17 @@ class Budget(list):
         """."""
         name = self.name.replace(' ', '_').lower()
         dic = self.to_dict()
-        _save_pickle(
-            dic, _os.path.sep.join([self.path, name]),
-            overwrite=overwrite)
+        _save_pickle(dic, name, overwrite=overwrite)
 
     def load(self):
         """."""
         name = self.name.replace(' ', '_').lower()
-        data = _load_pickle(_os.path.sep.join([self.path, name]))
+        data = _load_pickle(name)
         self.from_dict(data)
 
     def plot_impedances(
             self, props='all', logx=True, logy=True, show=True, save=False,
-            name='', figsize=(8, 6), fontsize=14, linewidth=2):
+            figname='', figsize=(8, 6), fontsize=14, linewidth=2):
         """Create plots for impedances.
 
         Args:
@@ -460,15 +434,15 @@ class Budget(list):
                 Defaults to True.
             save (bool, optional): If True the figures will be saved to files.
                 Defaults to False.
-            name (str, optional): suffix for file name. Defaults to ''.
+            figname (str, optional): suffix for file name. Defaults to ''.
             figsize (tuple, optional): figure size. Defaults to (8, 6).
             fontsize (int, optional): fontsize of the plots. Defaults to 14.
             linewidth (int, optional): linewidth of the lines. Defaults to 2.
 
         """
         color_map = _plt.get_cmap('nipy_spectral')
-        if name:
-            name = '_'+name
+        if figname:
+            figname = '_' + figname
         props = _prepare_props(props)
 
         fun = _plotlogy if logy else _plt.plot
@@ -509,14 +483,13 @@ class Budget(list):
             axs[0].set_title(self.name+': '+_TITLE[prop], fontsize=fontsize)
             fig.tight_layout()
             if save:
-                fig.savefig(
-                    _os.path.sep.join((self.path, prop + name + '.svg')))
+                fig.savefig(prop + figname + '.svg')
             if show:
                 fig.show()
 
     def plot_wakes(
             self, props='all', logx=True, logy=True, show=True, save=False,
-            name='', figsize=(8, 6), fontsize=14, linewidth=2):
+            figname='', figsize=(8, 6), fontsize=14, linewidth=2):
         """Create plots for wakes.
 
         Args:
@@ -534,15 +507,15 @@ class Budget(list):
                 Defaults to True.
             save (bool, optional): If True the figures will be saved to files.
                 Defaults to False.
-            name (str, optional): suffix for file name. Defaults to ''.
+            figname (str, optional): suffix for file name. Defaults to ''.
             figsize (tuple, optional): figure size. Defaults to (8, 6).
             fontsize (int, optional): fontsize of the plots. Defaults to 14.
             linewidth (int, optional): linewidth of the lines. Defaults to 2.
 
         """
         color_map = _plt.get_cmap('nipy_spectral')
-        if name:
-            name = '_'+name
+        if figname:
+            figname = '_' + figname
         props = _prepare_props(props)
 
         fun = _plotlogy if logy else _plt.plot
@@ -577,8 +550,7 @@ class Budget(list):
             ax.set_title(self.name+': '+_TITLE[prop], fontsize=fontsize)
             fig.tight_layout()
             if save:
-                fig.savefig(
-                    _os.path.sep.join((self.path, prop + name + '.svg')))
+                fig.savefig(prop + figname + '.svg')
             if show:
                 fig.show()
 
