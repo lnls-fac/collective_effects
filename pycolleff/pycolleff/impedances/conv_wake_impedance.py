@@ -136,7 +136,10 @@ def from_impedance_to_wake(
     if plane.lower().startswith('long'):
         integ = _np.array(integ.real, dtype=float)
     else:
-        integ = _np.array(integ.imag, dtype=float)
+        # TODO: Improve this explanation
+        # This minus sign is also due to the difference in the impedance
+        # convention.
+        integ = -_np.array(integ.imag, dtype=float)
     integ /= _np.pi
     if ret_interp:
         return integ, interp
