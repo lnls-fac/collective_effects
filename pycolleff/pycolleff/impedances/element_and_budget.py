@@ -1,6 +1,4 @@
 """."""
-import os as _os
-
 import numpy as _np
 import matplotlib.pyplot as _plt
 
@@ -270,6 +268,8 @@ class Budget(list):
             raise ValueError('Input must be a sequence of Element objects.')
         super().__init__(lista)
         self._name = name
+        self.max_ang_freq = None
+        self.max_pos = None
 
     def __str__(self):
         """."""
@@ -300,7 +300,10 @@ class Budget(list):
     @property
     def ang_freq(self):
         """."""
-        return _np.unique(_np.r_[[getattr(x, 'ang_freq') for x in self]])
+        angf = _np.unique(_np.hstack([getattr(x, 'ang_freq') for x in self]))
+        if self.max_ang_freq is not None:
+            angf = angf[_np.abs(angf) < self.max_ang_freq]
+        return angf
 
     @property
     def Zll(self):
@@ -330,7 +333,10 @@ class Budget(list):
     @property
     def pos(self):
         """."""
-        return _np.unique(_np.r_[[getattr(x, 'pos') for x in self]])
+        pos = _np.unique(_np.hstack([getattr(x, 'pos') for x in self]))
+        if self.max_pos is not None:
+            pos = pos[_np.abs(pos) < self.max_pos]
+        return pos
 
     @property
     def Wll(self):
@@ -388,13 +394,17 @@ class Budget(list):
 
     def to_dict(self):
         """."""
-        dic = {'name': self.name}
+        dic = {
+            'name': self.name, 'max_ang_freq': self.max_ang_freq,
+            'max_pos': self.max_pos}
         dic['elements'] = [el.to_dict() for el in self]
         return dic
 
     def from_dict(self, dic):
         """."""
         self.name = dic.get('name', self.name)
+        self.max_ang_freq = dic.get('max_ang_freq', self.max_ang_freq)
+        self.max_pos = dic.get('max_pos', self.max_pos)
         if 'elements' not in dic:
             return
         for el_data in dic['elements']:

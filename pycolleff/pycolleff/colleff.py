@@ -70,6 +70,7 @@ class Ring:
         string += tmpl_f.format(
             'Revolution Frequency [kHz]', self.rev_freq/1e3)
         string += tmpl_f.format('Energy [GeV]', self.energy/1e9)
+        string += tmpl_f.format('U0 [keV]', self.en_lost_rad/1e3)
         string += '{0:28s}: {1:^20.2e}\n'.format(
             'Momentum Compaction', self.mom_comp)
         string += '{0:28s}: {1:^20d}\n'.format(
@@ -81,6 +82,8 @@ class Ring:
             'Synchrotron Tune', self.sync_tune)
         string += '{0:28s}: {1:>9.3f}/{2:<10.3f}\n'.format(
             'Tunes x/y', self.tunex, self.tuney)
+        string += '{0:28s}: {1:>9.3f}/{2:<10.3f}\n'.format(
+            'Chromaticities x/y', self.chromx, self.chromy)
         string += '{0:28s}: {1:>6.1f}/{2:^6.1f}/{3:<6.1f}\n'.format(
             'Damping Times x/y/e [ms]', self.damptx*1e3, self.dampty*1e3,
             self.dampte*1e3)
@@ -110,9 +113,9 @@ class Ring:
                 index=props),
             latex_unit=pd.Series([
                 r'[V/pC]', r'[$m\Omega$]', r'[W]', r'[kV/pC]', r'[kV/pC]',
-                r'[kV/pC]', r'[kV/pC]', r'[kV/pC]',
-                r'[kV/pC]', r'$10^{-3}$',  r'$10^{-3}$',  r'$10^{-3}$',
-                r'$10^{-3}$', r'$10^{-3}$',  r'$10^{-3}$'],
+                r'[kV/pC]', r'[kV/pC]', r'[kV/pC]', r'[kV/pC]',
+                r'$\times10^{-3}$',  r'$\times10^{-3}$', r'$\times10^{-3}$',
+                r'$\times10^{-3}$', r'$\times10^{-3}$', r'$\times10^{-3}$'],
                 index=props),
             latex_name=pd.Series([
                 r'$\kappa_{Loss}$', r'$Z_L/n|_{eff}$', r'$P_{Loss}$',
@@ -125,10 +128,9 @@ class Ring:
             ))
 
         convert = dict(
-                lsf=1e-12, zln=1e3, pls=1, kdx=1e-15, kdy=1e-15, kqx=1e-15,
-                kqy=1e-15, ktx=1e-15, kty=1e-15, ndx=1e3, ndy=1e3, nqx=1e3,
-                nqy=1e3, ntx=1e3, nty=1e3
-                )
+            lsf=1e-12, zln=1e3, pls=1, kdx=1e-15, kdy=1e-15, kqx=1e-15,
+            kqy=1e-15, ktx=1e-15, kty=1e-15, ndx=1e3, ndy=1e3, nqx=1e3,
+            nqy=1e3, ntx=1e3, nty=1e3)
 
         for el in budget:
             values = dict()
@@ -143,13 +145,13 @@ class Ring:
 
             Zd = el.Zdy * el.quantity * el.betay
             if len(Zd) != 0:
-                kd, tus = self.kick_factor(w=w, Z=Zd, Imp='Zdy')
+                kd, tus = self.kick_factor(w=w, Z=Zd, imp_type='Zdy')
                 values['kdy'] = kd
                 values['ndy'] = tus
 
             Zq = el.Zqy * el.quantity * el.betay
             if len(Zq) != 0:
-                kd, tus = self.kick_factor(w=w, Z=Zq, Imp='Zqy')
+                kd, tus = self.kick_factor(w=w, Z=Zq, imp_type='Zqy')
                 values['kqy'] = kd
                 values['nqy'] = tus
 
@@ -159,13 +161,13 @@ class Ring:
 
             Zd = el.Zdx * el.quantity * el.betax
             if len(Zd) != 0:
-                kd, tus = self.kick_factor(w=w, Z=Zd, Imp='Zdx')
+                kd, tus = self.kick_factor(w=w, Z=Zd, imp_type='Zdx')
                 values['kdx'] = kd
                 values['ndx'] = tus
 
             Zq = el.Zqx * el.quantity * el.betax
             if len(Zq) != 0:
-                kd, tus = self.kick_factor(w=w, Z=Zq, Imp='Zqx')
+                kd, tus = self.kick_factor(w=w, Z=Zq, imp_type='Zqx')
                 values['kqx'] = kd
                 values['nqx'] = tus
 
@@ -218,11 +220,11 @@ class Ring:
                 Defaults to None.
 
         Returns:
-            lossf (float): Loss factor in [V/C]
-            Pl (float): Power loss in [W]
-            Zl_eff (float): Effective Impedance in [Ohm]
+            lossf (float): Loss factor in [V/C].
+            Pl (float): Power loss in [W].
+            Zovn_eff (float): Effective Impedance (Z/n) in [Ohm].
             wp (numpy.ndarray, (N, )): vector of angular frequencies where the
-                impedance was sampled [rad/s]
+                impedance was sampled [rad/s].
             lossfp (numpy.ndarray, (N, )): vector of loss factor with
                 contribution of each sampled frequency [V/C].
 
@@ -251,10 +253,12 @@ class Ring:
 
         # eq. 9.94 of ref. [2] and eqs. 6.143 + 6.140 of ref. [1]
         # please, notice the factor of 2 here to convert from gmk to hmk:
+        # Also note that we are interested in Z/n_eff, not Z_eff, that's the
+        # reason for us to multiply by w0.
         h10 = gmk[(1, 0)]**2 * 2
-        Zl_eff = sum(Zl_interp.imag*h10/(wp+1e-4)) / sum(h10)
+        Zovn_eff = w0*_np.sum(Zl_interp.imag*h10/(wp+1e-4)) / h10.sum()
 
-        return lossf, Pl, Zl_eff, wp, lossfp
+        return lossf, Pl, Zovn_eff, wp, lossfp
 
     def kick_factor(
             self, budget=None, element=None, w=None, Z=None, imp_type='Zdy'):
@@ -337,11 +341,11 @@ class Ring:
         take k = k' = 0.
 
         To get the real tune-shifts you must take the real part of the
-        eigen-values. To get the growth rate in [1/s] you must multiply the
-        imaginary part by the angular synchrotron frequency `sync_tune*w0`.
-        This implementation also takes into account the radiation damping, so
-        that the instability occurs when any of the growth rates are larger
-        than 0.
+        eigen-values and multiply them by the synchrotron tune, `sync_tune`.
+        To get the growth rate in [1/s] you must multiply the imaginary part
+        by the angular synchrotron frequency `sync_tune*w0`. This
+        implementation also takes into account the radiation damping, so that
+        the instability occurs when any of the growth rates are larger than 0.
 
         References:
             [1] Chao, A. W. (1993). Physics of Collective Beam Instabilities
@@ -450,11 +454,11 @@ class Ring:
         for example, when we take k = k' = 0.
 
         To get the real tune-shifts you must take the real part of the
-        eigen-values. To get the growth rate in [1/s] you must multiply the
-        imaginary part by the angular synchrotron frequency `sync_tune*w0`.
-        This implementation also takes into account the radiation damping, so
-        that the instability occurs when any of the growth rates are larger
-        than 0.
+        eigen-values and multiply by the synchrotron tune, `sync_tune`. To get
+        the growth rate  in [1/s] you must multiply the imaginary part by the
+        angular synchrotron frequency `sync_tune*w0`. This implementation also
+        takes into account the radiation damping, so that the instability
+        occurs when any of the growth rates are larger than 0.
 
         References:
             [1] Chao, A. W. (1993). Physics of Collective Beam Instabilities
@@ -502,8 +506,8 @@ class Ring:
                 Defaults to False.
 
         Returns:
-            tune_shift (numpy.ndarray, (nbun, )): complex tune-shift for each
-                coupled bunch mode.
+            tune_shift (numpy.ndarray, (nbun, )): complex normalized
+                tune-shift for each coupled bunch mode.
             wp (numpy.ndarray, (nbun, N)): angular frequencies used in the
                 summation for each coupled-bunch mode.
             Zl_wp (numpy.ndarray, (nbun, N)): impedance sampled at wp.
@@ -558,7 +562,7 @@ class Ring:
         tune_shift = -1j*(alpt/ws + abs(m)*alpe/ws + K * Zt_sum)
 
         if full:
-            return tune_shift, wp, Zt_interp
+            return tune_shift, wp, Zt_interp, gm0
         return tune_shift
 
     def longitudinal_mode_coupling(
@@ -915,7 +919,7 @@ class Ring:
         # Please, check eq. 2.52 of ref. [1]:
         A = D + 1j*K*modecoup_matrix
 
-        return _np.linalg.eigvals(A)
+        return _np.linalg.eigvals(A), modecoup_matrix
 
     @classmethod
     def _calc_vlasov_reduced(cls, Z_wp, wp, bunlen, max_azi, max_rad):
@@ -1112,13 +1116,13 @@ class Ring:
         # Calculate the fokker-planck matrix:
         if fokker_matrix is None:
             fokker_matrix = self._calc_fokker_planck(
-                max_azi, max_rad, alpe, alpt, use_fokker)
+                max_azi, max_rad, alpe, use_fokker=use_fokker, alpt=alpt)
         # Calculate the mode coupling matrix:
         if modecoup_matrix is None:
             modecoup_matrix = self._calc_vlasov_transverse(
                 Zt_wp, wpcro, bunlen, max_azi, max_rad)
         # D is the current independent diagonal matrix of eq. 2.37:
-        ms = _np.arange(-max_azi, max_rad+1)
+        ms = _np.arange(-max_azi, max_azi+1)
         D = _np.einsum('mn,kl->mknl', _np.diag(ms), _np.eye(max_rad+1))
         D = self._reshape_coupling_matrix(D)
 
@@ -1136,7 +1140,7 @@ class Ring:
         # [1] with the aditional fokker-plank terms of eq. 37 of
         # ref. [2] normalized by ws:
         A = D + K*modecoup_matrix + 1j*fokker_matrix/(sync_tune * w0)
-        return _np.linalg.eigvals(A)
+        return _np.linalg.eigvals(A), modecoup_matrix, fokker_matrix
 
     @classmethod
     def _calc_vlasov_transverse(cls, Z_wp, wpcro, bunlen, max_azi, max_rad):
@@ -1299,6 +1303,13 @@ class Ring:
 
         [1] Suzuki, T. (1986). Fokker-planck theory of transverse
             mode-coupling instability. Particle Accelerators, 20, 79-96.
+        [2] Suzuki, T. (1983). Theory of longitudinal bunched-beam
+            instabilities based on the fokker-planck equation. Particle
+            Accelerators, 14, 91-108.
+        [3] Wikipedia contributors. Laguerre polynomials. Wikipedia, The Free
+            Encyclopedia. April 5, 2022, 20:42 UTC. Available at:
+            https://en.wikipedia.org/w/index.php?title=Laguerre_polynomials&oldid=1081186293.
+            Accessed April 14, 2022.
 
         This implementation follow eqs. 42-45 of ref.[1] plus the
         symmetry relation that can be infered from eq. 39.
@@ -1319,7 +1330,16 @@ class Ring:
 
         """
         kappa = None
-        if alpha - 2 == beta:
+        # Refs [1-2] doesn't mention anything about this, but the Laguerre
+        # polynomials are not defined for negative indices. Looking at
+        # ref. [3] I noticed there is no non-trivial solution for n<0, so I
+        # considered the integral that originates kappa is also zero in this
+        # case:
+        if k < 0:
+            kappa = 0
+        elif l < 0:
+            kappa = 0
+        elif alpha - 2 == beta:
             # note the symmetry relation in eq. 39 or ref.[1]
             kappa = cls._kappa(beta, alpha, l, k, N)
         elif alpha == beta:
@@ -1388,7 +1408,7 @@ class Ring:
         """
         def my_pow(vetor, n):
             pows = dict()
-            res = _np.ones(vetor.shape)
+            res = _np.ones(vetor.shape, dtype=float)
             for i in range(n):
                 pows[i] = res.copy()
                 res *= vetor
@@ -1473,15 +1493,13 @@ class Ring:
     @staticmethod
     def _get_sampling_ang_freq(w, w0, nb, m, sync_tune, cbmodes, nut=0):
         wp = []
-        for cbmode in cbmodes:
-            # round towards +infinity
-            pmin = _np.ceil((w[0]/w0 - (cbmode + m*sync_tune + nut))/nb)
-            # round towards -infinity
-            pmax = _np.floor((w[-1]/w0 - (cbmode + m*sync_tune + nut))/nb)
-
-            p = _np.arange(pmin, pmax+1)
-            wp.append(nb*p + cbmode + nut + m*sync_tune)
-        wp = _np.array(wp).squeeze()
+        cbmodes = _np.array(cbmodes)
+        shift = cbmodes + m*sync_tune + nut
+        pmin = _np.ceil((w[0]/w0 - shift.min())/nb)
+        pmax = _np.floor((w[-1]/w0 - shift.max())/nb)
+        p = _np.arange(pmin, pmax+1)
+        wp = nb*p[None, :] + shift[:, None]
+        wp = wp.squeeze()
         wp *= w0
         return wp
 
