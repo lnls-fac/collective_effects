@@ -35,6 +35,7 @@ _rc('text', usetex=True)
 _jnpth = _os.path.sep.join
 _si = _sirius.create_ring()
 
+_PICKLE_PROTOCOL = 4  # For compatibility with python3.6
 DEFAULT_FNAME_SAVE = 'SimulData.pickle'
 FNAME_ECHOZ1 = r"wake.dat"
 FNAME_ECHOZ2 = r"wake[LT]{1}.dat"
@@ -93,9 +94,9 @@ class EMSimulData:
         self.Wdx = _np.array([], dtype=float)
         # Dipolar Vertical Wakepotential [V/C/m]
         self.Wdy = _np.array([], dtype=float)
-        # Quadrupolar Horizontal Wakepotential [V/C/m]
+        # Detuning Horizontal Wakepotential [V/C/m]
         self.Wqx = _np.array([], dtype=float)
-        # Quadrupolar Vertical Wakepotential [V/C/m]
+        # Detuning Vertical Wakepotential [V/C/m]
         self.Wqy = _np.array([], dtype=float)
         # axis: frequency obtained from FFT [GHz]
         self.freq = _np.array([], dtype=float)
@@ -105,9 +106,9 @@ class EMSimulData:
         self.Zdx = _np.array([], dtype=complex)
         # Dipolar Vertical Impedance [Ohm]
         self.Zdy = _np.array([], dtype=complex)
-        # Quadrupolar Horizontal Impedance [Ohm]
+        # Detuning Horizontal Impedance [Ohm]
         self.Zqx = _np.array([], dtype=complex)
-        # Quadrupolar Vertical Impedance [Ohm]
+        # Detuning Vertical Impedance [Ohm]
         self.Zqy = _np.array([], dtype=complex)
         self._klossW = None
         self._kckdxW = None
@@ -462,7 +463,7 @@ def save_processed_data(simul_data, silent=False, pth2sv=None):
 
     _log.info('Saving the Complete EMSimulData structure to a .pickle file.')
     with _gzip.open(_jnpth((pth2sv, DEFAULT_FNAME_SAVE)), 'wb') as f:
-        _pickle.dump(simul_data, f, _pickle.HIGHEST_PROTOCOL)
+        _pickle.dump(simul_data, f, protocol=_PICKLE_PROTOCOL)
 
     _log.info('All Data Saved\n' + '#'*60)
 
