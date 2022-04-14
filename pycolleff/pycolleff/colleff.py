@@ -33,6 +33,7 @@ class Ring:
         self.dampty = 0.0  # vertical damping time in [s]
         self.dampte = 0.0  # longitudinal damping time in [s]
         self.en_lost_rad = 0.0  # Energy lost per turn in [eV]
+        self.gap_voltage = 0.0  # Gap Voltage in [V]
 
     @property
     def rf_lamb(self):
@@ -58,6 +59,16 @@ class Ring:
     def circum(self):
         """."""
         return _LSPEED * self.rev_time
+
+    @property
+    def sync_phase(self):
+        """Return the natural synchronous phase in rad.
+
+        Returns:
+            float: Natural synchronous phase [rad].
+
+        """
+        return _np.pi - _np.asin(self.en_lost_rad/self.gap_voltage)
 
     def __str__(self):
         """."""
