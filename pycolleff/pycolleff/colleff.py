@@ -68,7 +68,7 @@ class Ring:
             float: Natural synchronous phase [rad].
 
         """
-        return _np.pi - _np.asin(self.en_lost_rad/self.gap_voltage)
+        return _np.pi - _np.math.asin(self.en_lost_rad/self.gap_voltage)
 
     def __str__(self):
         """."""
