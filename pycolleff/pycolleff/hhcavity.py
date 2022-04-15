@@ -1,198 +1,71 @@
-#!/usr/bin/env python-sirius
+"""."""
 
+from functools import partial as _partial
+
+import numpy as _np
+import scipy.integrate as scy_int
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as mpl_gs
 
-import numpy as _np
 import mathphys
 
 import pycolleff.impedances as imp
 import pycolleff.sirius as si
-import scipy.integrate as scy_int
 
-_c = mathphys.constants.light_speed
-_pi = _np.pi
-_electron_rest_energy = mathphys.constants.electron_rest_energy
-_electron_charge = mathphys.constants.elementary_charge
-
-
-class Params:
-    """."""
-
-    def __init__(self):
-        """."""
-        self._U0 = None
-        self._Vrf = None
-        self._frf = None
-        self._h = None
-        self.I0 = None
-        self.E0 = None
-        self.alpha = None
-        self.sync_phase = None
-        self.tunes = None
-        self.bunlen = None
-        self.espread = None
-        self.Q = None
-        self.Rs = None
-        self.nharm = None
-
-    def sirius_params(self):
-        """."""
-        self.U0 = 871e3
-        self.Vrf = 3e6
-        self.frf = 499.663824e6
-        self.h = 864
-        self.I0 = 350e-3
-        self.E0 = 3e9
-        self.alpha = 1.6446e-4
-        self.sync_phase = 163.1219 * _pi/180
-        self.tunes = 4.6520358017681e-3
-        self.bunlen = 2.46e-3
-        self.espread = 8.4359e-4
-        self.nharm = 3
-        self.dampte = 7.02985e-3
-
-    def maxiv_params(self):
-        """."""
-        self.U0 = 856e3
-        self.Vrf = 1.63e6
-        self.frf = 99.93e6
-        self.h = 176
-        self.I0 = 500e-3
-        self.E0 = 3e9
-        self.alpha = 3.07e-4
-        self.sync_phase = 148.32 * _pi/180
-        self.tunes = 1.994e-3
-        self.bunlen = 10.1e-3
-        self.espread = 7.82e-4
-        self.Q = 21600
-        self.nharm = 3
-        self.dampte = 25.6e-3
-
-    @property
-    def U0(self):
-        """."""
-        return self._U0
-
-    @U0.setter
-    def U0(self, value):
-        self._U0 = value
-
-    @property
-    def Vrf(self):
-        """."""
-        return self._Vrf
-
-    @Vrf.setter
-    def Vrf(self, value):
-        self._Vrf = value
-
-    @property
-    def frf(self):
-        """."""
-        return self._frf
-
-    @frf.setter
-    def frf(self, value):
-        self._frf = value
-
-    @property
-    def h(self):
-        """."""
-        return self._h
-
-    @h.setter
-    def h(self, value):
-        self._h = value
-
-    @property
-    def wrf(self):
-        """."""
-        return 2*_pi*self.frf
-
-    @property
-    def Trf(self):
-        """."""
-        return 1/self.frf
-
-    @property
-    def w0(self):
-        """."""
-        return self.wrf/self.h
-
-    @property
-    def f0(self):
-        """."""
-        return self.w0/2/_pi
-
-    @property
-    def T0(self):
-        """."""
-        return 1/self.f0
-
-    @property
-    def L0(self):
-        """."""
-        return self.beta * _c * self.T0
-
-    @property
-    def gamma(self):
-        """."""
-        return self.E0/(_electron_rest_energy/_electron_charge)
-
-    @property
-    def beta(self):
-        """."""
-        return (1-1/self.gamma**2)**(1/2)
-
-    @property
-    def buntime(self):
-        """."""
-        return self.beta * _c * self.bunlen
-
-    @property
-    def ws(self):
-        """."""
-        return self.tunes * self.w0
-
-    @property
-    def Ib(self):
-        """."""
-        return self.I0/self.h
+_LSPEED = mathphys.constants.light_speed
+_PI = _np.pi
 
 
 class HarmonicCavity:
     """."""
 
-    def __init__(self, params=None):
+    def __init__(self, ring=None):
         """."""
-        self.params = params or Params()
+        self.ring = ring or si.create_ring()
 
-        self._form_factor = 1 + 1j*0
-        self._wr = 0
-        self._psih_harmonic = 0
-        self._harmonic_phase = 0
+        self.cavity_harm_num = 3
+        self.cavity_ang_freq = 0.0
+        self.cavity_Q = 0.0
+        self.cavity_shunt_impedance = 0.0
+        self._form_factor = 1.0 + 0.0j
+        self._psih_harmonic = 0.0
+        self._harmonic_phase = 0.0
 
     @property
-    def k_harmonic_flat_potential(self):
+    def flat_potential_k_harmonic(self):
         """."""
-        nharm = self.params.nharm
-        U0 = self.params.U0
-        Vrf = self.params.Vrf
+        nharm = self.cavity_harm_num
+        U0 = self.ring.en_lost_rad
+        Vrf = self.ring.gap_voltage
         kharm = 1/nharm**2 - ((U0/Vrf)**2)/(nharm**2-1)
         return kharm**(1/2)
 
     @property
-    def phih_harmonic_flat_potential(self):
+    def flat_potential_phih_harmonic(self):
         """."""
-        nharm = self.params.nharm
-        U0 = self.params.U0
-        Vrf = self.params.Vrf
+        nharm = self.cavity_harm_num
+        U0 = self.ring.en_lost_rad
+        Vrf = self.ring.gap_voltage
         q = Vrf/U0
         numer = nharm/q
         denom = (nharm**2-1)**2 - (nharm**2/q)**2
         tan = -numer/(denom)**(1/2)
         return _np.arctan(tan)/nharm
+
+    @property
+    def flat_potential_psih_harmonic(self):
+        """."""
+        return self.cavity_harm_num * self.flat_potential_phih_harmonic - _PI/2
+
+    @property
+    def flat_potential_shunt_impedance(self):
+        """."""
+        kharm = self.flat_potential_k_harmonic
+        psih = self.detune_angle
+        Vrf = self.ring.gap_voltage
+        I0 = self.ring.total_current
+        ib = 2*I0*abs(self.form_factor)
+        return kharm * Vrf / (ib*abs(_np.cos(psih)))
 
     @property
     def harmonic_phase(self):
@@ -202,11 +75,6 @@ class HarmonicCavity:
     @harmonic_phase.setter
     def harmonic_phase(self, value):
         self._harmonic_phase = value
-
-    @property
-    def psih_harmonic_flat_potential(self):
-        """."""
-        return self.params.nharm * self.phih_harmonic_flat_potential - _pi/2
 
     @property
     def psih_harmonic(self):
@@ -220,32 +88,13 @@ class HarmonicCavity:
     @property
     def perturbed_sync_phase(self):
         """."""
-        nharm = self.params.nharm
-        U0 = self.params.U0
-        Vrf = self.params.Vrf
+        nharm = self.cavity_harm_num
+        U0 = self.ring.en_lost_rad
+        Vrf = self.ring.gap_voltage
         phih = self.harmonic_phase
-        kh = self.k_harmonic_flat_potential
+        kh = self.flat_potential_k_harmonic
         arg = U0/Vrf - kh*_np.sin(nharm*phih)
-        return _pi - _np.arcsin(arg)
-
-    @property
-    def shunt_impedance(self):
-        """."""
-        kharm = self.k_harmonic_flat_potential
-        psih = self.detune_angle
-        Vrf = self.params.Vrf
-        I0 = self.params.I0
-        ib = 2*I0*abs(self.form_factor)
-        return kharm * Vrf / (ib*abs(_np.cos(psih)))
-
-    @property
-    def wr(self):
-        """."""
-        return self._wr
-
-    @wr.setter
-    def wr(self, value):
-        self._wr = value
+        return _PI - _np.arcsin(arg)
 
     @property
     def form_factor(self):
@@ -259,32 +108,68 @@ class HarmonicCavity:
     @property
     def detune_angle(self):
         """."""
-        Q = self.params.Q
-        nharm = self.params.nharm
-        wrf = 2*_pi*self.params.frf
-        wr = self.wr
+        Q = self.cavity_Q
+        nharm = self.cavity_harm_num
+        wrf = 2*_PI*self.ring.rf_freq
+        wr = self.cavity_ang_freq
         if wr == 0:
             raise Exception('wr cannot be zero!')
         if wrf == 0:
             raise Exception('wrf cannot be zero!')
         tan = Q * (wr/(nharm*wrf) - nharm*wrf/wr)
         angle = _np.arctan2(tan, 1)
-        return _pi + angle
+        return _PI + angle
 
     @detune_angle.setter
     def detune_angle(self, value):
-        Q = self.params.Q
-        nharm = self.params.nharm
-        wrf = 2*_pi*self.params.frf
+        Q = self.cavity_Q
+        nharm = self.cavity_harm_num
+        wrf = 2*_PI*self.ring.rf_freq
         alpha = _np.tan(value)/Q
-        self.wr = nharm*wrf/2
-        self.wr *= (alpha + (alpha**2 + 4)**(1/2))
+        self.cavity_ang_freq = nharm*wrf/2
+        self.cavity_ang_freq *= (alpha + (alpha**2 + 4)**(1/2))
+
+    def sirius_params(self):
+        """."""
+        self.ring.en_lost_rad = 871e3
+        self.ring.gap_voltage = 3e6
+        self.ring.rf_freq = 499.663824e6
+        self.ring.harm_num = 864
+        self.ring.total_current = 350e-3
+        self.ring.energy = 3e9
+        self.ring.mom_comp = 1.6446e-4
+        self.ring.sync_tune = 4.6520358017681e-3
+        self.ring.bunlen = 2.46e-3
+        self.ring.espread = 8.4359e-4
+        self.ring.dampte = 7.02985e-3
+
+        self.cavity_harm_num = 3
+
+    def maxiv_params(self):
+        """."""
+        self.ring.en_lost_rad = 856e3
+        self.ring.gap_voltage = 1.63e6
+        self.ring.rf_freq = 99.93e6
+        self.ring.harm_num = 176
+        self.ring.total_current = 500e-3
+        self.ring.energy = 3e9
+        self.ring.mom_comp = 3.07e-4
+        self.ring.sync_tune = 1.994e-3
+        self.ring.bunlen = 10.1e-3
+        self.ring.espread = 7.82e-4
+        self.ring.dampte = 25.6e-3
+
+        self.cavity_Q = 21600
+        self.cavity_harm_num = 3
 
     def detune_passive_cavity(self, Rs, k=None):
         """."""
-        kh = k or self.k_harmonic_flat_potential
-        I0 = self.params.I0
-        Vrf = self.params.Vrf
+        if k is None:
+            kh = self.flat_potential_k_harmonic
+        else:
+            kh = k
+        I0 = self.ring.total_current
+        Vrf = self.ring.gap_voltage
         ib = 2*I0*abs(self.form_factor)
         arg = kh*Vrf/(ib*Rs)
         return _np.arccos(arg)
@@ -300,16 +185,20 @@ class HarmonicCavity:
         st += 'shunt impedance flat [M.ohm]  : {:+08.4f} \n'
         st += 'unperturbed sync. phase [deg] : {:+08.3f} \n'
         st += 'perturbed sync. phase [deg]   : {:+08.3f} \n'
-        rad2deg = 180/_pi
+        rad2deg = 180/_PI
 
-        kh = self.k_harmonic_flat_potential
-        phih = self.phih_harmonic_flat_potential
-        psih = self.psih_harmonic_flat_potential
+        kh = self.flat_potential_k_harmonic
+        phih = self.flat_potential_phih_harmonic
+        psih = self.flat_potential_psih_harmonic
+
+        # TODO: Since this is a print method we should not set any property
+        # here that changes the object state. We need to fix this
         self.detune_angle = psih
-        fr = self.wr/2/_pi
-        df = (fr-self.params.nharm*self.params.frf)*1e-3
-        Rs_fp = self.shunt_impedance*1e-6
-        phis = self.params.sync_phase
+
+        fr = self.cavity_ang_freq/2/_PI
+        df = (fr-self.cavity_harm_num*self.ring.rf_freq)*1e-3
+        Rs_fp = self.flat_potential_shunt_impedance*1e-6
+        phis = self.ring.sync_phase
         new_phis = self.perturbed_sync_phase
         ffactor = self.form_factor
         print(
@@ -319,20 +208,20 @@ class HarmonicCavity:
 
     def integrated_potential(self, z, voltage=None, harmonic=True):
         """."""
-        alpha = self.params.alpha
+        alpha = self.ring.mom_comp
         if voltage is None:
-            wrf = 2*_pi*self.params.frf
-            sigmae = self.params.espread
-            phis = self.params.sync_phase
-            h = self.params.h
-            tunes = self.params.tunes
+            wrf = 2*_PI*self.ring.rf_freq
+            sigmae = self.ring.espread
+            phis = self.ring.sync_phase
+            h = self.ring.harm_num
+            tunes = self.ring.sync_tune
             new_phis = self.perturbed_sync_phase
-            nh = self.params.nharm
+            nh = self.cavity_harm_num
             phih = self.harmonic_phase
             kh = 0
             if harmonic:
-                kh = self.k_harmonic_flat_potential
-            phase = wrf*z/_c
+                kh = self.flat_potential_k_harmonic
+            phase = wrf*z/_LSPEED
             pot = (alpha**2 * sigmae**2)
             pot /= _np.cos(phis)*(h*alpha*sigmae/tunes)**2
             t1 = _np.cos(new_phis)
@@ -341,16 +230,16 @@ class HarmonicCavity:
             t4 = (_np.sin(new_phis) + kh*_np.sin(nh*phih))*phase
             pot *= (t1 - t2 + t3 - t4)
         else:
-            dpot = (voltage - self.params.U0)/self.params.E0
+            dpot = (voltage - self.ring.en_lost_rad)/self.ring.energy
             pot = -scy_int.cumtrapz(dpot, z, initial=0)
             pot -= _np.min(pot)
-            pot *= alpha/self.params.L0
+            pot *= alpha/self.ring.circum
         return pot
 
     def calc_distribution(self, z, voltage=None, harmonic=True):
         """."""
-        alpha = self.params.alpha
-        espread = self.params.espread
+        alpha = self.ring.mom_comp
+        espread = self.ring.espread
         pot = self.integrated_potential(
             z=z, voltage=voltage, harmonic=harmonic)
         dist = _np.exp(-pot/(alpha**2 * espread**2))
@@ -370,22 +259,22 @@ class HarmonicCavity:
         return _np.sqrt(z2 - zm**2)
 
     @staticmethod
-    def complex_form_factor(z, w, rho):
+    def calc_complex_form_factor(z, w, rho):
         """."""
         return _np.trapz(
-            rho*_np.exp(1j*w*z/_c), z)/_np.trapz(rho, z)
+            rho*_np.exp(1j*w*z/_LSPEED), z)/_np.trapz(rho, z)
 
     def calc_voltages(self, z):
         """."""
-        Vrf = self.params.Vrf
-        wrf = 2*_pi*self.params.frf
-        phis0 = self.params.sync_phase
+        Vrf = self.ring.gap_voltage
+        wrf = 2*_PI*self.ring.rf_freq
+        phis0 = self.ring.sync_phase
         phis_pert = self.perturbed_sync_phase
-        kh = self.k_harmonic_flat_potential
-        nh = self.params.nharm
+        kh = self.flat_potential_k_harmonic
+        nh = self.cavity_harm_num
         phih = self.harmonic_phase
 
-        phase = wrf*z/_c
+        phase = wrf*z/_LSPEED
         Vmain0 = Vrf*_np.sin(phase + phis0)
         Vmain_pert = Vrf*_np.sin(phase + phis_pert)
         Vharm = Vrf*kh*_np.sin(nh*phase + nh*phih)
@@ -393,67 +282,54 @@ class HarmonicCavity:
 
     def calc_passive_voltage(self, z, Rs, detune_phase, form_factor_phase=0):
         """."""
-        I0 = self.params.I0
-        wrf = 2*_pi*self.params.frf
-        phase = wrf*z/_c
-        nh = self.params.nharm
+        I0 = self.ring.total_current
+        wrf = 2*_PI*self.ring.rf_freq
+        phase = wrf*z/_LSPEED
+        nh = self.cavity_harm_num
         ib = 2*I0*abs(self.form_factor)
         volt = -ib*Rs*_np.cos(detune_phase)
         volt *= _np.cos(nh*phase+detune_phase+form_factor_phase)
         return volt
 
-    def plot_voltages(self, z, vmain, vharm, vtotal):
-        """."""
-        fig = plt.figure(figsize=(6, 4))
-        gs = mpl_gs.GridSpec(1, 1)
-        ax1 = plt.subplot(gs[0, 0])
-
-        ax1.plot(z*100, vmain * 1e-6, label=r'$V_{rf}$ Main', color='C0')
-        ax1.plot(z*100, vharm * 1e-6, label=r'$V_{3h}$ 3HC', color='C1')
-        ax1.plot(
-            z*100, vtotal * 1e-6, label=r'$V_{rf} + V_{3h}$ Total', color='C3')
-        ax1.axhline(
-            y=self.params.U0*1e-6, color='tab:gray', ls='--', label=r'$U_0$')
-
-        ax1.set_xlabel(r'$z$ [cm]')
-        ax1.set_ylabel('RF voltage [MV]')
-        ax1.legend(loc='upper right')
-        ax1.grid(ls='--', alpha=0.5)
-        return fig
-
     def loop_form_factor(
-            self, z, dist0, kh=None, update_detune=False):
+            self, z, dist0, kh=None, update_detune=False, full=True):
         """."""
-        wrf = self.params.wrf
-        nharm = self.params.nharm
-        Rs = self.params.Rs
-        Vrf = self.params.Vrf
-        self.form_factor = self.complex_form_factor(
+        wrf = self.ring.rf_freq * 2*_PI
+        nharm = self.cavity_harm_num
+        Rs = self.cavity_shunt_impedance
+        Vrf = self.ring.gap_voltage
+        self.form_factor = self.calc_complex_form_factor(
             z, nharm*wrf, dist0)
 
         if update_detune:
-            k = kh or self.k_harmonic_flat_potential
-            detune = self.detune_passive_cavity(self.params.Rs, k)
+            if kh is None:
+                k = self.flat_potential_k_harmonic
+            else:
+                k = kh
+            detune = self.detune_passive_cavity(self.cavity_shunt_impedance, k)
             self.detune_angle = detune
 
         ffang = _np.angle(self.form_factor)
-        self.harmonic_phase = (self.detune_angle + _pi/2)/nharm
+        self.harmonic_phase = (self.detune_angle + _PI/2)/nharm
 
         vharm0 = self.calc_passive_voltage(
             z=0, Rs=Rs, detune_phase=self.detune_angle,
             form_factor_phase=-ffang)
-        arg = (self.params.U0 - vharm0)/Vrf
-        phis_pert = _pi - _np.arcsin(arg)
-        vmain_pert = Vrf * _np.sin(wrf*z/_c + phis_pert)
+        arg = (self.ring.en_lost_rad - vharm0)/Vrf
+        phis_pert = _PI - _np.arcsin(arg)
+        vmain_pert = Vrf * _np.sin(wrf*z/_LSPEED + phis_pert)
 
         vharm = self.calc_passive_voltage(
             z=z, Rs=Rs, detune_phase=self.detune_angle,
             form_factor_phase=-ffang)
         dist = self.calc_distribution(z=z, voltage=vmain_pert+vharm)
-        return vmain_pert, vharm, dist
+
+        if full:
+            return vmain_pert, vharm, dist
+        return dist
 
     def convergence_distribution(
-            self, z, rho0, niter, tol, beta, method='anderson_acc',
+            self, z, rho0, niter, tol, beta=1, method='anderson_acc',
             kh=None, update_detune=False, print_iter=False):
         """."""
         err_hist = []
@@ -462,11 +338,9 @@ class HarmonicCavity:
         X_k = []
         G_k = []
 
-        def haissinski(
-                rho0, z=z, kh=kh, update_detune=update_detune):
-            _, _, rho_new = self.loop_form_factor(
-                z, rho0, kh=kh, update_detune=update_detune)
-            return rho_new
+        haissinski = _partial(
+            self.loop_form_factor, z, kh=kh, update_detune=update_detune,
+            full=False)
 
         xs_ = [rho0, haissinski(rho0)]
         gs_ = [haissinski(rhoval) - rhoval for rhoval in xs_]
@@ -525,19 +399,18 @@ class HarmonicCavity:
             rho0 = rho_n
         return rho, _np.array(err_hist), _np.array(entropy_hist), nit
 
-    def robinson_growth_rate(self, w, wr, approx=False):
+    def calc_robinson_growth_rate(self, w, wr, approx=False):
         """."""
-        alpha = self.params.alpha
-        h = self.params.h
-        I0 = self.params.I0
-        E0 = self.params.E0
-        Rs = self.params.Rs
-        Q = self.params.Q
-        w0 = 2*_pi*self.params.frf/h
-        ws = self.params.tunes * w0
+        alpha = self.ring.mom_comp
+        I0 = self.ring.total_current
+        E0 = self.ring.energy
+        Rs = self.cavity_shunt_impedance
+        Q = self.cavity_Q
+        w0 = self.ring.rev_ang_freq
+        ws = self.ring.sync_tune * w0
         wp = w + ws
         wn = w - ws
-        const = I0*alpha*w0/(4*_pi*ws*E0)
+        const = I0*alpha*w0/(4*_PI*ws*E0)
         if approx:
             x = w/wr
             const_approx = const*4*ws
@@ -549,27 +422,51 @@ class HarmonicCavity:
             Zlp = imp.longitudinal_resonator(Rs=Rs, Q=Q, wr=wr, w=wp)
             Zln = imp.longitudinal_resonator(Rs=Rs, Q=Q, wr=wr, w=wn)
             growth = const*(wp*Zlp.real - wn*Zln.real)
-        return growth - 1/self.params.dampte
+        return growth - 1/self.ring.dampte
 
-    def tuneshifts_cbi(self, w, wr, m=1, nbun_fill=None, radiation=False):
+    def calc_tuneshifts_cbi(self, w, wr, m=1, nbun_fill=None, radiation=False):
         """."""
-        ring = si.create_ring()
-        ring.nus = self.params.tunes
-        ring.w0 = 2*_pi*self.params.frf/self.params.h
-        ring.mom_cmpct = self.params.alpha
-        ring.E = self.params.E0
-        ring.nbun = nbun_fill if nbun_fill is not None else self.params.h
-        ring.nom_cur = self.params.I0
-        ring.bunlen = self.params.bunlen
-        ring.dampte = self.params.dampte
+        ring = self.ring
+        num_bun = ring.num_bun
+        dampte = ring.dampte
+
+        ring.num_bun = nbun_fill if nbun_fill is not None else ring.harm_num
         if not radiation:
             ring.dampte = _np.inf
-        Rs = self.params.Rs
-        Q = self.params.Q
+
+        Rs = self.cavity_shunt_impedance
+        Q = self.cavity_Q
         Zl = imp.longitudinal_resonator(Rs=Rs, Q=Q, wr=wr, w=w)
+
         deltaw, wp, interpol_Z, spectrum = ring.longitudinal_cbi(
-            w=w, Zl=Zl, bunlen=ring.bunlen(), m=m, inverse=False)
+            w=w, Zl=Zl, m=m, inverse=False, full=True)
 
         # Relative tune-shifts must be multiplied by ws
-        deltaw *= (self.params.tunes * ring.w0)
+        deltaw *= (ring.sync_tune * ring.rev_ang_freq)
+
+        ring.num_bun = num_bun
+        ring.dampte = dampte
+
         return deltaw, Zl, wp, interpol_Z, spectrum
+
+    # ---------------------- Make Some Plots ---------------------------------
+    def plot_voltages(self, z, vmain, vharm, vtotal):
+        """."""
+        fig = plt.figure(figsize=(8, 6))
+        gs = mpl_gs.GridSpec(1, 1)
+        ax1 = plt.subplot(gs[0, 0])
+
+        ax1.plot(z*100, vmain * 1e-6, label=r'$V_{rf}$ Main', color='C0')
+        ax1.plot(z*100, vharm * 1e-6, label=r'$V_{3h}$ 3HC', color='C1')
+        ax1.plot(
+            z*100, vtotal * 1e-6, label=r'$V_{rf} + V_{3h}$ Total', color='C3')
+        ax1.axhline(
+            y=self.ring.en_lost_rad*1e-6, color='tab:gray',
+            ls='--', label=r'$U_0$')
+
+        ax1.set_xlabel(r'$z$ [cm]')
+        ax1.set_ylabel('RF voltage [MV]')
+        ax1.legend(loc='upper right', fontsize='x-small')
+        ax1.grid(True, ls='--', alpha=0.5)
+        fig.tight_layout()
+        return fig

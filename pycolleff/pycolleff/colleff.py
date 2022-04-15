@@ -448,7 +448,7 @@ class Ring:
         tune_shift = 1j*(K*m*Zl_sum - abs(m)*alpe/ws)
 
         if full:
-            return tune_shift, wp, Zl_interp
+            return tune_shift, wp, Zl_interp, gm0
         return tune_shift
 
     def transverse_cbi(
