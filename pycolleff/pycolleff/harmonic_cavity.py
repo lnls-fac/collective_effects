@@ -59,9 +59,8 @@ class HarmonicCavity:
         if wrf == 0:
             raise Exception('wrf cannot be zero!')
         tan = Q * (wr/(nharm*wrf) - nharm*wrf/wr)
-        # angle = _np.arctan2(tan, 1)
-        angle = _np.arctan(tan)
-        return angle
+        angle = _np.arctan2(tan, 1)
+        return _PI + angle
 
     @detune_angle.setter
     def detune_angle(self, value):
@@ -144,9 +143,9 @@ class LongitudinalEquilibrium:
         I0 = _np.sum(self.fillpattern)
         Vrf = self.ring.gap_voltage
         k_fp = self.harmonic_voltage_for_flat_potential()
-        ib = -2*I0*_np.sum(_np.abs(self.form_factor))
+        ib = 2*I0*_np.mean(_np.abs(self.form_factor))
         arg = k_fp*Vrf/ib/Rs
-        return -_np.arccos(arg)
+        return _np.arccos(arg)
 
     @property
     def form_factor(self):
@@ -166,10 +165,11 @@ class LongitudinalEquilibrium:
             # voltage must be (h, zgrid) or (1, zgrid)
             voltage = voltage[None, :]
 
-        # subtract U0
-        voltage -= self.ring.en_lost_rad
+        # subtract U0 and normalize by E0
+        U0 = self.ring.en_lost_rad
+        E0 = self.ring.energy
         pot = -scy_int.cumtrapz(
-            voltage, self.zgrid, initial=0)
+            voltage-U0, self.zgrid, initial=0)
 
         # subtract minimum value for all bunches
         pot -= _np.min(pot, axis=1)[:, None]
@@ -177,8 +177,7 @@ class LongitudinalEquilibrium:
         const = self.ring.espread**2
         const *= self.ring.mom_comp
         const *= self.ring.circum
-        # normalize by nominal energy
-        const *= self.ring.energy
+        const *= E0
 
         dist = _np.exp(-pot/const)
         norm = _np.trapz(dist, self.zgrid, axis=1)
@@ -209,13 +208,13 @@ class LongitudinalEquilibrium:
     def voltage_main_cavity(self, sync_phase=None):
         """."""
         wrf = 2*_PI*self.ring.rf_freq
-        phase = wrf*self.zgrid/_LSPEED
         phase0 = sync_phase or self.ring.sync_phase
+        phase = wrf*self.zgrid/_LSPEED
         phase += phase0
         voltage = self.ring.gap_voltage*_np.sin(phase)
         return voltage
 
-    def voltage_harmonic_cavity_impedance(self, dist=None, tol=1e-5):
+    def voltage_harmonic_cavity_impedance(self, dist=None, tol=1e-3):
         """."""
         if dist is None:
             dist = self.dist
@@ -251,7 +250,7 @@ class LongitudinalEquilibrium:
         # sum over positive frequencies only
         # ...
         voltage *= 2
-        return voltage.real
+        return -voltage.real
 
     def calc_longitudinal_equilibrium(self, niter=100, tol=1e-10, beta=0.1):
         """."""
@@ -259,22 +258,18 @@ class LongitudinalEquilibrium:
         dists = [self.dist, ]
         for nit in range(niter):
             harmonic_volt = self.voltage_harmonic_cavity_impedance()
-            # loss_cav = _np.mean(_np.max(harmonic_volt, axis=1))
-            # ang = (self.ring.en_lost_rad - loss_cav)/self.ring.gap_voltage
-            # sync_phase = _PI - _np.arcsin(ang)
-            # main_volt = self.voltage_main_cavity(sync_phase)
             total_volt = main_volt[None, :] + harmonic_volt
             dist = self.calc_distribution_from_voltage(total_volt)
             dists.append(dist)
             self.dist = self.anderson_acceleration(dists, beta=beta)
-            diff = (dists[-1]-dists[-2])/dists[-2]
+            diff = (dists[-1]-dists[-2])
             diff = _np.sqrt(_np.trapz(diff*diff, self.zgrid, axis=1))
             diff = _np.max(diff)
             print(nit+1, diff*(1+beta))
             if diff*(1+beta) < tol:
                 print('distribution ok!')
                 break
-        return dists, harmonic_volt
+        return dists, harmonic_volt, main_volt
 
     def anderson_acceleration(self, dists, beta):
         """."""
