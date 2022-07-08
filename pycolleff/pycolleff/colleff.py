@@ -51,6 +51,11 @@ class Ring:
         return 2*_np.math.pi*self.rev_freq
 
     @property
+    def rf_ang_freq(self):
+        """."""
+        return 2*_np.math.pi*self.rf_freq
+
+    @property
     def rev_time(self):
         """."""
         return 1/self.rev_freq
