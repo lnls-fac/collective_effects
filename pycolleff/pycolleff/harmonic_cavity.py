@@ -1,4 +1,5 @@
 """."""
+import time as _time
 import numpy as _np
 import scipy.integrate as scy_int
 
@@ -137,15 +138,25 @@ class LongitudinalEquilibrium:
         kharm = 1/nharm**2 - ((U0/Vrf)**2)/(nharm**2-1)
         return kharm**(1/2)
 
-    def detune_angle_for_flat_potential(self):
+    def detune_for_fixed_harmonic_voltage(self, peak_harm_volt):
         """."""
         Rs = self.harmcav.cavity_shunt_impedance
         I0 = _np.sum(self.fillpattern)
-        Vrf = self.ring.gap_voltage
-        k_fp = self.harmonic_voltage_for_flat_potential()
+        # <<< WARNING >>>
+        # This way of including the form factor is temporary
         ib = 2*I0*_np.mean(_np.abs(self.form_factor))
-        arg = k_fp*Vrf/ib/Rs
+        arg = peak_harm_volt/ib/Rs
         return _np.arccos(arg)
+
+    def harmonic_voltage_for_fixed_detune(self, detune):
+        """."""
+        Rs = self.harmcav.cavity_shunt_impedance
+        I0 = _np.sum(self.fillpattern)
+        # <<< WARNING >>>
+        # This way of including the form factor is temporary
+        ib = 2*I0*_np.mean(_np.abs(self.form_factor))
+        peak_harm_volt = Rs*ib*_np.cos(detune)
+        return _np.abs(peak_harm_volt)
 
     @property
     def form_factor(self):
@@ -205,16 +216,18 @@ class LongitudinalEquilibrium:
                 1j*w[None, :]*self.zgrid[:, None]/_LSPEED)
         return _np.trapz(arg, self.zgrid, axis=1)
 
-    def voltage_main_cavity(self, sync_phase=None):
+    def voltage_main_cavity(self, z=None, sync_phase=None):
         """."""
         wrf = 2*_PI*self.ring.rf_freq
         phase0 = sync_phase or self.ring.sync_phase
-        phase = wrf*self.zgrid/_LSPEED
+        if z is None:
+            z = self.zgrid
+        phase = wrf*z/_LSPEED
         phase += phase0
         voltage = self.ring.gap_voltage*_np.sin(phase)
         return voltage
 
-    def voltage_harmonic_cavity_impedance(self, dist=None, tol=1e-3):
+    def voltage_harmonic_cavity_impedance(self, dist=None, tol=1e-2):
         """."""
         if dist is None:
             dist = self.dist
@@ -222,7 +235,7 @@ class LongitudinalEquilibrium:
         ind_diff = ind[:, None] - ind[None, :]
         arg = -2j*_PI/self.ring.harm_num*ind_diff
 
-        fill_fft = _np.fft.rfft(self.fillpattern)
+        fill_fft = _np.abs(_np.fft.rfft(self.fillpattern))
         modes = _np.where(fill_fft > fill_fft[0]*tol)[0]
         harmonics = modes[1:]
         w0 = self.ring.rev_ang_freq
@@ -235,7 +248,9 @@ class LongitudinalEquilibrium:
             (self.ring.harm_num, self.zgrid.size), dtype=_np.complex)
         zl_wps = self.harmcav.longitudinal_impedance(w=ps*w0).conj()
         print('     summing harmonics in voltage')
+        t0a = _time.time()
         for idx, p in enumerate(ps):
+            t0 = _time.time()
             wp = p * w0
             dist_fourier = self.distribution_fourier_transform(w=wp, dist=dist)
             zl_wp = zl_wps[idx] * _np.exp(1j*wp*self.zgrid/_LSPEED)
@@ -246,19 +261,38 @@ class LongitudinalEquilibrium:
             # beam part has dim (h, )
             # voltage must have dim (h, zgrid)
             voltage += zl_wp[None, :] * beam_part[:, None]
-            print(f'     {idx:02d}, {abs(p-pmain):03d}')
+            tf = _time.time() - t0
+            print(f'     mode: {abs(p-pmain):03d}, ET: {tf:.3f}s')
         # sum over positive frequencies only
         # ...
         voltage *= 2
+        t0b = _time.time() - t0a
+        print(f'     Voltage ET: {t0b:.3f}s ')
         return -voltage.real
 
     def calc_longitudinal_equilibrium(self, niter=100, tol=1e-10, beta=0.1):
         """."""
         main_volt = self.voltage_main_cavity()
         dists = [self.dist, ]
+
+        peak_harm_volt = self.harmonic_voltage_for_fixed_detune(
+            detune=self.harmcav.detune_angle)
+        idx_z0 = _np.where(self.zgrid == 0)[0]
         for nit in range(niter):
             harmonic_volt = self.voltage_harmonic_cavity_impedance()
+
+            # <<< WARNING >>>
+            # Redefining meaning of z-coordinate
+            # New sync. reference is U0 + the mean energy loss for 3HC
+            # Maybe this is not necessary.
+            loss = self.ring.en_lost_rad - _np.mean(
+                harmonic_volt[:, idx_z0], axis=0)
+            loss /= self.ring.gap_voltage
+            new_phis = _PI - _np.arcsin(loss)
+            main_volt = self.voltage_main_cavity(sync_phase=new_phis)
+
             total_volt = main_volt[None, :] + harmonic_volt
+
             dist = self.calc_distribution_from_voltage(total_volt)
             dists.append(dist)
             self.dist = self.anderson_acceleration(dists, beta=beta)
@@ -269,8 +303,10 @@ class LongitudinalEquilibrium:
             if diff*(1+beta) < tol:
                 print('distribution ok!')
                 break
+            detune = self.detune_for_fixed_harmonic_voltage(peak_harm_volt)
+            self.harmcav.detune_angle = detune
         return dists, harmonic_volt, main_volt
 
     def anderson_acceleration(self, dists, beta):
-        """."""
+        """To be implemented."""
         return (dists[-1] + beta*dists[-2])/(1+beta)
