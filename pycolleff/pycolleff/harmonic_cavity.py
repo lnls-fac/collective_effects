@@ -86,10 +86,11 @@ class LongitudinalEquilibrium:
         """."""
         self.ring = ring or si.create_ring()
         self.harmcav = resonator
-        self._zgrid = self.create_zgrid()
+        self._zgrid = None
+        self._dist = None
+        self._fillpattern = None
         self.fillpattern = fillpattern
-        main_volt = self.voltage_main_cavity()
-        self.dist = self.calc_distribution_from_voltage(main_volt)
+        self.zgrid = self.create_zgrid()
 
     @property
     def zgrid(self):
@@ -129,6 +130,32 @@ class LongitudinalEquilibrium:
         dist = dist/norm
         dist = _np.tile(dist, (self.ring.harm_num, 1))
         return dist
+
+    @property
+    def fillpattern(self):
+        """."""
+        return self._fillpattern
+
+    @fillpattern.setter
+    def fillpattern(self, value):
+        """."""
+        self._fillpattern = value
+
+    @property
+    def filled_buckets(self):
+        """."""
+        idx = _np.where(self.fillpattern != 0)[0]
+        return idx
+
+    @property
+    def dist(self):
+        """."""
+        return self._dist
+
+    @dist.setter
+    def dist(self, value):
+        """."""
+        self._dist = value
 
     def harmonic_voltage_for_flat_potential(self):
         """."""
@@ -262,7 +289,7 @@ class LongitudinalEquilibrium:
             # voltage must have dim (h, zgrid)
             voltage += zl_wp[None, :] * beam_part[:, None]
             tf = _time.time() - t0
-            print(f'     mode: {abs(p-pmain):03d}, ET: {tf:.3f}s')
+            # print(f'     mode: {abs(p-pmain):03d}, ET: {tf:.3f}s')
         # sum over positive frequencies only
         # ...
         voltage *= 2
@@ -274,25 +301,21 @@ class LongitudinalEquilibrium:
         """."""
         main_volt = self.voltage_main_cavity()
         dists = [self.dist, ]
-
-        peak_harm_volt = self.harmonic_voltage_for_fixed_detune(
-            detune=self.harmcav.detune_angle)
-        idx_z0 = _np.where(self.zgrid == 0)[0]
+        # peak_harm_volt = self.harmonic_voltage_for_fixed_detune(
+        #     detune=self.harmcav.detune_angle)
         for nit in range(niter):
             harmonic_volt = self.voltage_harmonic_cavity_impedance()
 
-            # <<< WARNING >>>
-            # Redefining meaning of z-coordinate
-            # New sync. reference is U0 + the mean energy loss for 3HC
-            # Maybe this is not necessary.
-            loss = self.ring.en_lost_rad - _np.mean(
-                harmonic_volt[:, idx_z0], axis=0)
-            loss /= self.ring.gap_voltage
-            new_phis = _PI - _np.arcsin(loss)
-            main_volt = self.voltage_main_cavity(sync_phase=new_phis)
-
+            # # <<< WARNING >>>
+            # # Redefining meaning of z-coordinate
+            # # New sync. reference is U0 + the mean energy loss for 3HC
+            # # Maybe this is not necessary.
+            # loss = self.ring.en_lost_rad - _np.mean(
+            #     harmonic_volt[:, idx_z0], axis=0)
+            # loss /= self.ring.gap_voltage
+            # new_phis = _PI - _np.arcsin(loss)
+            # main_volt = self.voltage_main_cavity(sync_phase=new_phis)
             total_volt = main_volt[None, :] + harmonic_volt
-
             dist = self.calc_distribution_from_voltage(total_volt)
             dists.append(dist)
             self.dist = self.anderson_acceleration(dists, beta=beta)
@@ -303,8 +326,8 @@ class LongitudinalEquilibrium:
             if diff*(1+beta) < tol:
                 print('distribution ok!')
                 break
-            detune = self.detune_for_fixed_harmonic_voltage(peak_harm_volt)
-            self.harmcav.detune_angle = detune
+            # detune = self.detune_for_fixed_harmonic_voltage(peak_harm_volt)
+            # self.harmcav.detune_angle = detune
         return dists, harmonic_volt, main_volt
 
     def anderson_acceleration(self, dists, beta):
