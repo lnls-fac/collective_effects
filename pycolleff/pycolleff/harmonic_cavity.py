@@ -89,8 +89,10 @@ class LongitudinalEquilibrium:
         self._zgrid = None
         self._dist = None
         self._fillpattern = None
+        self._main_voltage = None
         self.fillpattern = fillpattern
         self.zgrid = self.create_zgrid()
+        self.main_voltage = self.voltage_main_cavity()
 
     @property
     def zgrid(self):
@@ -100,8 +102,18 @@ class LongitudinalEquilibrium:
     @zgrid.setter
     def zgrid(self, value):
         self._zgrid = value
-        main_volt = self.voltage_main_cavity()
-        self.dist = self.calc_distribution_from_voltage(main_volt)
+        main_voltage = self.voltage_main_cavity()
+        self.main_voltage = main_voltage
+        self.dist = self.calc_distribution_from_voltage(main_voltage)
+
+    @property
+    def main_voltage(self):
+        """."""
+        return self._main_voltage
+
+    @main_voltage.setter
+    def main_voltage(self, value):
+        self._main_voltage = value
 
     def create_zgrid(self, nr_points=1001, sigmas=30):
         """."""
