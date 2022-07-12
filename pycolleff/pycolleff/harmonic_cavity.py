@@ -90,6 +90,7 @@ class LongitudinalEquilibrium:
         self._dist = None
         self._fillpattern = None
         self._main_voltage = None
+        self.min_mode0_ratio = 1e-2
         self.fillpattern = fillpattern
         self.zgrid = self.create_zgrid()
         self.main_voltage = self.voltage_main_cavity()
@@ -299,39 +300,68 @@ class LongitudinalEquilibrium:
         print(f'     E.T. to sum {ps.size:02d} harmonics: {t0b:.3f}s ')
         return -voltage.real
 
-    def calc_longitudinal_equilibrium(self, niter=100, tol=1e-10, beta=0.1):
+    def calc_longitudinal_equilibrium(self, niter=100, tol=1e-10, beta=1):
         """."""
-        main_volt = self.voltage_main_cavity()
         dists = [self.dist, ]
-        # peak_harm_volt = self.harmonic_voltage_for_fixed_detune(
-        #     detune=self.harmcav.detune_angle)
-        for nit in range(niter):
-            harmonic_volt = self.voltage_harmonic_cavity_impedance()
+        dists = self.anderson_acceleration(dists, niter, tol, beta=beta)
+        dists = [self._reshape_dist(rho) for rho in dists]
+        self.dist = dists[-1]
+        return dists
 
-            # # <<< WARNING >>>
-            # # Redefining meaning of z-coordinate
-            # # New sync. reference is U0 + the mean energy loss for 3HC
-            # # Maybe this is not necessary.
-            # loss = self.ring.en_lost_rad - _np.mean(
-            #     harmonic_volt[:, idx_z0], axis=0)
-            # loss /= self.ring.gap_voltage
-            # new_phis = _PI - _np.arcsin(loss)
-            # main_volt = self.voltage_main_cavity(sync_phase=new_phis)
-            total_volt = main_volt[None, :] + harmonic_volt
-            dist = self.calc_distribution_from_voltage(total_volt)
-            dists.append(dist)
-            self.dist = self.anderson_acceleration(dists, beta=beta)
-            diff = (dists[-1]-dists[-2])
+    def anderson_acceleration(self, dists, niter, tol, m=3, beta=1):
+        """."""
+        x0 = dists[-1].ravel()
+        x = _np.array([x0, self._ffunc(x0)])
+        g = _np.array([x[1] - x[0], self._ffunc(x[1]) - x[1]])
+        G_k = _np.array(g[1] - g[0], ndmin=2).T
+        X_k = _np.array(x[1] - x[0], ndmin=2).T
+
+        for k in range(niter):
+            t0 = _time.time()
+            m_k = min(k+1, m)
+            xnew = []
+            gamma_k = _np.linalg.lstsq(
+                G_k, g[k], rcond=None)[0]
+            mat = X_k + G_k
+
+            xnewi_p1 = beta*(x[k] + g[k] - mat @ gamma_k)
+            if beta != 1:
+                xnewi_p2 = (1-beta)*(x[k] - X_k @ gamma_k)
+                xnew.append(xnewi_p1 + xnewi_p2)
+            else:
+                xnew.append(xnewi_p1)
+            xnew = _np.array(xnew)
+            x = _np.r_[x, xnew]
+            gnew = _np.array([self._ffunc(x[-1])-x[-1]])
+            g = _np.r_[g, gnew]
+            G_k = _np.hstack([G_k, (g[-1]-g[-2])[:, None]])
+            X_k = _np.hstack([X_k, (x[-1]-x[-2])[:, None]])
+
+            self.dist = self._reshape_dist(x[-1])
+
+            if X_k.shape[1] > m_k:
+                X_k = X_k[:, -m:]
+                G_k = G_k[:, -m:]
+
+            diff = x[-1]-x[-2]
+            diff = self._reshape_dist(diff)
             diff = _np.sqrt(_np.trapz(diff*diff, self.zgrid, axis=1))
             diff = _np.max(diff)
-            print(nit+1, diff*(1+beta))
-            if diff*(1+beta) < tol:
+            tf = _time.time() - t0
+            print(
+                f'Iter.: {k+1:03d}, Dist. Diff.: {diff:.3e}, E.T.: {tf:.3f}s')
+            if diff < tol:
                 print('distribution ok!')
                 break
-            # detune = self.detune_for_fixed_harmonic_voltage(peak_harm_volt)
-            # self.harmcav.detune_angle = detune
-        return dists, harmonic_volt, main_volt
+        return x
 
-    def anderson_acceleration(self, dists, beta):
-        """To be implemented."""
-        return (dists[-1] + beta*dists[-2])/(1+beta)
+    def _ffunc(self, xk):
+        """Haissinski operator."""
+        xk = self._reshape_dist(xk)
+        hvolt = self.voltage_harmonic_cavity_impedance(dist=xk)
+        tvolt = self.main_voltage[None, :] + hvolt
+        fxk = self.calc_distribution_from_voltage(tvolt)
+        return fxk.ravel()
+
+    def _reshape_dist(self, dist):
+        return dist.reshape((self.ring.harm_num, self.zgrid.size))
