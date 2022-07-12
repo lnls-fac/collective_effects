@@ -150,7 +150,6 @@ class LongitudinalEquilibrium:
 
     @fillpattern.setter
     def fillpattern(self, value):
-        """."""
         self._fillpattern = value
 
     @property
@@ -166,7 +165,6 @@ class LongitudinalEquilibrium:
 
     @dist.setter
     def dist(self, value):
-        """."""
         self._dist = value
 
     def harmonic_voltage_for_flat_potential(self):
@@ -240,19 +238,7 @@ class LongitudinalEquilibrium:
         """."""
         if dist is None:
             dist = self.dist
-        if isinstance(w, (float)):
-            # distribution: (h, zgrid)
-            # dist*exp: (h, zgrid) * (None, zgrid) = (h, zgrid)
-            # integration along zgrid, axis=1
-            # fourier transform: (h, )
-            arg = dist*_np.exp(1j*w*self.zgrid/_LSPEED)[None, :]
-        else:
-            # distribution: (h, zgrid)
-            # dist*exp: (h, zgrid, None) * (zgrid, modes) = (h, zgrid, modes)
-            # integration along zgrid, axis=1
-            # fourier transform: (h, modes)
-            arg = dist[:, :, None]*_np.exp(
-                1j*w[None, :]*self.zgrid[:, None]/_LSPEED)
+        arg = dist*_np.exp(1j*w*self.zgrid/_LSPEED)[None, :]
         return _np.trapz(arg, self.zgrid, axis=1)
 
     def voltage_main_cavity(self, z=None, sync_phase=None):
@@ -266,47 +252,51 @@ class LongitudinalEquilibrium:
         voltage = self.ring.gap_voltage*_np.sin(phase)
         return voltage
 
-    def voltage_harmonic_cavity_impedance(self, dist=None, tol=1e-2):
+    def get_harmonics_fillpattern(self):
         """."""
-        if dist is None:
-            dist = self.dist
-        ind = _np.arange(self.ring.harm_num)
-        ind_diff = ind[:, None] - ind[None, :]
-        arg = -2j*_PI/self.ring.harm_num*ind_diff
-
         fill_fft = _np.abs(_np.fft.rfft(self.fillpattern))
-        modes = _np.where(fill_fft > fill_fft[0]*tol)[0]
+        modes = _np.where(
+            fill_fft > fill_fft[0]*self.min_mode0_ratio)[0]
         harmonics = modes[1:]
-        w0 = self.ring.rev_ang_freq
-        pmain = int(self.harmcav.cavity_ang_freq/w0)
         # sum over modes (h*n+p) where p in [0, 1, -1, 2, -2, ...]
         ps = [0, ]
         ps += [tp for p in harmonics for tp in (p, -p)]
-        ps = pmain + _np.array(ps)
+        return _np.array(ps)
+
+    def voltage_harmonic_cavity_impedance(self, dist=None):
+        """."""
+        if dist is None:
+            dist = self.dist
+        w0 = self.ring.rev_ang_freq
         voltage = _np.zeros(
             (self.ring.harm_num, self.zgrid.size), dtype=_np.complex)
+
+        ind = _np.arange(self.ring.harm_num)
+        zn_ph = 2*_PI/self.ring.harm_num*ind
+        z_ph = w0*self.zgrid/_LSPEED
+
+        pmain = int(self.harmcav.cavity_ang_freq/w0)
+        ps = pmain + self.get_harmonics_fillpattern()
+
         zl_wps = self.harmcav.longitudinal_impedance(w=ps*w0).conj()
-        print('     summing harmonics in voltage')
         t0a = _time.time()
         for idx, p in enumerate(ps):
-            t0 = _time.time()
             wp = p * w0
             dist_fourier = self.distribution_fourier_transform(w=wp, dist=dist)
-            zl_wp = zl_wps[idx] * _np.exp(1j*wp*self.zgrid/_LSPEED)
-            bmat_wp = _np.exp(p*arg)
-            beam_part = _np.dot(
-                bmat_wp, self.fillpattern*dist_fourier.conj())
+
+            exp_phase = _np.exp(-1j*p*zn_ph)
+            beam_part = exp_phase * self.fillpattern * dist_fourier.conj()
+            beam_part = _np.sum(beam_part)
+            beam_part = beam_part/exp_phase
+
+            zl_wp = zl_wps[idx] * _np.exp(1j*p*z_ph)
+            voltage += 2 * zl_wp[None, :] * beam_part[:, None]
             # impedance has dim (zgrid, )
             # beam part has dim (h, )
             # voltage must have dim (h, zgrid)
-            voltage += zl_wp[None, :] * beam_part[:, None]
-            tf = _time.time() - t0
-            # print(f'     mode: {abs(p-pmain):03d}, ET: {tf:.3f}s')
-        # sum over positive frequencies only
-        # ...
-        voltage *= 2
+            # sum over positive frequencies only
         t0b = _time.time() - t0a
-        print(f'     Voltage ET: {t0b:.3f}s ')
+        print(f'     E.T. to sum {ps.size:02d} harmonics: {t0b:.3f}s ')
         return -voltage.real
 
     def calc_longitudinal_equilibrium(self, niter=100, tol=1e-10, beta=0.1):
