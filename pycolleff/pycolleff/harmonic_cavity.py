@@ -72,28 +72,37 @@ class HarmonicCavity:
         delta = _np.tan(value)/2/Q
         self.cavity_ang_freq = nharm*wrf*(delta + (1+delta**2)**(1/2))
 
-        # alpha = _np.tan(value)/Q
-        # self.cavity_ang_freq = nharm*wrf/2
-        # self.cavity_ang_freq *= (alpha + (alpha**2 + 4)**(1/2))
-
 
 class LongitudinalEquilibrium:
     """."""
 
     def __init__(
             self, ring=None,
-            resonator=None, fillpattern=_np.array([])):
+            resonators=None, fillpattern=_np.array([])):
         """."""
         self.ring = ring or si.create_ring()
-        self.harmcav = resonator
+        self.resonators = resonators
         self._zgrid = None
         self._dist = None
         self._fillpattern = None
         self._main_voltage = None
-        self.min_mode0_ratio = 1e-2
+        self.max_mode = 10*self.ring.harm_num
+        self.min_mode0_ratio = 1e-9
         self.fillpattern = fillpattern
         self.zgrid = self.create_zgrid()
         self.main_voltage = self.voltage_main_cavity()
+
+    @property
+    def max_mode(self):
+        """."""
+        return self._max_mode
+
+    @max_mode.setter
+    def max_mode(self, value):
+        if value % self.ring.harm_num:
+            raise Exception('mode must be a multiple of harmonic number!')
+        else:
+            self._max_mode = value
 
     @property
     def zgrid(self):
@@ -170,7 +179,7 @@ class LongitudinalEquilibrium:
 
     def harmonic_voltage_for_flat_potential(self):
         """."""
-        nharm = self.harmcav.cavity_harm_num
+        nharm = self.resonators[0].cavity_harm_num
         U0 = self.ring.en_lost_rad
         Vrf = self.ring.gap_voltage
         kharm = 1/nharm**2 - ((U0/Vrf)**2)/(nharm**2-1)
@@ -178,7 +187,7 @@ class LongitudinalEquilibrium:
 
     def detune_for_fixed_harmonic_voltage(self, peak_harm_volt):
         """."""
-        Rs = self.harmcav.cavity_shunt_impedance
+        Rs = self.resonators[0].cavity_shunt_impedance
         I0 = _np.sum(self.fillpattern)
         # <<< WARNING >>>
         # This way of including the form factor is temporary
@@ -188,7 +197,7 @@ class LongitudinalEquilibrium:
 
     def harmonic_voltage_for_fixed_detune(self, detune):
         """."""
-        Rs = self.harmcav.cavity_shunt_impedance
+        Rs = self.resonators[0].cavity_shunt_impedance
         I0 = _np.sum(self.fillpattern)
         # <<< WARNING >>>
         # This way of including the form factor is temporary
@@ -200,7 +209,7 @@ class LongitudinalEquilibrium:
     def form_factor(self):
         """."""
         wrf = 2*_PI*self.ring.rf_freq
-        w = self.harmcav.cavity_harm_num*wrf
+        w = self.resonators[0].cavity_harm_num*wrf
         arg = self.dist*_np.exp(1j*w*self.zgrid/_LSPEED)[None, :]
         factor = _np.trapz(arg, self.zgrid, axis=1)
         norm = _np.trapz(self.dist, self.zgrid, axis=1)
@@ -214,9 +223,8 @@ class LongitudinalEquilibrium:
             # voltage must be (h, zgrid) or (1, zgrid)
             voltage = voltage[None, :]
 
-        # subtract U0 and normalize by E0
+        # subtract U0
         U0 = self.ring.en_lost_rad
-        E0 = self.ring.energy
         pot = -scy_int.cumtrapz(
             voltage-U0, self.zgrid, initial=0)
 
@@ -226,7 +234,8 @@ class LongitudinalEquilibrium:
         const = self.ring.espread**2
         const *= self.ring.mom_comp
         const *= self.ring.circum
-        const *= E0
+        # normalize by E0
+        const *= self.ring.energy
 
         dist = _np.exp(-pot/const)
         norm = _np.trapz(dist, self.zgrid, axis=1)
@@ -253,16 +262,34 @@ class LongitudinalEquilibrium:
         voltage = self.ring.gap_voltage*_np.sin(phase)
         return voltage
 
-    def get_harmonics_fillpattern(self):
+    def get_harmonics_impedance_and_filling(self, w=None):
         """."""
-        fill_fft = _np.abs(_np.fft.rfft(self.fillpattern))
+        if w is None:
+            w0 = self.ring.rev_ang_freq
+            p = _np.arange(0, self.max_mode)
+            w = p*w0
+
+        h = self.ring.harm_num
+        max_harm = self.max_mode//h
+        # zl_wp = self.harmcav.longitudinal_impedance(w=p*w0)
+        zl_wp = self.get_total_impedance(w=w)
+        fill_fft = _np.abs(_np.fft.fft(self.fillpattern))
+        fill_fft = _np.tile(fill_fft, (max_harm, 1)).ravel()
+        zl_fill = (zl_wp * fill_fft).real
         modes = _np.where(
-            fill_fft > fill_fft[0]*self.min_mode0_ratio)[0]
-        harmonics = modes[1:]
-        # sum over modes (h*n+p) where p in [0, 1, -1, 2, -2, ...]
-        ps = [0, ]
-        ps += [tp for p in harmonics for tp in (p, -p)]
-        return _np.array(ps)
+            zl_fill > zl_fill.max()*self.min_mode0_ratio)[0]
+        return modes, zl_wp[modes]
+
+    def get_total_impedance(self, w=None):
+        """."""
+        if w is None:
+            w0 = self.ring.rev_ang_freq
+            p = _np.arange(0, self.max_mode)
+            w = p*w0
+        total_zl = _np.zeros(w.shape, dtype=_np.complex)
+        for reson in self.resonators:
+            total_zl += reson.longitudinal_impedance(w=w)
+        return total_zl
 
     def voltage_harmonic_cavity_impedance(self, dist=None):
         """."""
@@ -276,10 +303,7 @@ class LongitudinalEquilibrium:
         zn_ph = 2*_PI/self.ring.harm_num*ind
         z_ph = w0*self.zgrid/_LSPEED
 
-        pmain = int(self.harmcav.cavity_ang_freq/w0)
-        ps = pmain + self.get_harmonics_fillpattern()
-
-        zl_wps = self.harmcav.longitudinal_impedance(w=ps*w0).conj()
+        ps, zl_wps = self.get_harmonics_impedance_and_filling()
         t0a = _time.time()
         for idx, p in enumerate(ps):
             wp = p * w0
@@ -290,7 +314,7 @@ class LongitudinalEquilibrium:
             beam_part = _np.sum(beam_part)
             beam_part = beam_part/exp_phase
 
-            zl_wp = zl_wps[idx] * _np.exp(1j*p*z_ph)
+            zl_wp = zl_wps[idx].conj() * _np.exp(1j*p*z_ph)
             voltage += 2 * zl_wp[None, :] * beam_part[:, None]
             # impedance has dim (zgrid, )
             # beam part has dim (h, )
