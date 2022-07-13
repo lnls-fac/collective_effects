@@ -32,6 +32,36 @@ class Ring:
 
         self.cav_vgap = 3e6  # [V]
 
+    def to_dict(self):
+        """."""
+        return dict(
+            use_gaussian_noise=self.use_gaussian_noise,
+            energy=self.energy,
+            u0=self.u0,
+            harm_num=self.harm_num,
+            rf_freq=self.rf_freq,
+            espread=self.espread,
+            mom_comp=self.mom_comp,
+            damping_number=self.damping_number,
+            cav_pos=self.cav_pos,
+            cav_vgap=self._cav_vgap,
+            cav_volt_norm=self.cav_volt_norm,
+            )
+
+    def from_dict(self, dic):
+        """."""
+        self.use_gaussian_noise = dic['use_gaussian_noise']
+        self.energy = dic['energy']
+        self.u0 = dic['u0']
+        self.harm_num = dic['harm_num']
+        self.rf_freq = dic['rf_freq']
+        self.espread = dic['espread']
+        self.mom_comp = dic['mom_comp']
+        self.damping_number = dic['damping_number']
+        self.cav_pos = dic['cav_pos']
+        self._cav_vgap = dic['cav_vgap']
+        self.cav_volt_norm = dic['cav_volt_norm']
+
     @property
     def use_gaussian_noise(self):
         """."""
@@ -145,6 +175,26 @@ class Wake:
         """."""
         return self.kr/(2*self.Q) + 1j*self.krl
 
+    def cmd_reset_phasor(self):
+        """."""
+        self.pot_phasor = 0j
+
+    def to_dict(self):
+        """."""
+        return dict(
+            Q=self.Q,
+            Rs=self.Rs,
+            wr=self.wr,
+            pot_phasor=self.pot_phasor,
+            )
+
+    def from_dict(self, dic):
+        """."""
+        self.Q = dic['Q']
+        self.Rs = dic['Rs']
+        self.wr = dic['wr']
+        self.pot_phasor = dic['pot_phasor']
+
     def track_one_turn(self, beam, ring):
         """."""
         stren = ring.circum / _LSPEED / ring.energy
@@ -205,14 +255,45 @@ class Beam():
 
     def __init__(self, num_part, num_buns, current=0.35):
         """."""
-        self.num_part = num_part
-        self.num_buns = num_buns
-        self.current = current
-        self.bun_indices = _np.arange(num_buns)
         self.curr_p_bun = _np.ones(num_buns, dtype=float)
-        self.curr_p_bun *= current/num_buns
+        self.bun_indices = _np.arange(num_buns)
+        self.current = current
         self.de = _np.zeros((num_buns, num_part), dtype=float)
         self.ss = _np.zeros((num_buns, num_part), dtype=float)
+
+    @property
+    def current(self):
+        """."""
+        return float(self.curr_p_bun.sum())
+
+    @current.setter
+    def current(self, current):
+        """."""
+        self.curr_p_bun *= current/self.current
+
+    @property
+    def num_buns(self):
+        """."""
+        return int(self.bun_indices.size)
+
+    @property
+    def num_part(self):
+        """."""
+        return int(self.de.shape[1])
+
+    def to_dict(self):
+        """."""
+        return dict(
+            ss=self.ss.copy(), de=self.de.copy(),
+            curr_p_bun=self.curr_p_bun.copy(),
+            bun_indices=self.bun_indices.copy())
+
+    def from_dict(self, dic):
+        """."""
+        self.de = dic['de'].copy()
+        self.ss = dic['ss'].copy()
+        self.curr_p_bun = dic['curr_p_bun'].copy()
+        self.bun_indices = dic['bun_indices'].copy()
 
     def sort(self):
         """."""
