@@ -1,5 +1,4 @@
 """."""
-
 import time as _time
 
 import numpy as _np
@@ -124,6 +123,11 @@ class Ring:
     def damping_time(self):
         """."""
         return 2*self.rev_time / self.damping_number / self.u0_norm
+
+    @damping_time.setter
+    def damping_time(self, value):
+        """."""
+        self.damping_number = 2*self.rev_time / value / self.u0_norm
 
     def track_one_turn(self, beam):
         """."""
@@ -281,6 +285,13 @@ class Beam():
         """."""
         return int(self.de.shape[1])
 
+    def oversample_number_of_particles(self, mult_factor: int):
+        """Increase number of particles by repeating the existing ones."""
+        if mult_factor <= 1:
+            return
+        self.de = _np.tile(self.de, int(mult_factor))
+        self.ss = _np.tile(self.ss, int(mult_factor))
+
     def to_dict(self):
         """."""
         return dict(
@@ -324,11 +335,13 @@ class Beam():
         self.ss += ss_avg
 
 
-def track_particles(ring, beam, wakes, num_turns=10000, stats_ev_nt=10):
+def track_particles(
+        ring, beam, wakes, num_turns=10000, stats_ev_nt=10,
+        print_progress=True):
     """."""
     avg_ss, avg_de = [], []
     std_ss, std_de = [], []
-    pot_wakes = []
+    pot_wakes, tim = [], []
 
     t0 = _time.time()
     for turn in range(num_turns):
@@ -344,7 +357,8 @@ def track_particles(ring, beam, wakes, num_turns=10000, stats_ev_nt=10):
             std_ss.append(beam.ss.std(axis=1))
             std_de.append(beam.de.std(axis=1))
             pot_wakes.append([wake.pot_phasor for wake in wakes])
-        if not (turn % 100):
+            tim.append(ring.rev_time * turn)
+        if print_progress and not (turn % 100):
             pot = 0.0
             if wakes:
                 pot = _np.abs(wakes[0].pot_phasor)/ring.cav_vgap_norm
@@ -356,9 +370,32 @@ def track_particles(ring, beam, wakes, num_turns=10000, stats_ev_nt=10):
                 f'ET: {_time.time()-t0:.2f} s')
             t0 = _time.time()
 
+    avg_ss.append(beam.ss.mean(axis=1))
+    avg_de.append(beam.de.mean(axis=1))
+    std_ss.append(beam.ss.std(axis=1))
+    std_de.append(beam.de.std(axis=1))
+    pot_wakes.append([wake.pot_phasor for wake in wakes])
+    tim.append(ring.rev_time * turn)
+
     stats = {
         'avg_ss': _np.array(avg_ss), 'avg_de': _np.array(avg_de),
         'std_ss': _np.array(std_ss), 'std_de': _np.array(std_de),
-        'pot_wakes': _np.array(pot_wakes),
-        'time': _np.arange(len(avg_ss)) * stats_ev_nt * ring.rev_time}
+        'pot_wakes': _np.array(pot_wakes), 'time': _np.array(tim)}
+    return stats
+
+
+def merge_stats(stats_list):
+    """."""
+    stats = dict()
+    stats['avg_ss'] = _np.vstack([st['avg_ss'] for st in stats_list])
+    stats['std_ss'] = _np.vstack([st['std_ss'] for st in stats_list])
+    stats['avg_de'] = _np.vstack([st['avg_de'] for st in stats_list])
+    stats['std_de'] = _np.vstack([st['std_de'] for st in stats_list])
+    stats['pot_wakes'] = _np.vstack([st['pot_wakes'] for st in stats_list])
+    off = 0
+    tim = []
+    for st in stats_list:
+        tim.append(st['time'] + off)
+        off += st['time'][-1]
+    stats['time'] = _np.hstack(tim)
     return stats
