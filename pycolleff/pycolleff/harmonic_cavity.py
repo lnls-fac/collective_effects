@@ -1,13 +1,13 @@
 """."""
 import time as _time
 import numpy as _np
-import scipy.integrate as scy_int
+import scipy.integrate as _scy_int
 
-import mathphys
+import mathphys as _mathphys
 
-import pycolleff.impedances as imp
+import pycolleff.impedances as _imp
 
-_LSPEED = mathphys.constants.light_speed
+_LSPEED = _mathphys.constants.light_speed
 _PI = _np.pi
 
 
@@ -35,7 +35,7 @@ class HarmonicCavity:
 
     def longitudinal_impedance(self, w):
         """."""
-        return imp.longitudinal_resonator(
+        return _imp.longitudinal_resonator(
                 Rs=self.cavity_shunt_impedance,
                 Q=self.cavity_Q,
                 wr=self.cavity_ang_freq, w=w)
@@ -262,7 +262,7 @@ class LongitudinalEquilibrium:
 
         # subtract U0
         U0 = self.ring.en_lost_rad
-        pot = -scy_int.cumtrapz(
+        pot = -_scy_int.cumtrapz(
             voltage-U0, self.zgrid, initial=0)
 
         # subtract minimum value for all bunches
@@ -302,13 +302,9 @@ class LongitudinalEquilibrium:
     def get_harmonics_impedance_and_filling(self, w=None):
         """."""
         if w is None:
-            w0 = self.ring.rev_ang_freq
-            p = _np.arange(0, self.max_mode)
-            w = p*w0
-
+            w = self._create_freqs()
         h = self.ring.harm_num
         max_harm = self.max_mode//h
-        # zl_wp = self.harmcav.longitudinal_impedance(w=p*w0)
         zl_wp = self.get_total_impedance(w=w)
         fill_fft = _np.abs(_np.fft.fft(self.fillpattern))
         fill_fft = _np.tile(fill_fft, (max_harm, 1)).ravel()
@@ -320,13 +316,16 @@ class LongitudinalEquilibrium:
     def get_total_impedance(self, w=None):
         """."""
         if w is None:
-            w0 = self.ring.rev_ang_freq
-            p = _np.arange(0, self.max_mode)
-            w = p*w0
+            w = self._create_freqs()
         total_zl = _np.zeros(w.shape, dtype=_np.complex)
         for reson in self.resonators:
             total_zl += reson.longitudinal_impedance(w=w)
         return total_zl
+
+    def _create_freqs(self):
+        w0 = self.ring.rev_ang_freq
+        p = _np.arange(0, self.max_mode)
+        return p*w0
 
     def voltage_harmonic_cavity_impedance(self, dist=None):
         """."""
@@ -347,75 +346,67 @@ class LongitudinalEquilibrium:
             dist_fourier = self.distribution_fourier_transform(w=wp, dist=dist)
 
             exp_phase = _np.exp(-1j*p*zn_ph)
-            val = dist_fourier.conj()
-            beam_part = exp_phase * self.fillpattern * val
+            beam_part = exp_phase * self.fillpattern * dist_fourier.conj()
             beam_part = _np.sum(beam_part)
             beam_part = beam_part/exp_phase
-
             zl_wp = zl_wps[idx].conj() * _np.exp(1j*p*z_ph)
+            # sum over positive frequencies only -> factor 2
             voltage += 2 * zl_wp[None, :] * beam_part[:, None]
-            # impedance has dim (zgrid, )
-            # beam part has dim (h, )
-            # voltage must have dim (h, zgrid)
-            # sum over positive frequencies only
         t0b = _time.time() - t0a
         print(f'     E.T. to sum {ps.size:02d} harmonics: {t0b:.3f}s ')
         return -voltage.real
 
-    def calc_longitudinal_equilibrium(self, niter=100, tol=1e-10, beta=1):
+    def calc_longitudinal_equilibrium(self, niter=100, tol=1e-10, beta=1, m=3):
         """."""
         dists = [self.dist, ]
-        dists = self.anderson_acceleration(dists, niter, tol, beta=beta)
+        dists = self.anderson_acceleration(dists, niter, tol, beta=beta, m=m)
         dists = [self._reshape_dist(rho) for rho in dists]
         self.dist = dists[-1]
         return dists
 
     def anderson_acceleration(self, dists, niter, tol, m=3, beta=1):
         """."""
-        x0 = dists[-1].ravel()
-        x = _np.array([x0, self._ffunc(x0)])
-        g = _np.array([x[1] - x[0], self._ffunc(x[1]) - x[1]])
-        G_k = _np.array(g[1] - g[0], ndmin=2).T
-        X_k = _np.array(x[1] - x[0], ndmin=2).T
+        if beta < 0:
+            raise Exception('relaxation parameter beta must be positive.')
+
+        xold = dists[-1].ravel()
+        xnew = self._ffunc(xold)
+        dists.append(xnew)
+        g = _np.array([xnew - xold, self._ffunc(xnew) - xnew])
+        G_k = _np.array(g[-1] - g[-2], ndmin=2).T
+        X_k = _np.array(g[0], ndmin=2).T
 
         for k in range(niter):
             t0 = _time.time()
             m_k = min(k+1, m)
-            xnew = []
             gamma_k = _np.linalg.lstsq(G_k, g[-1], rcond=None)[0]
             mat = X_k + G_k
-
-            xnewi = beta * (x[-1] + g[-1] - mat @ gamma_k)
+            xold = xnew
+            xnew = beta * (xold + g[-1] - mat @ gamma_k)
             if beta != 1:
-                xnewi += (1-beta) * (x[-1] - X_k @ gamma_k)
-            xnew.append(xnewi)
-            xnew = _np.array(xnew)
-            x = _np.r_[x, xnew]
-            gnew = _np.array([self._ffunc(x[-1])-x[-1]])
-            g = _np.r_[g, gnew]
+                xnew += (1-beta) * (xold - X_k @ gamma_k)
+            dists.append(xnew)
+            gnew = self._ffunc(xnew)-xnew
+            g = _np.vstack([g[-1], gnew])
             G_k = _np.hstack([G_k, (g[-1]-g[-2])[:, None]])
-            X_k = _np.hstack([X_k, (x[-1]-x[-2])[:, None]])
-
-            self.dist = self._reshape_dist(x[-1])
+            X_k = _np.hstack([X_k, (xnew-xold)[:, None]])
 
             if X_k.shape[1] > m_k:
+                # only m previous iterations are needed
                 X_k = X_k[:, -m:]
                 G_k = G_k[:, -m:]
-                # keep the last 3 distributions only
-                # x = x[-m:]
 
-            # diff = (x[-1]-x[-2])
-            diff = (x[-1]-x[-2])/x[-2]
-            diff = self._reshape_dist(diff)
-            diff = _np.sqrt(_np.trapz(diff*diff, self.zgrid, axis=1))
-            diff = _np.max(diff)
+            diff = self._reshape_dist(gnew)
+            diff = _np.trapz(_np.abs(diff), self.zgrid, axis=1)
+            idx = _np.argmax(diff)
             tf = _time.time() - t0
             print(
-                f'Iter.: {k+1:03d}, Dist. Diff.: {diff:.3e}, E.T.: {tf:.3f}s')
-            if diff < tol:
+                f'Iter.: {k+1:03d}, Dist. Diff.: {diff[idx]:.3e}' +
+                f' (bucket {idx:03d}), E.T.: {tf:.3f}s')
+            if diff[idx] < tol:
                 print('distribution ok!')
                 break
-        return x
+        return dists
 
     def _ffunc(self, xk):
         """Haissinski operator."""
