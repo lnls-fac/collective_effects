@@ -7,7 +7,7 @@ MACHINE = -m64
 OPT_FLAG = -O4
 SOURCES_I = cppcolleff.i
 WRAPPEROBJS = cppcolleff_wrap.o
-INTERFACEOBJS = interface.o
+# INTERFACEOBJS = interface.o
 CPPCOLLEFFLIB = ../build/libcppcolleff.a
 PACKAGE = cppcolleff
 PREFIX ?=
@@ -21,7 +21,8 @@ endif
 
 PYTHON_INCLUDES := $(shell $(PYTHON)-config --includes)
 
-OBJECTS = $(WRAPPEROBJS) $(INTERFACEOBJS)
+# OBJECTS = $(WRAPPEROBJS) $(INTERFACEOBJS)
+OBJECTS = $(WRAPPEROBJS)
 
 SWIG_FLAGS= -c++ -python -threads
 GEN_FLAG  = -pthread -std=c++17 -fPIC -fopenmp
@@ -34,20 +35,21 @@ LIBS += -L../build -lcppcolleff -lblas -lfftw3 -lfftw3_omp
 INC = $(shell gsl-config --cflags)
 INC += -I../include $(PYTHON_INCLUDES)
 
-INTERFACESRCS = $(INTERFACEOBJS:.o=.cpp)
-INTERFACEHDRS = $(INTERFACEOBJS:.o=.h)
+# INTERFACESRCS = $(INTERFACEOBJS:.o=.cpp)
+# INTERFACEHDRS = $(INTERFACEOBJS:.o=.h)
 
 .NOTPARALLEL:
 
 all: cppcolleff/_cppcolleff.so
 
-$(shell $(CXX) -MM $(INTERFACESRCS) > .depend)
--include .depend
+# $(shell $(CXX) -MM $(INTERFACESRCS) > .depend)
+# -include .depend
 
 cppcolleff/_cppcolleff.so: $(CPPCOLLEFFLIB) $(OBJECTS)
 	$(CXX) $(LDFLAGS) -shared -Wl,--whole-archive -Wl,--no-as-needed $(CPPCOLLEFFLIB) -Wl,--no-whole-archive $(OBJECTS) $(LIBS) -o cppcolleff/_cppcolleff.so
 
-cppcolleff_wrap.cxx: $(SOURCES_I) $(INTERFACESRCS) $(INTERFACEHDRS)
+# cppcolleff_wrap.cxx: $(SOURCES_I) $(INTERFACESRCS) $(INTERFACEHDRS)
+cppcolleff_wrap.cxx: $(SOURCES_I)
 	$(SWIG) $(SWIG_FLAGS) $(INC) cppcolleff.i && cp -f cppcolleff.py cppcolleff
 
 install: uninstall all
@@ -67,7 +69,7 @@ develop-uninstall:
 clean:
 	-rm -rf *.o cppcolleff/*.so *_wrap.cxx cppcolleff/__pycache__ cppcolleff/cppcolleff.py cppcolleff.py build dist cppcolleff.egg-info
 
-$(INTERFACESRCS): $(INTERFACEHDRS)
+# $(INTERFACESRCS): $(INTERFACEHDRS)
 
 %.o: %.cpp
 	$(CXX) -c $(CPPFLAGS) $(INC) $< -o $@
