@@ -285,12 +285,22 @@ class Beam():
         """."""
         return int(self.de.shape[1])
 
-    def oversample_number_of_particles(self, mult_factor: int):
+    def oversample_number_of_particles(
+            self, mult_factor: int, noise_frac=0.0):
         """Increase number of particles by repeating the existing ones."""
+        mult_factor = int(mult_factor)
         if mult_factor <= 1:
             return
+        npart = self.num_part
         self.de = _np.tile(self.de, int(mult_factor))
         self.ss = _np.tile(self.ss, int(mult_factor))
+        if not _np.math.isclose(noise_frac, 0):
+            de_noise = self.de[:, :npart].std(axis=1) * noise_frac
+            ss_noise = self.ss[:, :npart].std(axis=1) * noise_frac
+            self.de[:, npart:] += de_noise[:, None] * _np.random.randn(
+                self.num_buns, npart*(mult_factor-1))
+            self.ss[:, npart:] += ss_noise[:, None] * _np.random.randn(
+                self.num_buns, npart*(mult_factor-1))
 
     def to_dict(self):
         """."""
