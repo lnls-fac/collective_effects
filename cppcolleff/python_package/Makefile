@@ -1,50 +1,76 @@
 
 #### COMPILATION OPTIONS ####
-C         = gcc
-CXX       = g++
-SWIG      = swig3.0
-PV       := $(shell python3 --version | cut -f2 --delimiter=.)
-PYTHON    = python3.$(PV)
+C = gcc
+CXX = g++
+SWIG = swig
+MACHINE = -m64
+OPT_FLAG = -O4
+SOURCES_I = cppcolleff.i
+WRAPPEROBJS = cppcolleff_wrap.o
+INTERFACEOBJS = interface.o
+CPPCOLLEFFLIB = ../build/libcppcolleff.a
+PACKAGE = cppcolleff
+PREFIX ?=
+PIP ?= pip
+PYTHON ?= python3
+ifeq ($(CONDA_PREFIX),)
+	PREFIX = sudo -H
+	PIP = pip-sirius
+	PYTHON = python-sirius
+endif
 
-MACHINE   = -m64
-OPT_FLAG  = -O4
+PYTHON_INCLUDES := $(shell $(PYTHON)-config --includes)
+
+OBJECTS = $(WRAPPEROBJS) $(INTERFACEOBJS)
+
 SWIG_FLAGS= -c++ -python -threads
 GEN_FLAG  = -pthread -std=c++17 -fPIC -fopenmp
-DFLAGS    = -DOPENMP
+DFLAGS = -DOPENMP
+CPPFLAGS = $(MACHINE) $(OPT_FLAG) $(GEN_FLAG) $(DFLAGS)
+LDFLAGS = $(MACHINE) $(GEN_FLAG) $(DFLAGS)
 
-SOURCES_I = cppcolleff.i
+LIBS = $(shell gsl-config --libs)
+LIBS += -L../build -lcppcolleff -lblas -lfftw3 -lfftw3_omp
+INC = $(shell gsl-config --cflags)
+INC += -I../include $(PYTHON_INCLUDES)
 
-WRAPPEROBJS = cppcolleff_wrap.o
-OBJECTS = $(WRAPPEROBJS)
+INTERFACESRCS = $(INTERFACEOBJS:.o=.cpp)
+INTERFACEHDRS = $(INTERFACEOBJS:.o=.h)
 
-
-COMP_FLAGS = $(MACHINE) $(OPT_FLAG) $(GEN_FLAG) $(DFLAGS)
-LDFLAGS    = $(MACHINE) $(GEN_FLAG) $(DFLAGS)
-LIBS = -lgsl -lblas -lfftw3 -lfftw3_omp -lm -L../build -lcppcolleff
-CPPCOLLEFFLIB = ../build/libcppcolleff.a
-INC = -I../include -I/usr/include/$(PYTHON) -I/usr/local/include/$(PYTHON)m
-
-SETUPARGS =
+.NOTPARALLEL:
 
 all: cppcolleff/_cppcolleff.so
+
+$(shell $(CXX) -MM $(INTERFACESRCS) > .depend)
+-include .depend
 
 cppcolleff/_cppcolleff.so: $(CPPCOLLEFFLIB) $(OBJECTS)
 	$(CXX) $(LDFLAGS) -shared -Wl,--whole-archive -Wl,--no-as-needed $(CPPCOLLEFFLIB) -Wl,--no-whole-archive $(OBJECTS) $(LIBS) -o cppcolleff/_cppcolleff.so
 
-cppcolleff_wrap.cxx: $(SOURCES_I)
+cppcolleff_wrap.cxx: $(SOURCES_I) $(INTERFACESRCS) $(INTERFACEHDRS)
 	$(SWIG) $(SWIG_FLAGS) $(INC) cppcolleff.i && cp -f cppcolleff.py cppcolleff
 
-install: all
-	$(PYTHON) setup.py install $(SETUPARGS)
+install: uninstall all
+	$(PREFIX) $(PIP) install --no-deps ./
 
-develop: all
-	$(PYTHON) setup.py develop $(SETUPARGS)
+uninstall:
+	$(PREFIX) $(PIP) uninstall -y $(PACKAGE)
+
+develop-install: develop-uninstall all
+	$(PIP) install --no-deps -e ./
+
+# known issue: It will fail to uninstall scripts
+#  if they were installed in develop mode
+develop-uninstall:
+	$(PIP) uninstall -y $(PACKAGE)
 
 clean:
 	-rm -rf *.o cppcolleff/*.so *_wrap.cxx cppcolleff/__pycache__ cppcolleff/cppcolleff.py cppcolleff.py build dist cppcolleff.egg-info
 
+$(INTERFACESRCS): $(INTERFACEHDRS)
+
 %.o: %.cpp
-	$(CXX) -c $(COMP_FLAGS) $(INC) $< -o $@
+	$(CXX) -c $(CPPFLAGS) $(INC) $< -o $@
 
 %.o: %.cxx
-	$(CXX) -c $(COMP_FLAGS) $(INC) $< -o $@
+	$(CXX) -c $(CPPFLAGS) $(INC) $< -o $@
