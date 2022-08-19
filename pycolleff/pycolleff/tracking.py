@@ -322,11 +322,34 @@ class Beam():
         self.ss = _np.take_along_axis(self.ss, idx, axis=1)
         self.de = _np.take_along_axis(self.de, idx, axis=1)
 
-    def generate_bunch(self, ring, ss_avg=0.0, de_avg=0.0):
+    @staticmethod
+    def calc_histogram(array, spos=None, nbins=50):
+        """."""
+        if spos is None:
+            bins = _np.linspace(array.min(), array.max(), nbins+1)
+        else:
+            bins = _np.linspace(spos[0], spos[-1], nbins+1)
+        bin_size = bins[1]-bins[0]
+
+        indices = (array - bins[0])/bin_size
+        indices = indices.astype(_np.intp)
+        indices += _np.arange(array.shape[0])[:, None]*nbins
+
+        hist = _np.bincount(indices.ravel(), minlength=nbins*array.shape[0])
+        hist = hist.reshape(-1, nbins)
+
+        if spos is not None:
+            hist = _np.interp(spos, bins, hist)
+        else:
+            spos = (bins[1:] + bins[:-1])/2
+        return spos, hist
+
+    def generate_bunches(self, ring, ss_avg=0.0, de_avg=0.0):
         """."""
         # Energy distribution is Gaussian
         self.de = _np.random.randn(self.num_buns, self.num_part)
         self.de *= ring.espread
+        self.de -= self.de.mean(axis=1)[:, None]
         self.de += de_avg
 
         # Draw longitudinal positions from equilibrium potential well:
