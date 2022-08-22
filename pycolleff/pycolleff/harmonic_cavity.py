@@ -162,20 +162,14 @@ class LongitudinalEquilibrium:
         """."""
         return sigmas*self.ring.bunlen*_np.linspace(-1, 1, nr_points)
 
-    def calc_first_moment(self, dist=None):
+    def calc_moments(self, dist=None):
         """."""
         if dist is None:
             dist = self.dist
-        return _np.trapz(self.zgrid[None, :]*dist, self.zgrid, axis=1)
-
-    def calc_second_moment(self, dist=None):
-        """."""
-        if dist is None:
-            dist = self.dist
-        zm = self.calc_first_moment(dist)
+        zm = _np.trapz(self.zgrid[None, :]*dist, self.zgrid, axis=1)
         zgrid2 = self.zgrid**2
         z2 = _np.trapz(zgrid2[None, :]*dist, self.zgrid, axis=1)
-        return _np.sqrt(z2 - zm**2)
+        return zm, _np.sqrt(z2 - zm**2)
 
     def gaussian_distribution(self, sigmaz, z0=0):
         """."""
