@@ -289,16 +289,30 @@ class LongitudinalEquilibrium:
         voltage = self.ring.gap_voltage*_np.sin(phase)
         return voltage
 
+    def get_total_impedance(self, w=None):
+        """."""
+        if w is None:
+            w = self._create_freqs()
+        total_zl = _np.zeros(w.shape, dtype=_np.complex)
+        for reson in self.resonators:
+            total_zl += reson.longitudinal_impedance(w=w)
+        return total_zl
+
     def get_harmonics_impedance_and_filling(self, w=None):
         """."""
         if w is None:
             w = self._create_freqs()
         h = self.ring.harm_num
         max_harm = self.max_mode//h
+        diff = self.max_mode - max_harm*h
+        if diff > 0:
+            max_harm = max_harm + 1
         zl_wp = self.get_total_impedance(w=w)
-        fill_fft = _np.abs(_np.fft.fft(self.fillpattern))
+        fill_fft = _np.fft.fft(self.fillpattern)
         fill_fft = _np.tile(fill_fft, (max_harm, 1)).ravel()
-        zl_fill = (zl_wp * fill_fft).real
+        if diff > 0:
+            fill_fft = fill_fft[:-(h-diff)]
+        zl_fill = _np.abs(zl_wp * fill_fft)
         modes = _np.where(
             zl_fill > zl_fill.max()*self.min_mode0_ratio)[0]
         return modes, zl_wp[modes]
