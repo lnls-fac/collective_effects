@@ -143,24 +143,20 @@ class LongitudinalEquilibrium:
             rf_freq=self.ring.rf_freq,
             espread=self.ring.espread,
             mom_comp=self.ring.mom_comp,
-            longitudinal_damping_time=self.ring.dampte,
             gap_voltage=self.ring.gap_voltage,
             sync_tune=self.ring.sync_tune,
             )
 
     def from_dict(self, dic):
         """."""
-        self.use_gaussian_noise = dic['use_gaussian_noise']
         self.energy = dic['energy']
-        self.u0 = dic['u0']
+        self.en_lost_rad = dic['en_lost_rad']
         self.harm_num = dic['harm_num']
         self.rf_freq = dic['rf_freq']
         self.espread = dic['espread']
         self.mom_comp = dic['mom_comp']
-        self.damping_number = dic['damping_number']
-        self.cav_pos = dic['cav_pos']
-        self._cav_vgap = dic['cav_vgap']
-        self.cav_volt_norm = dic['cav_volt_norm']
+        self.gap_voltage = dic['gap_voltage']
+        self.sync_tune = dic['sync_tune']
 
     def create_zgrid(self, nr_points=1001, sigmas=30):
         """."""
