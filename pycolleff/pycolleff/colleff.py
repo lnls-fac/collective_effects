@@ -109,6 +109,60 @@ class Ring:
             'Bunch Length [mm]', self.bunlen*1e3)
         return string
 
+    def to_dict(self):
+        """Save state to dictionary."""
+        return dict(
+            version=self.version,
+            energy=self.energy,
+            rf_freq=self.rf_freq,
+            harm_num=self.harm_num,
+            mom_comp=self.mom_comp,
+            tunex=self.tunex,
+            tuney=self.tuney,
+            chromx=self.chromx,
+            chromy=self.chromy,
+            num_bun=self.num_bun,
+            total_current=self.total_current,
+            sync_tune=self.sync_tune,
+            espread=self.espread,
+            bunlen=self.bunlen,
+            damptx=self.damptx,
+            dampty=self.dampty,
+            dampte=self.dampte,
+            en_lost_rad=self.en_lost_rad,
+            gap_voltage=self.gap_voltage)
+
+    def from_dict(self, dic):
+        """Load state from dictionary."""
+        self.version = dic.get('version', self.version)
+        self.energy = dic.get('energy', self.energy)
+        self.rf_freq = dic.get('rf_freq', self.rf_freq)
+        self.harm_num = dic.get('harm_num', self.harm_num)
+        self.mom_comp = dic.get('mom_comp', self.mom_comp)
+        self.tunex = dic.get('tunex', self.tunex)
+        self.tuney = dic.get('tuney', self.tuney)
+        self.chromx = dic.get('chromx', self.chromx)
+        self.chromy = dic.get('chromy', self.chromy)
+        self.num_bun = dic.get('num_bun', self.num_bun)
+        self.total_current = dic.get('total_current', self.total_current)
+        self.sync_tune = dic.get('sync_tune', self.sync_tune)
+        self.espread = dic.get('espread', self.espread)
+        self.bunlen = dic.get('bunlen', self.bunlen)
+        self.damptx = dic.get('damptx', self.damptx)
+        self.dampty = dic.get('dampty', self.dampty)
+        self.dampte = dic.get('dampte', self.dampte)
+        self.en_lost_rad = dic.get('en_lost_rad', self.en_lost_rad)
+        self.gap_voltage = dic.get('gap_voltage', self.gap_voltage)
+
+    def get_voltage_waveform(self, zgrid, sync_phase=None):
+        """."""
+        wrf = 2*_np.pi*self.rf_freq
+        phase0 = sync_phase or self.sync_phase
+        phase = wrf * zgrid / _LSPEED
+        phase += phase0
+        voltage = self.gap_voltage*_np.sin(phase)
+        return voltage
+
     def budget_summary(self, budget):
         """."""
         props = ['lsf', 'zln', 'pls', 'kdx', 'kdy', 'kqx', 'kqy',

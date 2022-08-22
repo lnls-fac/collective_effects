@@ -1,69 +1,57 @@
 """."""
 import time as _time
+
 import numpy as _np
 import scipy.integrate as _scy_int
 
-import mathphys as _mathphys
+from mathphys.constants import light_speed as _LSPEED
 
-import pycolleff.impedances as _imp
+from . import impedances as _imp
+from .colleff import Ring as _Ring
 
-_LSPEED = _mathphys.constants.light_speed
 _PI = _np.pi
 
 
-class HarmonicCavity:
+class Resonator:
     """."""
 
-    def __init__(self):
+    def __init__(self, Rs=0, Q=0, ang_freq=0, harm_rf=3):
         """."""
-        self.cavity_harm_num = None
-        self.cavity_Q = None
-        self.cavity_shunt_impedance = None
+        self.ang_freq = ang_freq
+        self.Q = Q
+        self.shunt_impedance = Rs
 
-        # SSRF 3HC
-        # self.cavity_Q = 4.0e8
-        # self.cavity_shunt_impedance = 90*self.cavity_Q
-        # self.rf_freq = rf_freq or si.create_ring().rf_freq
+        self.harm_rf = harm_rf
+        self.ang_freq_rf = 0
 
-        # MAX-IV 3HC
-        # self.cavity_Q = 20800
-        # self.cavity_shunt_impedance = 8.25e6
-        # self.rf_freq = rf_freq or maxiv.create_ring().rf_freq
-
-        self.wrf = None
-        self.cavity_ang_freq = None
-
-    def longitudinal_impedance(self, w):
+    def get_impedance(self, w):
         """."""
         return _imp.longitudinal_resonator(
-                Rs=self.cavity_shunt_impedance,
-                Q=self.cavity_Q,
-                wr=self.cavity_ang_freq, w=w)
+            Rs=self.shunt_impedance, Q=self.Q, wr=self.ang_freq, w=w)
 
     @property
     def RoverQ(self):
         """."""
-        return self.cavity_shunt_impedance/self.cavity_Q
+        return self.shunt_impedance/self.Q
 
     @property
     def detune_w(self):
         """."""
-        return self.cavity_ang_freq-self.cavity_harm_num*self.wrf
+        return self.ang_freq - self.harm_rf*self.ang_freq_rf
 
     @detune_w.setter
     def detune_w(self, value):
         """."""
-        wrf = 2*_PI*self.rf_freq
-        wr = self.cavity_harm_num*wrf + value
-        self.cavity_ang_freq = wr
+        wr = self.harm_rf*self.ang_freq_rf + value
+        self.ang_freq = wr
 
     @property
     def detune_angle(self):
         """."""
-        Q = self.cavity_Q
-        nharm = self.cavity_harm_num
-        wrf = 2*_PI*self.rf_freq
-        wr = self.cavity_ang_freq
+        Q = self.Q
+        nharm = self.harm_rf
+        wrf = self.ang_freq_rf
+        wr = self.ang_freq
         if wr == 0:
             raise Exception('wr cannot be zero!')
         if wrf == 0:
@@ -74,20 +62,36 @@ class HarmonicCavity:
 
     @detune_angle.setter
     def detune_angle(self, value):
-        Q = self.cavity_Q
-        nharm = self.cavity_harm_num
-        wrf = 2*_PI*self.rf_freq
+        Q = self.Q
+        nharm = self.harm_rf
+        wrf = self.ang_freq_rf
 
         delta = _np.tan(value)/2/Q
-        self.cavity_ang_freq = nharm*wrf*(delta + (1+delta**2)**(1/2))
+        self.ang_freq = nharm*wrf*(delta + (1+delta**2)**(1/2))
+
+    def to_dict(self):
+        """Save state to dictionary."""
+        return dict(
+            ang_freq=self.ang_freq,
+            Q=self.Q,
+            shunt_impedance=self.shunt_impedance,
+            harm_rf=self.harm_rf,
+            ang_freq_rf=self.ang_freq_rf)
+
+    def from_dict(self, dic):
+        """Load state from dictionary."""
+        self.ang_freq = dic.get('ang_freq', self.ang_freq)
+        self.Q = dic.get('Q', self.Q)
+        self.shunt_impedance = dic.get('shunt_impedance', self.shunt_impedance)
+        self.harm_rf = dic.get('harm_rf', self.harm_rf)
+        self.ang_freq_rf = dic.get('ang_freq_rf', self.ang_freq_rf)
 
 
 class LongitudinalEquilibrium:
     """."""
 
     def __init__(
-            self, ring,
-            resonators, fillpattern=_np.array([])):
+            self, ring: _Ring, resonators: list, fillpattern=None):
         """."""
         self.ring = ring
         self.resonators = resonators
@@ -99,7 +103,6 @@ class LongitudinalEquilibrium:
         self.min_mode0_ratio = 1e-9
         self.fillpattern = fillpattern
         self.zgrid = self.create_zgrid()
-        self.main_voltage = self.voltage_main_cavity()
 
     @property
     def max_mode(self):
@@ -121,9 +124,7 @@ class LongitudinalEquilibrium:
     @zgrid.setter
     def zgrid(self, value):
         self._zgrid = value
-        main_voltage = self.voltage_main_cavity()
-        self.main_voltage = main_voltage
-        self.dist = self.calc_distribution_from_voltage(main_voltage)
+        self.main_voltage = self.ring.get_voltage_waveform(self._zgrid)
 
     @property
     def main_voltage(self):
@@ -132,53 +133,11 @@ class LongitudinalEquilibrium:
 
     @main_voltage.setter
     def main_voltage(self, value):
+        if value.shape[-1] != self._zgrid.shape[0]:
+            raise ValueError('Wrong shape for voltage.')
         self._main_voltage = value
-
-    def to_dict(self):
-        """."""
-        return dict(
-            energy=self.ring.energy,
-            en_lost_rad=self.ring.en_lost_rad,
-            harm_num=self.ring.harm_num,
-            rf_freq=self.ring.rf_freq,
-            espread=self.ring.espread,
-            mom_comp=self.ring.mom_comp,
-            gap_voltage=self.ring.gap_voltage,
-            sync_tune=self.ring.sync_tune,
-            )
-
-    def from_dict(self, dic):
-        """."""
-        self.energy = dic['energy']
-        self.en_lost_rad = dic['en_lost_rad']
-        self.harm_num = dic['harm_num']
-        self.rf_freq = dic['rf_freq']
-        self.espread = dic['espread']
-        self.mom_comp = dic['mom_comp']
-        self.gap_voltage = dic['gap_voltage']
-        self.sync_tune = dic['sync_tune']
-
-    def create_zgrid(self, nr_points=1001, sigmas=30):
-        """."""
-        return sigmas*self.ring.bunlen*_np.linspace(-1, 1, nr_points)
-
-    def calc_moments(self, dist=None):
-        """."""
-        if dist is None:
-            dist = self.dist
-        zm = _np.trapz(self.zgrid[None, :]*dist, self.zgrid, axis=1)
-        zgrid2 = self.zgrid**2
-        z2 = _np.trapz(zgrid2[None, :]*dist, self.zgrid, axis=1)
-        return zm, _np.sqrt(z2 - zm**2)
-
-    def gaussian_distribution(self, sigmaz, z0=0):
-        """."""
-        arg = (self.zgrid - z0)/sigmaz
-        dist = _np.exp(-arg**2/2)
-        norm = _np.trapz(dist, self.zgrid)
-        dist = dist/norm
-        dist = _np.tile(dist, (self.ring.harm_num, 1))
-        return dist
+        self.distributions = self.calc_distributions_from_voltage(
+            self._main_voltage)
 
     @property
     def fillpattern(self):
@@ -187,6 +146,8 @@ class LongitudinalEquilibrium:
 
     @fillpattern.setter
     def fillpattern(self, value):
+        if value.size != self.ring.harm_num:
+            raise ValueError('Wrong size for fillparttern.')
         self._fillpattern = value
 
     @property
@@ -196,53 +157,99 @@ class LongitudinalEquilibrium:
         return idx
 
     @property
-    def dist(self):
+    def distributions(self):
         """."""
         return self._dist
 
-    @dist.setter
-    def dist(self, value):
+    @distributions.setter
+    def distributions(self, value):
+        if value.ndim != 2:
+            raise ValueError('Distributions must have 2 dimensions.')
+        elif value.shape[0] != self.ring.harm_num:
+            raise ValueError('First dimension must be equal ring.harm_num.')
+        elif value.shape[1] != self._zgrid.size:
+            raise ValueError('Second dimension must be equal zgrid.size.')
         self._dist = value
 
-    def harmonic_voltage_for_flat_potential(self):
+    def to_dict(self):
+        """Save state to dictionary."""
+        return dict(
+            ring=self.ring.to_dict(),
+            resonators=[res.to_dict() for res in self.resonators],
+            zgrid=self._zgrid,
+            dist=self._dist,
+            fillpatern=self._fillpattern,
+            main_voltage=self._main_voltage,
+            max_mode=self.max_mode,
+            min_mode0_ratio=self.min_mode0_ratio)
+
+    def from_dict(self, dic):
+        """Load state from dictionary."""
+        self.ring.from_dict(dic.get('ring', dict()))
+        resons = []
+        for res in dic.get('resonators', self.resonators):
+            re = Resonator()
+            re.from_dict(res)
+            resons.append(re)
+        self.resonators = resons
+        self._zgrid = dic.get('zgrid', self._zgrid)
+        self._dist = dic.get('dist', self._dist)
+        self._fillpattern = dic.get('fillpattern', self._fillpattern)
+        self._main_voltage = dic.get('main_voltage', self._main_voltage)
+        self.max_mode = dic.get('max_mode', self.max_mode)
+        self.min_mode0_ratio = dic.get('min_mode0_ratio', self.min_mode0_ratio)
+
+    def create_zgrid(self, nr_points=1001, sigmas=30):
         """."""
-        nharm = self.resonators[0].cavity_harm_num
+        return sigmas*self.ring.bunlen*_np.linspace(-1, 1, nr_points)
+
+    def calc_moments(self, dist=None):
+        """."""
+        if dist is None:
+            dist = self.distributions
+        zm = _np.trapz(self.zgrid[None, :]*dist, self.zgrid, axis=1)
+        zgrid2 = self.zgrid**2
+        z2 = _np.trapz(zgrid2[None, :]*dist, self.zgrid, axis=1)
+        return zm, _np.sqrt(z2 - zm**2)
+
+    def get_gaussian_distributions(self, sigmaz, z0=0):
+        """."""
+        arg = (self.zgrid - z0)/sigmaz
+        dist = _np.exp(-arg**2/2)
+        norm = _np.trapz(dist, self.zgrid)
+        dist = dist/norm
+        dist = _np.tile(dist, (self.ring.harm_num, 1))
+        return dist
+
+    def calc_harmonic_voltage_for_flat_potential(self, harm_rf=3):
+        """."""
         U0 = self.ring.en_lost_rad
         Vrf = self.ring.gap_voltage
-        kharm = 1/nharm**2 - ((U0/Vrf)**2)/(nharm**2-1)
+        kharm = 1/harm_rf**2 - ((U0/Vrf)**2)/(harm_rf**2-1)
         return kharm**(1/2)
 
-    def detune_for_fixed_harmonic_voltage(self, peak_harm_volt):
+    def calc_detune_for_fixed_harmonic_voltage(
+            self, peak_harm_volt, harm_rf=3, Rs=0):
         """."""
-        Rs = self.resonators[0].cavity_shunt_impedance
         I0 = _np.sum(self.fillpattern)
-        # <<< WARNING >>>
-        # This way of including the form factor is temporary
-        ib = 2*I0*_np.mean(_np.abs(self.form_factor))
+        # TODO: This way of including the form factor is temporary. Fix it.
+        wr = 2 * _PI * self.ring.rf_freq * harm_rf
+        form_factor = self.calc_fourier_transform(wr)
+        ib = 2 * I0 * _np.abs(form_factor).mean()
         arg = peak_harm_volt/ib/Rs
         return _np.arccos(arg)
 
-    def harmonic_voltage_for_fixed_detune(self, detune):
+    def calc_harmonic_voltage_for_fixed_detune(self, detune, harm_rf=3, Rs=0):
         """."""
-        Rs = self.resonators[0].cavity_shunt_impedance
         I0 = _np.sum(self.fillpattern)
-        # <<< WARNING >>>
-        # This way of including the form factor is temporary
-        ib = 2*I0*_np.mean(_np.abs(self.form_factor))
-        peak_harm_volt = Rs*ib*_np.cos(detune)
+        # TODO: This way of including the form factor is temporary. Fix it.
+        wr = 2 * _PI * self.ring.rf_freq * harm_rf
+        form_factor = self.calc_fourier_transform(wr)
+        ib = 2 * I0 * _np.abs(form_factor).mean()
+        peak_harm_volt = Rs * ib * _np.cos(detune)
         return _np.abs(peak_harm_volt)
 
-    @property
-    def form_factor(self):
-        """."""
-        wrf = 2*_PI*self.ring.rf_freq
-        w = self.resonators[0].cavity_harm_num*wrf
-        arg = self.dist*_np.exp(1j*w*self.zgrid/_LSPEED)[None, :]
-        factor = _np.trapz(arg, self.zgrid, axis=1)
-        norm = _np.trapz(self.dist, self.zgrid, axis=1)
-        return factor/norm
-
-    def calc_distribution_from_voltage(self, voltage):
+    def calc_distributions_from_voltage(self, voltage):
         """."""
         flag = False
         if len(voltage.shape) < 2:
@@ -252,8 +259,7 @@ class LongitudinalEquilibrium:
 
         # subtract U0
         U0 = self.ring.en_lost_rad
-        pot = -_scy_int.cumtrapz(
-            voltage-U0, self.zgrid, initial=0)
+        pot = -_scy_int.cumtrapz(voltage-U0, self.zgrid, initial=0)
 
         # subtract minimum value for all bunches
         pot -= _np.min(pot, axis=1)[:, None]
@@ -271,31 +277,20 @@ class LongitudinalEquilibrium:
         # distribution must be normalized
         return dist/norm[:, None]
 
-    def distribution_fourier_transform(self, w, dist=None):
+    def calc_fourier_transform(self, w, dist=None):
         """."""
         if dist is None:
-            dist = self.dist
+            dist = self.distributions
         arg = dist*_np.exp(1j*w*self.zgrid/_LSPEED)[None, :]
         return _np.trapz(arg, self.zgrid, axis=1)
 
-    def voltage_main_cavity(self, z=None, sync_phase=None):
-        """."""
-        wrf = 2*_PI*self.ring.rf_freq
-        phase0 = sync_phase or self.ring.sync_phase
-        if z is None:
-            z = self.zgrid
-        phase = wrf*z/_LSPEED
-        phase += phase0
-        voltage = self.ring.gap_voltage*_np.sin(phase)
-        return voltage
-
-    def get_total_impedance(self, w=None):
+    def get_impedance(self, w=None):
         """."""
         if w is None:
             w = self._create_freqs()
         total_zl = _np.zeros(w.shape, dtype=_np.complex)
         for reson in self.resonators:
-            total_zl += reson.longitudinal_impedance(w=w)
+            total_zl += reson.get_impedance(w=w)
         return total_zl
 
     def get_harmonics_impedance_and_filling(self, w=None):
@@ -307,7 +302,7 @@ class LongitudinalEquilibrium:
         diff = self.max_mode - max_harm*h
         if diff > 0:
             max_harm = max_harm + 1
-        zl_wp = self.get_total_impedance(w=w)
+        zl_wp = self.get_impedance(w=w)
         fill_fft = _np.fft.fft(self.fillpattern)
         fill_fft = _np.tile(fill_fft, (max_harm, 1)).ravel()
         if diff > 0:
@@ -317,10 +312,10 @@ class LongitudinalEquilibrium:
             zl_fill > zl_fill.max()*self.min_mode0_ratio)[0]
         return modes, zl_wp[modes]
 
-    def voltage_harmonic_cavity_impedance(self, dist=None):
+    def calc_voltage_harmonic_cavity_impedance(self, dist=None):
         """."""
         if dist is None:
-            dist = self.dist
+            dist = self.distributions
         w0 = self.ring.rev_ang_freq
         voltage = _np.zeros(
             (self.ring.harm_num, self.zgrid.size), dtype=_np.complex)
@@ -333,7 +328,7 @@ class LongitudinalEquilibrium:
         t0a = _time.time()
         for idx, p in enumerate(ps):
             wp = p * w0
-            dist_fourier = self.distribution_fourier_transform(w=wp, dist=dist)
+            dist_fourier = self.calc_fourier_transform(w=wp, dist=dist)
 
             exp_phase = _np.exp(-1j*p*zn_ph)
             beam_part = exp_phase * self.fillpattern * dist_fourier.conj()
@@ -348,13 +343,61 @@ class LongitudinalEquilibrium:
 
     def calc_longitudinal_equilibrium(self, niter=100, tol=1e-10, beta=1, m=3):
         """."""
-        dists = [self.dist, ]
-        dists = self.anderson_acceleration(dists, niter, tol, beta=beta, m=m)
+        dists = [self.distributions, ]
+        dists = self._apply_anderson_acceleration(
+            dists, niter, tol, beta=beta, m=m)
         dists = [self._reshape_dist(rho) for rho in dists]
-        self.dist = dists[-1]
+        self.distributions = dists[-1]
         return dists
 
-    def anderson_acceleration(self, dists, niter, tol, m=3, beta=1):
+    def calc_robinson_growth_rate(
+            self, w, approx=False, wr=None, Rs=None, Q=None):
+        """."""
+        alpha = self.ring.mom_comp
+        I0 = self.ring.total_current
+        E0 = self.ring.energy
+        w0 = self.ring.rev_ang_freq
+        ws = self.ring.sync_tune * w0
+        wp = w + ws
+        wn = w - ws
+        const = I0*alpha*w0/(4*_PI*ws*E0)
+        if approx and None not in {wr, Rs, Q}:
+            x = w/wr
+            const_approx = const*4*ws
+            growth = const_approx
+            growth *= Rs*Q**2
+            growth *= (1-x**2)*(1 + x**2)
+            growth /= x**4 * (1 + Q**2 * (1/x - x)**2)**2
+        else:
+            Zlp = self.get_impedance(w=wp)
+            Zln = self.get_impedance(w=wn)
+            growth = const*(wp*Zlp.real - wn*Zln.real)
+        return growth
+
+    def calc_tuneshifts_cbi(self, w, m=1, nbun_fill=None, radiation=False):
+        """."""
+        ring = self.ring
+        num_bun = ring.num_bun
+        dampte = ring.dampte
+
+        ring.num_bun = nbun_fill if nbun_fill is not None else ring.harm_num
+        if not radiation:
+            ring.dampte = _np.inf
+
+        total_zl = self.get_impedance(w=w)
+
+        deltaw, wp, interpol_Z, spectrum = ring.longitudinal_cbi(
+            w=w, Zl=total_zl, m=m, inverse=False, full=True)
+
+        # Relative tune-shifts must be multiplied by ws
+        deltaw *= (ring.sync_tune * ring.rev_ang_freq)
+
+        ring.num_bun = num_bun
+        ring.dampte = dampte
+        return deltaw, total_zl, wp, interpol_Z, spectrum
+
+    # -------------------- auxiliary methods ----------------------------------
+    def _apply_anderson_acceleration(self, dists, niter, tol, m=3, beta=1):
         """."""
         if beta < 0:
             raise Exception('relaxation parameter beta must be positive.')
@@ -398,55 +441,6 @@ class LongitudinalEquilibrium:
                 break
         return dists
 
-    def calc_robinson_growth_rate(self, w, wr, approx=False):
-        """."""
-        alpha = self.ring.mom_comp
-        I0 = self.ring.total_current
-        E0 = self.ring.energy
-        Rs = self.resonators[0].cavity_shunt_impedance
-        Q = self.resonators[0].cavity_Q
-        w0 = self.ring.rev_ang_freq
-        ws = self.ring.sync_tune * w0
-        wp = w + ws
-        wn = w - ws
-        const = I0*alpha*w0/(4*_PI*ws*E0)
-        if approx:
-            x = w/wr
-            const_approx = const*4*ws
-            growth = const_approx
-            growth *= Rs*Q**2
-            growth *= (1-x**2)*(1 + x**2)
-            growth /= x**4 * (1 + Q**2 * (1/x - x)**2)**2
-        else:
-            Zlp = self.get_total_impedance(w=wp)
-            Zln = self.get_total_impedance(w=wn)
-            growth = const*(wp*Zlp.real - wn*Zln.real)
-        return growth
-
-    def calc_tuneshifts_cbi(self, w, m=1, nbun_fill=None, radiation=False):
-        """."""
-        ring = self.ring
-        num_bun = ring.num_bun
-        dampte = ring.dampte
-
-        ring.num_bun = nbun_fill if nbun_fill is not None else ring.harm_num
-        if not radiation:
-            ring.dampte = _np.inf
-
-        total_zl = self.get_total_impedance(w=w)
-
-        deltaw, wp, interpol_Z, spectrum = ring.longitudinal_cbi(
-            w=w, Zl=total_zl, m=m, inverse=False, full=True)
-
-        # Relative tune-shifts must be multiplied by ws
-        deltaw *= (ring.sync_tune * ring.rev_ang_freq)
-
-        ring.num_bun = num_bun
-        ring.dampte = dampte
-        return deltaw, total_zl, wp, interpol_Z, spectrum
-
-    # private methods
-
     def _create_freqs(self):
         w0 = self.ring.rev_ang_freq
         p = _np.arange(0, self.max_mode)
@@ -455,9 +449,9 @@ class LongitudinalEquilibrium:
     def _ffunc(self, xk):
         """Haissinski operator."""
         xk = self._reshape_dist(xk)
-        hvolt = self.voltage_harmonic_cavity_impedance(dist=xk)
+        hvolt = self.calc_voltage_harmonic_cavity_impedance(dist=xk)
         tvolt = self.main_voltage[None, :] + hvolt
-        fxk = self.calc_distribution_from_voltage(tvolt)
+        fxk = self.calc_distributions_from_voltage(tvolt)
         return fxk.ravel()
 
     def _reshape_dist(self, dist):
