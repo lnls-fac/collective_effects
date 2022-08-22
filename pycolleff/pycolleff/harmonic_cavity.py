@@ -317,20 +317,6 @@ class LongitudinalEquilibrium:
             zl_fill > zl_fill.max()*self.min_mode0_ratio)[0]
         return modes, zl_wp[modes]
 
-    def get_total_impedance(self, w=None):
-        """."""
-        if w is None:
-            w = self._create_freqs()
-        total_zl = _np.zeros(w.shape, dtype=_np.complex)
-        for reson in self.resonators:
-            total_zl += reson.longitudinal_impedance(w=w)
-        return total_zl
-
-    def _create_freqs(self):
-        w0 = self.ring.rev_ang_freq
-        p = _np.arange(0, self.max_mode)
-        return p*w0
-
     def voltage_harmonic_cavity_impedance(self, dist=None):
         """."""
         if dist is None:
@@ -412,17 +398,6 @@ class LongitudinalEquilibrium:
                 break
         return dists
 
-    def _ffunc(self, xk):
-        """Haissinski operator."""
-        xk = self._reshape_dist(xk)
-        hvolt = self.voltage_harmonic_cavity_impedance(dist=xk)
-        tvolt = self.main_voltage[None, :] + hvolt
-        fxk = self.calc_distribution_from_voltage(tvolt)
-        return fxk.ravel()
-
-    def _reshape_dist(self, dist):
-        return dist.reshape((self.ring.harm_num, self.zgrid.size))
-
     def calc_robinson_growth_rate(self, w, wr, approx=False):
         """."""
         alpha = self.ring.mom_comp
@@ -443,10 +418,10 @@ class LongitudinalEquilibrium:
             growth *= (1-x**2)*(1 + x**2)
             growth /= x**4 * (1 + Q**2 * (1/x - x)**2)**2
         else:
-            Zlp = self.resonators[0].longitudinal_impedance(w=wp)
-            Zln = self.resonators[0].longitudinal_impedance(w=wn)
+            Zlp = self.get_total_impedance(w=wp)
+            Zln = self.get_total_impedance(w=wn)
             growth = const*(wp*Zlp.real - wn*Zln.real)
-        return growth - 1/self.ring.dampte
+        return growth
 
     def calc_tuneshifts_cbi(self, w, m=1, nbun_fill=None, radiation=False):
         """."""
@@ -458,15 +433,32 @@ class LongitudinalEquilibrium:
         if not radiation:
             ring.dampte = _np.inf
 
-        Zl = self.resonators[0].longitudinal_impedance(w=w)
+        total_zl = self.get_total_impedance(w=w)
 
         deltaw, wp, interpol_Z, spectrum = ring.longitudinal_cbi(
-            w=w, Zl=Zl, m=m, inverse=False, full=True)
+            w=w, Zl=total_zl, m=m, inverse=False, full=True)
 
         # Relative tune-shifts must be multiplied by ws
         deltaw *= (ring.sync_tune * ring.rev_ang_freq)
 
         ring.num_bun = num_bun
         ring.dampte = dampte
+        return deltaw, total_zl, wp, interpol_Z, spectrum
 
-        return deltaw, Zl, wp, interpol_Z, spectrum
+    # private methods
+
+    def _create_freqs(self):
+        w0 = self.ring.rev_ang_freq
+        p = _np.arange(0, self.max_mode)
+        return p*w0
+
+    def _ffunc(self, xk):
+        """Haissinski operator."""
+        xk = self._reshape_dist(xk)
+        hvolt = self.voltage_harmonic_cavity_impedance(dist=xk)
+        tvolt = self.main_voltage[None, :] + hvolt
+        fxk = self.calc_distribution_from_voltage(tvolt)
+        return fxk.ravel()
+
+    def _reshape_dist(self, dist):
+        return dist.reshape((self.ring.harm_num, self.zgrid.size))
