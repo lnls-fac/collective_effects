@@ -292,8 +292,8 @@ class Beam():
         if mult_factor <= 1:
             return
         npart = self.num_part
-        self.de = _np.tile(self.de, int(mult_factor))
-        self.ss = _np.tile(self.ss, int(mult_factor))
+        self.de = _np.tile(self.de, mult_factor)
+        self.ss = _np.tile(self.ss, mult_factor)
         if not _np.math.isclose(noise_frac, 0):
             de_noise = self.de[:, :npart].std(axis=1) * noise_frac
             ss_noise = self.ss[:, :npart].std(axis=1) * noise_frac

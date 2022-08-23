@@ -111,10 +111,7 @@ class LongitudinalEquilibrium:
 
     @max_mode.setter
     def max_mode(self, value):
-        if value % self.ring.harm_num:
-            raise Exception('mode must be a multiple of harmonic number!')
-        else:
-            self._max_mode = value
+        self._max_mode = value
 
     @property
     def zgrid(self):
@@ -203,13 +200,12 @@ class LongitudinalEquilibrium:
         """."""
         return sigmas*self.ring.bunlen*_np.linspace(-1, 1, nr_points)
 
-    def calc_moments(self, dist=None):
+    @staticmethod
+    def calc_moments(zgrid, dist):
         """."""
-        if dist is None:
-            dist = self.distributions
-        zm = _np.trapz(self.zgrid[None, :]*dist, self.zgrid, axis=1)
-        zgrid2 = self.zgrid**2
-        z2 = _np.trapz(zgrid2[None, :]*dist, self.zgrid, axis=1)
+        zm = _np.trapz(zgrid[None, :]*dist, zgrid, axis=1)
+        zgrid2 = zgrid**2
+        z2 = _np.trapz(zgrid2[None, :]*dist, zgrid, axis=1)
         return zm, _np.sqrt(z2 - zm**2)
 
     def get_gaussian_distributions(self, sigmaz, z0=0):
@@ -338,10 +334,11 @@ class LongitudinalEquilibrium:
             # sum over positive frequencies only -> factor 2
             voltage += 2 * zl_wp[None, :] * beam_part[:, None]
         t0b = _time.time() - t0a
-        print(f'     E.T. to sum {ps.size:02d} harmonics: {t0b:.3f}s ')
+        # print(f'     E.T. to sum {ps.size:02d} harmonics: {t0b:.3f}s ')
         return -voltage.real
 
-    def calc_longitudinal_equilibrium(self, niter=100, tol=1e-10, beta=1, m=3):
+    def calc_longitudinal_equilibrium(
+            self, niter=100, tol=1e-10, beta=1, m=3, print_flag=True):
         """."""
         dists = [self.distributions, ]
         dists = self._apply_anderson_acceleration(
@@ -433,11 +430,13 @@ class LongitudinalEquilibrium:
             diff = _np.trapz(_np.abs(diff), self.zgrid, axis=1)
             idx = _np.argmax(diff)
             tf = _time.time() - t0
-            print(
-                f'Iter.: {k+1:03d}, Dist. Diff.: {diff[idx]:.3e}' +
-                f' (bucket {idx:03d}), E.T.: {tf:.3f}s')
+            if print_flag:
+                print(
+                    f'Iter.: {k+1:03d}, Dist. Diff.: {diff[idx]:.3e}' +
+                    f' (bucket {idx:03d}), E.T.: {tf:.3f}s')
             if diff[idx] < tol:
-                print('distribution ok!')
+                if print_flag:
+                    print('distribution ok!')
                 break
         return dists
 
