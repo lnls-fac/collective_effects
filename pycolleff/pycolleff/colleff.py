@@ -763,7 +763,7 @@ class Ring:
             modecoup_matrix = self._calc_vlasov(
                 Zl_wp, wp, bunlen, max_azi, max_rad)
         # Calculate the current independent diagonal matrix:
-        ms = _np.arange(-max_azi, max_rad+1)
+        ms = _np.arange(-max_azi, max_azi+1)
         D = _np.einsum('mn,kl->mknl', _np.diag(ms), _np.eye(max_rad+1))
         D = self._reshape_coupling_matrix(D)
 
