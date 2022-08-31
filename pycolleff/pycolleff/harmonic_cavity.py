@@ -240,7 +240,7 @@ class LongitudinalEquilibrium:
         I0 = _np.sum(self.fillpattern)
         # TODO: This way of including the form factor is temporary. Fix it.
         wr = 2 * _PI * self.ring.rf_freq * harm_rf
-        form_factor = self.calc_fourier_transform(wr)
+        form_factor = self.calc_fourier_transform(wr)[self.filled_buckets]
         ib = 2 * I0 * _np.abs(form_factor).mean()
         arg = peak_harm_volt/ib/Rs
         return _np.arccos(arg)
@@ -250,7 +250,7 @@ class LongitudinalEquilibrium:
         I0 = _np.sum(self.fillpattern)
         # TODO: This way of including the form factor is temporary. Fix it.
         wr = 2 * _PI * self.ring.rf_freq * harm_rf
-        form_factor = self.calc_fourier_transform(wr)
+        form_factor = self.calc_fourier_transform(wr)[self.filled_buckets]
         ib = 2 * I0 * _np.abs(form_factor).mean()
         peak_harm_volt = Rs * ib * _np.cos(detune)
         return _np.abs(peak_harm_volt)
@@ -281,7 +281,7 @@ class LongitudinalEquilibrium:
         if flag:
             dist = _np.tile(dist, (self.ring.harm_num, 1))
         # distribution must be normalized
-        return dist/norm[:, None]
+        return dist/norm[:, None], pot
 
     def calc_fourier_transform(self, w, dist=None):
         """."""
@@ -462,7 +462,7 @@ class LongitudinalEquilibrium:
         xk = self._reshape_dist(xk)
         hvolt = self.calc_voltage_harmonic_cavity_impedance(dist=xk)
         tvolt = self.main_voltage[None, :] + hvolt
-        fxk = self.calc_distributions_from_voltage(tvolt)
+        fxk, _ = self.calc_distributions_from_voltage(tvolt)
         return fxk.ravel()
 
     def _reshape_dist(self, dist):
