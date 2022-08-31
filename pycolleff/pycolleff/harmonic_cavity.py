@@ -383,7 +383,8 @@ class LongitudinalEquilibrium:
             growth = const*(wp*Zlp.real - wn*Zln.real)
         return growth
 
-    def calc_tuneshifts_cbi(self, w, m=1, nbun_fill=None, radiation=False):
+    def calc_tuneshifts_cbi(
+            self, w, m=1, nbun_fill=None, radiation=False):
         """."""
         ring = self.ring
         num_bun = ring.num_bun
@@ -393,17 +394,49 @@ class LongitudinalEquilibrium:
         if not radiation:
             ring.dampte = _np.inf
 
-        total_zl = self.get_impedance(w=w)
+        if _np.array(w).size == 2:
+            # Automatically sample the impedance at revolution harmonics,
+            # only the min and max frequencies are required: w = [w_min, w_max]
+            Zl = self.get_impedance
+        else:
+            Zl = self.get_impedance(w=w)
 
         deltaw, wp, interpol_Z, spectrum = ring.longitudinal_cbi(
-            w=w, Zl=total_zl, m=m, inverse=False, full=True)
+            w=w, Zl=Zl, m=m, inverse=False, full=True)
 
         # Relative tune-shifts must be multiplied by ws
         deltaw *= (ring.sync_tune * ring.rev_ang_freq)
 
         ring.num_bun = num_bun
         ring.dampte = dampte
-        return deltaw, total_zl, wp, interpol_Z, spectrum
+        return deltaw, Zl, wp, interpol_Z, spectrum
+
+    def calc_mode_coupling(
+            self, w, cbmode, max_azi=10, max_rad=12, nbun_fill=None,
+            modecoup_matrix=None, fokker_matrix=None):
+        """."""
+        ring = self.ring
+        num_bun = ring.num_bun
+        dampte = ring.dampte
+
+        ring.num_bun = nbun_fill if nbun_fill is not None else ring.harm_num
+
+        if _np.array(w).size == 2:
+            Zl = self.get_impedance
+        else:
+            Zl = self.get_impedance(w=w)
+
+        eigenfreq, modecoup_matrix, fokker_matrix = \
+            ring.longitudinal_mode_coupling(
+                w=w, Zl=Zl, cbmode=cbmode, max_azi=max_azi, max_rad=max_rad,
+                modecoup_matrix=modecoup_matrix, fokker_matrix=fokker_matrix)
+
+        # Relative tune-shifts must be multiplied by ws
+        eigenfreq *= (ring.sync_tune * ring.rev_ang_freq)
+
+        ring.num_bun = num_bun
+        ring.dampte = dampte
+        return eigenfreq, modecoup_matrix, fokker_matrix
 
     # -------------------- auxiliary methods ----------------------------------
     def _apply_anderson_acceleration(self, dists, niter, tol, m=3, beta=1):
