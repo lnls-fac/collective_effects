@@ -370,7 +370,7 @@ class Beam():
 
 def track_particles(
         ring, beam, wakes, num_turns=10000, stats_ev_nt=10,
-        print_progress=True):
+        dist_ev_nt=1000, print_progress=True, save_dist=False):
     """."""
     avg_ss, avg_de = [], []
     std_ss, std_de = [], []
@@ -391,6 +391,13 @@ def track_particles(
             std_de.append(beam.de.std(axis=1))
             pot_wakes.append([wake.pot_phasor for wake in wakes])
             tim.append(ring.rev_time * turn)
+
+        if save_dist:
+            if not (turn % dist_ev_nt):
+                _np.savez_compressed(
+                    f'tracking_phase_space_turn_{turn:d}',
+                    ss=beam.ss, de=beam.de)
+
         if print_progress and not (turn % 100):
             pot = 0.0
             if wakes:
