@@ -99,6 +99,7 @@ class LongitudinalEquilibrium:
         self._dist = None
         self._fillpattern = None
         self._main_voltage = None
+        self._print_flag = False
         self.max_mode = 10*self.ring.harm_num
         self.min_mode0_ratio = 1e-9
         self.fillpattern = fillpattern
@@ -167,6 +168,15 @@ class LongitudinalEquilibrium:
         elif value.shape[1] != self._zgrid.size:
             raise ValueError('Second dimension must be equal zgrid.size.')
         self._dist = value
+
+    @property
+    def print_flag(self):
+        """."""
+        return self._print_flag
+
+    @print_flag.setter
+    def print_flag(self, value):
+        self._print_flag = value
 
     def to_dict(self):
         """Save state to dictionary."""
@@ -334,12 +344,14 @@ class LongitudinalEquilibrium:
             # sum over positive frequencies only -> factor 2
             voltage += 2 * zl_wp[None, :] * beam_part[:, None]
         t0b = _time.time() - t0a
-        # print(f'     E.T. to sum {ps.size:02d} harmonics: {t0b:.3f}s ')
+        if self.print_flag:
+            print(f'     E.T. to sum {ps.size:02d} harmonics: {t0b:.3f}s ')
         return -voltage.real
 
     def calc_longitudinal_equilibrium(
             self, niter=100, tol=1e-10, beta=1, m=3, print_flag=True):
         """."""
+        self.print_flag = print_flag
         dists = [self.distributions, ]
         dists = self._apply_anderson_acceleration(
             dists, niter, tol, beta=beta, m=m)
@@ -430,12 +442,12 @@ class LongitudinalEquilibrium:
             diff = _np.trapz(_np.abs(diff), self.zgrid, axis=1)
             idx = _np.argmax(diff)
             tf = _time.time() - t0
-            if print_flag:
+            if self.print_flag:
                 print(
                     f'Iter.: {k+1:03d}, Dist. Diff.: {diff[idx]:.3e}' +
                     f' (bucket {idx:03d}), E.T.: {tf:.3f}s')
             if diff[idx] < tol:
-                if print_flag:
+                if self.print_flag:
                     print('distribution ok!')
                 break
         return dists
