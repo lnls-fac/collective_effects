@@ -2,6 +2,7 @@
 import time as _time
 
 import numpy as _np
+import numexpr as _ne
 import scipy.integrate as _scy_int
 
 from mathphys.constants import light_speed as _LSPEED
@@ -44,6 +45,23 @@ class Resonator:
         """."""
         wr = self.harm_rf*self.ang_freq_rf + value
         self.ang_freq = wr
+
+    @property
+    def alpha(self):
+        """."""
+        return self.ang_freq/2/self.Q
+
+    @property
+    def ang_freq_bar(self):
+        """."""
+        wr_ = self.ang_freq
+        alpha = self.alpha
+        return (wr_*wr_-alpha*alpha)**0.5
+
+    @property
+    def beta(self):
+        """."""
+        return (self.alpha - 1j*self.ang_freq_bar)/_LSPEED
 
     @property
     def detune_angle(self):
@@ -134,7 +152,7 @@ class LongitudinalEquilibrium:
         if value.shape[-1] != self._zgrid.shape[0]:
             raise ValueError('Wrong shape for voltage.')
         self._main_voltage = value
-        self.distributions = self.calc_distributions_from_voltage(
+        self.distributions, _ = self.calc_distributions_from_voltage(
             self._main_voltage)
 
     @property
