@@ -348,6 +348,62 @@ class LongitudinalEquilibrium:
             print(f'     E.T. to sum {ps.size:02d} harmonics: {t0b:.3f}s ')
         return -voltage.real
 
+    def calc_voltage_harmonic_cavity_wake(self, dist=None):
+        """."""
+        if dist is None:
+            dist = self.distributions
+
+        h = self.ring.harm_num
+        circum = self.ring.circum
+
+        hcav = self.resonators[0]
+        beta = hcav.beta
+
+        zgrid = self.zgrid
+        if self.exp_z is None:
+            self.exp_z = _ne.evaluate('exp(beta*zgrid)')[None, :]
+
+        dist_curr = dist * self.fillpattern[:, None]
+        dist_exp_z = dist_curr*self.exp_z
+        dist_fourier = _np.trapz(dist_exp_z, zgrid)
+
+        # NOTE: Alternative implementation without
+        # matrix multiplication. This calculation did not
+        # reduce the elapsed time too much, then the original
+        # implementation was kept for readability.
+
+        # ind = _np.arange(h)
+        # exp_betac0 = _np.exp(beta*circum)
+        # exp_ind = _ne.evaluate('exp(beta*circum*ind/h)')
+        # vec = exp_ind * dist_fourier
+        # cum_sum = _np.r_[0, _np.cumsum(vec)]
+
+        # V = exp_betac0*cum_sum[:-1]
+        # V += cum_sum[-1]
+        # V -= cum_sum[:-1]
+        # V /= exp_ind
+        # V /= exp_betac0 - 1
+
+        if self.wake_matrix is None:
+            exp_betac0 = _np.exp(-beta*circum)
+            Ll = 1/(1-exp_betac0)  # Lesser
+            Gl = Ll*exp_betac0     # Greater or Equal
+            ind = _np.arange(h)
+            diff = ind[:, None] - ind[None, :]
+            A = Ll*_np.tri(h, h, -1) + Gl*_np.tri(h, h).T
+            B = _ne.evaluate('exp(-beta*circum*diff/h)')
+            self.wake_matrix = A*B
+        V = _np.dot(self.wake_matrix, dist_fourier)
+
+        Vt = _scy_int.cumtrapz(dist_exp_z, x=zgrid, initial=0*1j)
+        Vt += V[:, None]
+        Vt /= self.exp_z
+
+        harm_volt = Vt.real
+        harm_volt -= hcav.alpha/hcav.ang_freq_bar*Vt.imag
+        harm_volt *= -2*hcav.alpha*hcav.shunt_impedance*self.ring.rev_time
+        return harm_volt
+
     def calc_longitudinal_equilibrium(
             self, niter=100, tol=1e-10, beta=1, m=3, print_flag=True):
         """."""
