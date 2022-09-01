@@ -6,6 +6,7 @@ import numexpr as _ne
 import scipy.integrate as _scy_int
 
 from mathphys.constants import light_speed as _LSPEED
+from mathphys.functions import get_namedtuple as _get_namedtuple
 
 from . import impedances as _imp
 from .colleff import Ring as _Ring
@@ -108,10 +109,15 @@ class Resonator:
 class LongitudinalEquilibrium:
     """."""
 
+    METHODS = _get_namedtuple('Methods', ['Impedance', 'Wake'])
+
     def __init__(
-            self, ring: _Ring, resonators: list, fillpattern=None):
+            self, ring: _Ring, resonators: list,
+            fillpattern=None, method=None):
         """."""
         self.ring = ring
+        self._calc_method = LongitudinalEquilibrium.METHODS.Wake
+        self._calc_fun = self.calc_voltage_harmonic_cavity_wake
         self.resonators = resonators
         self._zgrid = None
         self._dist = None
@@ -121,7 +127,31 @@ class LongitudinalEquilibrium:
         self.max_mode = 10*self.ring.harm_num
         self.min_mode0_ratio = 1e-9
         self.fillpattern = fillpattern
+        self.wake_matrix = None
+        self.exp_z = None
         self.zgrid = self.create_zgrid()
+        self.calc_method = method
+
+    @property
+    def calc_method_str(self):
+        """."""
+        return LongitudinalEquilibrium.METHODS._fields[self._calc_method]
+
+    @property
+    def calc_method(self):
+        """."""
+        return self._calc_method
+
+    @calc_method.setter
+    def calc_method(self, value):
+        if value is None:
+            return
+        if isinstance(value, str):
+            self._calc_method = int(
+                value in LongitudinalEquilibrium.METHODS._fields[1])
+        elif int(value) in LongitudinalEquilibrium.METHODS:
+            self._calc_method = int(value)
+        self._define_calc_fun()
 
     @property
     def max_mode(self):
@@ -567,10 +597,16 @@ class LongitudinalEquilibrium:
     def _ffunc(self, xk):
         """Haissinski operator."""
         xk = self._reshape_dist(xk)
-        hvolt = self.calc_voltage_harmonic_cavity_impedance(dist=xk)
+        hvolt = self._calc_fun(dist=xk)
         tvolt = self.main_voltage[None, :] + hvolt
         fxk, _ = self.calc_distributions_from_voltage(tvolt)
         return fxk.ravel()
 
     def _reshape_dist(self, dist):
         return dist.reshape((self.ring.harm_num, self.zgrid.size))
+
+    def _define_calc_fun(self):
+        if self._calc_method == LongitudinalEquilibrium.METHODS.Wake:
+            self._calc_fun = self.calc_voltage_harmonic_cavity_wake
+        elif self._calc_method == LongitudinalEquilibrium.METHODS.Impedance:
+            self._calc_fun = self.calc_voltage_harmonic_cavity_impedance
