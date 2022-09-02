@@ -115,17 +115,6 @@ class LongitudinalEquilibrium:
             self, ring: _Ring, resonators: list,
             method=Methods.Wake, fillpattern=None):
         """."""
-        self.ring = ring
-
-        self._calc_fun = None
-        self._calc_method = None
-        self.calc_method = method
-
-        self.resonators = resonators
-        self.max_mode = 10*self.ring.harm_num
-        self.min_mode0_ratio = 1e-9
-        self.fillpattern = fillpattern
-
         self._zgrid = None
         self._dist = None
         self._fillpattern = None
@@ -133,6 +122,16 @@ class LongitudinalEquilibrium:
         self._print_flag = False
         self._wake_matrix = None
         self._exp_z = None
+        self._calc_fun = None
+        self._calc_method = None
+
+        self.calc_method = method
+        self.ring = ring
+        self.resonators = resonators
+        self.max_mode = 10*self.ring.harm_num
+        self.min_mode0_ratio = 1e-9
+
+        self.fillpattern = fillpattern
         self.zgrid = self.create_zgrid()
 
     @property
@@ -428,7 +427,9 @@ class LongitudinalEquilibrium:
         if self._exp_z is None:
             self._exp_z = _ne.evaluate('exp(beta*zgrid)')[None, :]
 
-        dist_exp_z = dist * fillpattern
+        dist_exp_z = _np.zeros(dist.shape, dtype=_np.complex)
+        dist_exp_z += dist
+        dist_exp_z *= fillpattern
         dist_exp_z *= self._exp_z
         dist_fourier = _np.trapz(dist_exp_z, zgrid)
 
@@ -570,8 +571,8 @@ class LongitudinalEquilibrium:
         dists.append(xnew)
 
         where = 0
-        G_k = _np.zeros((gm1.size, m), dtype=float)
-        X_k = _np.zeros((gm1.size, m), dtype=float)
+        G_k = _np.zeros((xnew.size, m), dtype=float)
+        X_k = _np.zeros((xnew.size, m), dtype=float)
 
         gm2 = xnew - xold
         gm1 = self._ffunc(xnew) - xnew
