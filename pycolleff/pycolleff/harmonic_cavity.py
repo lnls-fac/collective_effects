@@ -565,31 +565,36 @@ class LongitudinalEquilibrium:
         xold = dists[-1].ravel()
         xnew = self._ffunc(xold)
         dists.append(xnew)
-        g = _np.array([xnew - xold, self._ffunc(xnew) - xnew])
-        G_k = _np.array(g[-1] - g[-2], ndmin=2).T
-        X_k = _np.array(g[0], ndmin=2).T
+
+        where = 0
+        G_k = _np.zeros((gm1.size, m), dtype=float)
+        X_k = _np.zeros((gm1.size, m), dtype=float)
+
+        gm2 = xnew - xold
+        gm1 = self._ffunc(xnew) - xnew
+        G_k[:, where] = gm1 - gm2
+        X_k[:, where] = gm2
+        where += 1
+        where %= m
 
         for k in range(niter):
             t0 = _time.time()
-            m_k = min(k+1, m)
-            gamma_k = _np.linalg.lstsq(G_k, g[-1], rcond=None)[0]
+            gamma_k = _np.linalg.lstsq(G_k, gm1, rcond=None)[0]
             mat = X_k + G_k
             xold = xnew
-            xnew = beta * (xold + g[-1] - mat @ gamma_k)
+            xnew = beta * (xold + gm1 - mat @ gamma_k)
             if beta != 1:
                 xnew += (1-beta) * (xold - X_k @ gamma_k)
             dists.append(xnew)
-            gnew = self._ffunc(xnew)-xnew
-            g = _np.vstack([g[-1], gnew])
-            G_k = _np.hstack([G_k, (g[-1]-g[-2])[:, None]])
-            X_k = _np.hstack([X_k, (xnew-xold)[:, None]])
 
-            if X_k.shape[1] > m_k:
-                # only m previous iterations are needed
-                X_k = X_k[:, -m:]
-                G_k = G_k[:, -m:]
+            gm2 = gm1
+            gm1 = self._ffunc(xnew) - xnew
+            G_k[:, where] = gm1 - gm2
+            X_k[:, where] = xnew - xold
+            where += 1
+            where %= m
 
-            diff = self._reshape_dist(gnew)
+            diff = self._reshape_dist(gm1)
             diff = _np.trapz(_np.abs(diff), self.zgrid, axis=1)
             idx = _np.argmax(diff)
             tf = _time.time() - t0
