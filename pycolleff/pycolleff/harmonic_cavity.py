@@ -119,11 +119,11 @@ class LongitudinalEquilibrium:
         self._dist = None
         self._fillpattern = None
         self._main_voltage = None
-        self._print_flag = False
-        self._wake_matrix = None
-        self._exp_z = None
         self._calc_fun = None
         self._calc_method = None
+        self._print_flag = False
+        self._exp_z = None
+        self._wake_matrix = None
 
         self.calc_method = method
         self.ring = ring
@@ -246,7 +246,8 @@ class LongitudinalEquilibrium:
             fillpatern=self._fillpattern,
             main_voltage=self._main_voltage,
             max_mode=self.max_mode,
-            min_mode0_ratio=self.min_mode0_ratio)
+            min_mode0_ratio=self.min_mode0_ratio,
+            calc_method=self.calc_method_str)
 
     def from_dict(self, dic):
         """Load state from dictionary."""
@@ -263,6 +264,7 @@ class LongitudinalEquilibrium:
         self._main_voltage = dic.get('main_voltage', self._main_voltage)
         self.max_mode = dic.get('max_mode', self.max_mode)
         self.min_mode0_ratio = dic.get('min_mode0_ratio', self.min_mode0_ratio)
+        self.calc_method = dic.get('calc_method', self.calc_method)
 
     def create_zgrid(self, nr_points=1001, sigmas=30):
         """."""
