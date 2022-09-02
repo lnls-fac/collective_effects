@@ -270,7 +270,7 @@ class LongitudinalEquilibrium:
     def calc_moments(zgrid, dist):
         """."""
         zm = _np.trapz(zgrid[None, :]*dist, zgrid, axis=1)
-        zgrid2 = zgrid**2
+        zgrid2 = zgrid*zgrid
         z2 = _np.trapz(zgrid2[None, :]*dist, zgrid, axis=1)
         return zm, _np.sqrt(z2 - zm**2)
 
