@@ -113,7 +113,7 @@ class LongitudinalEquilibrium:
 
     def __init__(
             self, ring: _Ring, resonators: list,
-            fillpattern=None, method=None):
+            method=Methods.Wake, fillpattern=None):
         """."""
         self.ring = ring
 
@@ -179,6 +179,9 @@ class LongitudinalEquilibrium:
     def zgrid(self, value):
         self._zgrid = value
         self.main_voltage = self.ring.get_voltage_waveform(self._zgrid)
+        if self._calc_method == self.Methods.Wake:
+            beta = self.resonators[0].beta
+            self._exp_z = _ne.evaluate('exp(beta*value)')[None, :]
 
     @property
     def main_voltage(self):
