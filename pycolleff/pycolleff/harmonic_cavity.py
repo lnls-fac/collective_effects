@@ -109,33 +109,36 @@ class Resonator:
 class LongitudinalEquilibrium:
     """."""
 
-    METHODS = _get_namedtuple('Methods', ['Impedance', 'Wake'])
+    Methods = _get_namedtuple('Methods', ['Impedance', 'Wake'])
 
     def __init__(
             self, ring: _Ring, resonators: list,
             fillpattern=None, method=None):
         """."""
         self.ring = ring
-        self._calc_method = LongitudinalEquilibrium.METHODS.Wake
-        self._calc_fun = self.calc_voltage_harmonic_cavity_wake
+
+        self._calc_fun = None
+        self._calc_method = None
+        self.calc_method = method
+
         self.resonators = resonators
+        self.max_mode = 10*self.ring.harm_num
+        self.min_mode0_ratio = 1e-9
+        self.fillpattern = fillpattern
+
         self._zgrid = None
         self._dist = None
         self._fillpattern = None
         self._main_voltage = None
         self._print_flag = False
-        self.max_mode = 10*self.ring.harm_num
-        self.min_mode0_ratio = 1e-9
-        self.fillpattern = fillpattern
-        self.wake_matrix = None
-        self.exp_z = None
+        self._wake_matrix = None
+        self._exp_z = None
         self.zgrid = self.create_zgrid()
-        self.calc_method = method
 
     @property
     def calc_method_str(self):
         """."""
-        return LongitudinalEquilibrium.METHODS._fields[self._calc_method]
+        return self.Methods._fields[self._calc_method]
 
     @property
     def calc_method(self):
@@ -147,11 +150,16 @@ class LongitudinalEquilibrium:
         if value is None:
             return
         if isinstance(value, str):
-            self._calc_method = int(
-                value in LongitudinalEquilibrium.METHODS._fields[1])
-        elif int(value) in LongitudinalEquilibrium.METHODS:
+            self._calc_method = self.Methods._fields.index(value)
+        elif int(value) in self.Methods:
             self._calc_method = int(value)
-        self._define_calc_fun()
+        else:
+            raise ValueError('Wrong value for calc_method.')
+
+        if self._calc_method == self.Methods.Wake:
+            self._calc_fun = self.calc_voltage_harmonic_cavity_wake
+        elif self._calc_method == self.Methods.Impedance:
+            self._calc_fun = self.calc_voltage_harmonic_cavity_impedance
 
     @property
     def max_mode(self):
@@ -368,27 +376,31 @@ class LongitudinalEquilibrium:
 
     def calc_voltage_harmonic_cavity_impedance(self, dist=None):
         """."""
+        h = self.ring.harm_num
+        w0 = self.ring.rev_ang_freq
+
         if dist is None:
             dist = self.distributions
-        w0 = self.ring.rev_ang_freq
-        voltage = _np.zeros(
-            (self.ring.harm_num, self.zgrid.size), dtype=_np.complex)
+        fillpattern = self.fillpattern
+        zgrid = self.zgrid
 
-        ind = _np.arange(self.ring.harm_num)
-        zn_ph = 2*_PI/self.ring.harm_num*ind
-        z_ph = w0*self.zgrid/_LSPEED
+        voltage = _np.zeros((h, zgrid.size), dtype=_np.complex)
+
+        ind = _np.arange(h)
+        zn_ph = 2j*_PI/h*ind
+        z_ph = 1j*w0*zgrid/_LSPEED
 
         ps, zl_wps = self.get_harmonics_impedance_and_filling()
         t0a = _time.time()
         for idx, p in enumerate(ps):
-            wp = p * w0
-            dist_fourier = self.calc_fourier_transform(w=wp, dist=dist)
+            dist_fourier = self.calc_fourier_transform(w=p*w0, dist=dist)
 
-            exp_phase = _np.exp(-1j*p*zn_ph)
-            beam_part = exp_phase * self.fillpattern * dist_fourier.conj()
-            beam_part = _np.sum(beam_part)
-            beam_part = beam_part/exp_phase
-            zl_wp = zl_wps[idx].conj() * _np.exp(1j*p*z_ph)
+            exp_phase = _np.exp(-p*zn_ph)
+            beam_part = _np.einsum(
+                'i,i,i', exp_phase, fillpattern, dist_fourier.conj())
+            beam_part = beam_part / exp_phase
+            zl_wp = zl_wps[idx].conj() * _np.exp(p*z_ph)
+
             # sum over positive frequencies only -> factor 2
             voltage += 2 * zl_wp[None, :] * beam_part[:, None]
         t0b = _time.time() - t0a
@@ -400,26 +412,26 @@ class LongitudinalEquilibrium:
         """."""
         if dist is None:
             dist = self.distributions
+        fillpattern = self.fillpattern[:, None]
+        zgrid = self.zgrid
 
         h = self.ring.harm_num
         circum = self.ring.circum
+        rev_time = self.ring.rev_time
 
         hcav = self.resonators[0]
         beta = hcav.beta
 
-        zgrid = self.zgrid
-        if self.exp_z is None:
-            self.exp_z = _ne.evaluate('exp(beta*zgrid)')[None, :]
+        if self._exp_z is None:
+            self._exp_z = _ne.evaluate('exp(beta*zgrid)')[None, :]
 
-        dist_curr = dist * self.fillpattern[:, None]
-        dist_exp_z = dist_curr*self.exp_z
+        dist_exp_z = dist * fillpattern
+        dist_exp_z *= self._exp_z
         dist_fourier = _np.trapz(dist_exp_z, zgrid)
 
-        # NOTE: Alternative implementation without
-        # matrix multiplication. This calculation did not
-        # reduce the elapsed time too much, then the original
-        # implementation was kept for readability.
-
+        # NOTE: Alternative implementation without matrix multiplication. This
+        # calculation did not reduce the evaluation time too much, then the
+        # original implementation was kept for readability.
         # ind = _np.arange(h)
         # exp_betac0 = _np.exp(beta*circum)
         # exp_ind = _ne.evaluate('exp(beta*circum*ind/h)')
@@ -432,24 +444,26 @@ class LongitudinalEquilibrium:
         # V /= exp_ind
         # V /= exp_betac0 - 1
 
-        if self.wake_matrix is None:
+        if self._wake_matrix is None:
             exp_betac0 = _np.exp(-beta*circum)
-            Ll = 1/(1-exp_betac0)  # Lesser
-            Gl = Ll*exp_betac0     # Greater or Equal
+            Ll = 1/(1-exp_betac0)  # buckets ahead current one (l<n)
+            Gl = Ll*exp_betac0     # buckets behind current one (l>=n)
+            wmat = Ll*_np.tri(h, h, -1,)
+            wmat += Gl*_np.tri(h, h).T
+
             ind = _np.arange(h)
             diff = ind[:, None] - ind[None, :]
-            A = Ll*_np.tri(h, h, -1) + Gl*_np.tri(h, h).T
-            B = _ne.evaluate('exp(-beta*circum*diff/h)')
-            self.wake_matrix = A*B
-        V = _np.dot(self.wake_matrix, dist_fourier)
+            wmat *= _ne.evaluate('exp(-beta*circum*diff/h)')
+            self._wake_matrix = wmat
+        V = _np.dot(self._wake_matrix, dist_fourier)
 
-        Vt = _scy_int.cumtrapz(dist_exp_z, x=zgrid, initial=0*1j)
+        Vt = _scy_int.cumtrapz(dist_exp_z, x=zgrid, initial=0j)
         Vt += V[:, None]
-        Vt /= self.exp_z
+        Vt /= self._exp_z
 
         harm_volt = Vt.real
-        harm_volt -= hcav.alpha/hcav.ang_freq_bar*Vt.imag
-        harm_volt *= -2*hcav.alpha*hcav.shunt_impedance*self.ring.rev_time
+        harm_volt -= hcav.alpha / hcav.ang_freq_bar * Vt.imag
+        harm_volt *= -2*hcav.alpha * hcav.shunt_impedance * rev_time
         return harm_volt
 
     def calc_longitudinal_equilibrium(
@@ -604,9 +618,3 @@ class LongitudinalEquilibrium:
 
     def _reshape_dist(self, dist):
         return dist.reshape((self.ring.harm_num, self.zgrid.size))
-
-    def _define_calc_fun(self):
-        if self._calc_method == LongitudinalEquilibrium.METHODS.Wake:
-            self._calc_fun = self.calc_voltage_harmonic_cavity_wake
-        elif self._calc_method == LongitudinalEquilibrium.METHODS.Impedance:
-            self._calc_fun = self.calc_voltage_harmonic_cavity_impedance
