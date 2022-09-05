@@ -1,5 +1,4 @@
 """."""
-
 import time as _time
 
 import numpy as _np
@@ -31,6 +30,36 @@ class Ring:
         self.cav_volt_norm = _np.zeros(self.cav_pos.shape)
 
         self.cav_vgap = 3e6  # [V]
+
+    def to_dict(self):
+        """."""
+        return dict(
+            use_gaussian_noise=self.use_gaussian_noise,
+            energy=self.energy,
+            u0=self.u0,
+            harm_num=self.harm_num,
+            rf_freq=self.rf_freq,
+            espread=self.espread,
+            mom_comp=self.mom_comp,
+            damping_number=self.damping_number,
+            cav_pos=self.cav_pos,
+            cav_vgap=self._cav_vgap,
+            cav_volt_norm=self.cav_volt_norm,
+            )
+
+    def from_dict(self, dic):
+        """."""
+        self.use_gaussian_noise = dic['use_gaussian_noise']
+        self.energy = dic['energy']
+        self.u0 = dic['u0']
+        self.harm_num = dic['harm_num']
+        self.rf_freq = dic['rf_freq']
+        self.espread = dic['espread']
+        self.mom_comp = dic['mom_comp']
+        self.damping_number = dic['damping_number']
+        self.cav_pos = dic['cav_pos']
+        self._cav_vgap = dic['cav_vgap']
+        self.cav_volt_norm = dic['cav_volt_norm']
 
     @property
     def use_gaussian_noise(self):
@@ -95,6 +124,11 @@ class Ring:
         """."""
         return 2*self.rev_time / self.damping_number / self.u0_norm
 
+    @damping_time.setter
+    def damping_time(self, value):
+        """."""
+        self.damping_number = 2*self.rev_time / value / self.u0_norm
+
     def track_one_turn(self, beam):
         """."""
         damping = (1 - self.damping_number*self.u0_norm)
@@ -144,6 +178,26 @@ class Wake:
     def cpl_kr(self):
         """."""
         return self.kr/(2*self.Q) + 1j*self.krl
+
+    def cmd_reset_phasor(self):
+        """."""
+        self.pot_phasor = 0j
+
+    def to_dict(self):
+        """."""
+        return dict(
+            Q=self.Q,
+            Rs=self.Rs,
+            wr=self.wr,
+            pot_phasor=self.pot_phasor,
+            )
+
+    def from_dict(self, dic):
+        """."""
+        self.Q = dic['Q']
+        self.Rs = dic['Rs']
+        self.wr = dic['wr']
+        self.pot_phasor = dic['pot_phasor']
 
     def track_one_turn(self, beam, ring):
         """."""
@@ -205,14 +259,62 @@ class Beam():
 
     def __init__(self, num_part, num_buns, current=0.35):
         """."""
-        self.num_part = num_part
-        self.num_buns = num_buns
-        self.current = current
-        self.bun_indices = _np.arange(num_buns)
         self.curr_p_bun = _np.ones(num_buns, dtype=float)
-        self.curr_p_bun *= current/num_buns
+        self.bun_indices = _np.arange(num_buns)
+        self.current = current
         self.de = _np.zeros((num_buns, num_part), dtype=float)
         self.ss = _np.zeros((num_buns, num_part), dtype=float)
+
+    @property
+    def current(self):
+        """."""
+        return float(self.curr_p_bun.sum())
+
+    @current.setter
+    def current(self, current):
+        """."""
+        self.curr_p_bun *= current/self.current
+
+    @property
+    def num_buns(self):
+        """."""
+        return int(self.bun_indices.size)
+
+    @property
+    def num_part(self):
+        """."""
+        return int(self.de.shape[1])
+
+    def oversample_number_of_particles(
+            self, mult_factor: int, noise_frac=0.0):
+        """Increase number of particles by repeating the existing ones."""
+        mult_factor = int(mult_factor)
+        if mult_factor <= 1:
+            return
+        npart = self.num_part
+        self.de = _np.tile(self.de, mult_factor)
+        self.ss = _np.tile(self.ss, mult_factor)
+        if not _np.math.isclose(noise_frac, 0):
+            de_noise = self.de[:, :npart].std(axis=1) * noise_frac
+            ss_noise = self.ss[:, :npart].std(axis=1) * noise_frac
+            self.de[:, npart:] += de_noise[:, None] * _np.random.randn(
+                self.num_buns, npart*(mult_factor-1))
+            self.ss[:, npart:] += ss_noise[:, None] * _np.random.randn(
+                self.num_buns, npart*(mult_factor-1))
+
+    def to_dict(self):
+        """."""
+        return dict(
+            ss=self.ss.copy(), de=self.de.copy(),
+            curr_p_bun=self.curr_p_bun.copy(),
+            bun_indices=self.bun_indices.copy())
+
+    def from_dict(self, dic):
+        """."""
+        self.de = dic['de'].copy()
+        self.ss = dic['ss'].copy()
+        self.curr_p_bun = dic['curr_p_bun'].copy()
+        self.bun_indices = dic['bun_indices'].copy()
 
     def sort(self):
         """."""
@@ -220,11 +322,34 @@ class Beam():
         self.ss = _np.take_along_axis(self.ss, idx, axis=1)
         self.de = _np.take_along_axis(self.de, idx, axis=1)
 
-    def generate_bunch(self, ring, ss_avg=0.0, de_avg=0.0):
+    @staticmethod
+    def calc_histogram(array, spos=None, nbins=50):
+        """."""
+        if spos is None:
+            bins = _np.linspace(array.min(), array.max(), nbins+1)
+        else:
+            bins = _np.linspace(spos[0], spos[-1], nbins+1)
+        bin_size = bins[1]-bins[0]
+
+        indices = (array - bins[0])/bin_size
+        indices = indices.astype(_np.intp)
+        indices += _np.arange(array.shape[0])[:, None]*nbins
+
+        hist = _np.bincount(indices.ravel(), minlength=nbins*array.shape[0])
+        hist = hist.reshape(-1, nbins)
+
+        if spos is not None:
+            hist = _np.interp(spos, bins, hist)
+        else:
+            spos = (bins[1:] + bins[:-1])/2
+        return spos, hist
+
+    def generate_bunches(self, ring, ss_avg=0.0, de_avg=0.0):
         """."""
         # Energy distribution is Gaussian
         self.de = _np.random.randn(self.num_buns, self.num_part)
         self.de *= ring.espread
+        self.de -= self.de.mean(axis=1)[:, None]
         self.de += de_avg
 
         # Draw longitudinal positions from equilibrium potential well:
@@ -243,11 +368,13 @@ class Beam():
         self.ss += ss_avg
 
 
-def track_particles(ring, beam, wakes, num_turns=10000, stats_ev_nt=10):
+def track_particles(
+        ring, beam, wakes, num_turns=10000, stats_ev_nt=10,
+        dist_ev_nt=1000, print_progress=True, save_dist=False):
     """."""
     avg_ss, avg_de = [], []
     std_ss, std_de = [], []
-    pot_wakes = []
+    pot_wakes, tim = [], []
 
     t0 = _time.time()
     for turn in range(num_turns):
@@ -263,7 +390,15 @@ def track_particles(ring, beam, wakes, num_turns=10000, stats_ev_nt=10):
             std_ss.append(beam.ss.std(axis=1))
             std_de.append(beam.de.std(axis=1))
             pot_wakes.append([wake.pot_phasor for wake in wakes])
-        if not (turn % 100):
+            tim.append(ring.rev_time * turn)
+
+        if save_dist:
+            if not (turn % dist_ev_nt):
+                _np.savez_compressed(
+                    f'tracking_phase_space_turn_{turn:d}',
+                    ss=beam.ss, de=beam.de)
+
+        if print_progress and not (turn % 100):
             pot = 0.0
             if wakes:
                 pot = _np.abs(wakes[0].pot_phasor)/ring.cav_vgap_norm
@@ -275,9 +410,32 @@ def track_particles(ring, beam, wakes, num_turns=10000, stats_ev_nt=10):
                 f'ET: {_time.time()-t0:.2f} s')
             t0 = _time.time()
 
+    avg_ss.append(beam.ss.mean(axis=1))
+    avg_de.append(beam.de.mean(axis=1))
+    std_ss.append(beam.ss.std(axis=1))
+    std_de.append(beam.de.std(axis=1))
+    pot_wakes.append([wake.pot_phasor for wake in wakes])
+    tim.append(ring.rev_time * turn)
+
     stats = {
         'avg_ss': _np.array(avg_ss), 'avg_de': _np.array(avg_de),
         'std_ss': _np.array(std_ss), 'std_de': _np.array(std_de),
-        'pot_wakes': _np.array(pot_wakes),
-        'time': _np.arange(len(avg_ss)) * stats_ev_nt * ring.rev_time}
+        'pot_wakes': _np.array(pot_wakes), 'time': _np.array(tim)}
+    return stats
+
+
+def merge_stats(stats_list):
+    """."""
+    stats = dict()
+    stats['avg_ss'] = _np.vstack([st['avg_ss'] for st in stats_list])
+    stats['std_ss'] = _np.vstack([st['std_ss'] for st in stats_list])
+    stats['avg_de'] = _np.vstack([st['avg_de'] for st in stats_list])
+    stats['std_de'] = _np.vstack([st['std_de'] for st in stats_list])
+    stats['pot_wakes'] = _np.vstack([st['pot_wakes'] for st in stats_list])
+    off = 0
+    tim = []
+    for st in stats_list:
+        tim.append(st['time'] + off)
+        off += st['time'][-1]
+    stats['time'] = _np.hstack(tim)
     return stats

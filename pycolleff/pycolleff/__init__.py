@@ -3,6 +3,7 @@ from . import colleff
 from . import impedances
 from . import process_wakes
 from . import sirius
+from . import maxiv
 from . import echo2d_util
 from . import tracking
 

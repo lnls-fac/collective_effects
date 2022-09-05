@@ -11,7 +11,6 @@ import json as _json
 import numpy as _np
 from scipy import integrate as _scy_int
 import matplotlib.pyplot as _plt
-from matplotlib import rc as _rc
 
 from mathphys.constants import light_speed as _LSPEED
 
@@ -22,8 +21,6 @@ try:
     bool_pyaccel = True
 except Exception:
     bool_pyaccel = False
-
-_rc('text', usetex=True)
 
 # # Troughout the code I am assuming:
 # s positive means particle behind source -->  Wl, Wt = 0 s < 0
