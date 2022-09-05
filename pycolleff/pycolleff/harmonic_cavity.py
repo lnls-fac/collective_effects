@@ -178,9 +178,7 @@ class LongitudinalEquilibrium:
     def zgrid(self, value):
         self._zgrid = value
         self.main_voltage = self.ring.get_voltage_waveform(self._zgrid)
-        if self._calc_method == self.Methods.Wake:
-            beta = self.resonators[0].beta
-            self._exp_z = _ne.evaluate('exp(beta*value)')[None, :]
+        self._exp_z = None
 
     @property
     def main_voltage(self):
@@ -205,6 +203,7 @@ class LongitudinalEquilibrium:
         if value.size != self.ring.harm_num:
             raise ValueError('Wrong size for fillparttern.')
         self._fillpattern = value
+        self._wake_matrix = None
 
     @property
     def filled_buckets(self):
