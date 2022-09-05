@@ -14,6 +14,31 @@ from .colleff import Ring as _Ring
 _PI = _np.pi
 
 
+def mytrapz(y, dx, cumul=False):
+    """Perform trapezoidal integration along last axis of array.
+
+    Args:
+        y (numpy.ndarray, (..., N)): array where integration is performed.
+        dx (float): step size.
+        cumul (bool, optional): Whether or not to return cummulative integral.
+            Defaults to False.
+
+    Returns:
+        numpy.ndarray: if cumul is True, then the shape matches y, else the
+            number of dimensions is reduced.
+    """
+    y1 = y[..., :-1]
+    y2 = y[..., 1:]
+    if cumul:
+        intg = _np.zeros_like(y)
+        intg[..., 1:] = _ne.evaluate('(y1 + y2)*dx/2.0')
+        res = _np.cumsum(intg, axis=-1)
+        res.shape = intg.shape
+        return res
+    else:
+        return _ne.evaluate('(y1 + y2)*dx/2.0').sum(axis=-1)
+
+
 class Resonator:
     """."""
 
@@ -272,17 +297,20 @@ class LongitudinalEquilibrium:
     @staticmethod
     def calc_moments(zgrid, dist):
         """."""
-        zm = _np.trapz(zgrid[None, :]*dist, zgrid, axis=1)
+        dz = zgrid[1] - zgrid[0]
+        zm = mytrapz(zgrid[None, :]*dist, dz)
+
         zgrid2 = zgrid*zgrid
-        z2 = _np.trapz(zgrid2[None, :]*dist, zgrid, axis=1)
+        z2 = mytrapz(zgrid2[None, :]*dist, dz)
         return zm, _np.sqrt(z2 - zm**2)
 
     def get_gaussian_distributions(self, sigmaz, z0=0):
         """."""
+        dz = self.zgrid[1] - self.zgrid[0]
+
         arg = (self.zgrid - z0)/sigmaz
         dist = _np.exp(-arg**2/2)
-        norm = _np.trapz(dist, self.zgrid)
-        dist = dist/norm
+        dist /= mytrapz(dist, dz)
         dist = _np.tile(dist, (self.ring.harm_num, 1))
         return dist
 
@@ -322,9 +350,11 @@ class LongitudinalEquilibrium:
             # voltage must be (h, zgrid) or (1, zgrid)
             voltage = voltage[None, :]
 
+        dz = self.zgrid[1] - self.zgrid[0]
+
         # subtract U0
         U0 = self.ring.en_lost_rad
-        pot = -_scy_int.cumtrapz(voltage-U0, self.zgrid, initial=0, axis=1)
+        pot = -mytrapz(voltage-U0, dz, cumul=True)
 
         # subtract minimum value for all bunches
         pot -= _np.min(pot, axis=1)[:, None]
@@ -336,7 +366,7 @@ class LongitudinalEquilibrium:
         const *= self.ring.energy
 
         dist = _ne.evaluate('exp(-pot/const)')
-        dist /= _np.trapz(dist, self.zgrid, axis=1)[:, None]
+        dist /= mytrapz(dist, dz)[:, None]
         if flag:
             dist = _np.tile(dist, (self.ring.harm_num, 1))
         # distribution must be normalized
@@ -346,8 +376,10 @@ class LongitudinalEquilibrium:
         """."""
         if dist is None:
             dist = self.distributions
-        arg = dist*_np.exp(1j*w*self.zgrid/_LSPEED)[None, :]
-        return _np.trapz(arg, self.zgrid, axis=1)
+        arg = _np.exp((1j*w/_LSPEED)*self.zgrid)[None, :]
+        arg = _ne.evaluate('dist * arg')
+        dz = self.zgrid[1] - self.zgrid[0]
+        return mytrapz(arg, dz)
 
     def get_impedance(self, w=None):
         """."""
@@ -400,11 +432,11 @@ class LongitudinalEquilibrium:
         voltage = _np.zeros((h, zgrid.size), dtype=_np.complex)
         for idx, p in enumerate(ps):
             dist_fourier = self.calc_fourier_transform(w=p*w0, dist=dist)
+            dist_fourier = dist_fourier.conj()
 
             exp_phase = expph[idx]
-            beam_part = _np.einsum(
-                'i,i,i', exp_phase, fillpattern, dist_fourier.conj())
-            beam_part = beam_part / exp_phase
+            beam_part = _ne.evaluate('exp_phase*fillpattern*dist_fourier')
+            beam_part = beam_part.sum(axis=-1) / exp_phase
 
             # sum over positive frequencies only -> factor 2
             voltage += (-2 * zl_wp[idx]) * beam_part[:, None]
@@ -431,7 +463,8 @@ class LongitudinalEquilibrium:
         dist_exp_z += dist
         dist_exp_z *= fillpattern
         dist_exp_z *= self._exp_z
-        dist_fourier = _np.trapz(dist_exp_z, zgrid)
+        dz = zgrid[1] - zgrid[0]
+        dist_fourier = mytrapz(dist_exp_z, dz)
 
         # NOTE: Alternative implementation without matrix multiplication. This
         # calculation did not reduce the evaluation time too much, then the
@@ -461,7 +494,7 @@ class LongitudinalEquilibrium:
             self._wake_matrix = wmat
         V = _np.dot(self._wake_matrix, dist_fourier)
 
-        Vt = _scy_int.cumtrapz(dist_exp_z, x=zgrid, initial=0j)
+        Vt = mytrapz(dist_exp_z, dz, cumul=True)
         Vt += V[:, None]
         Vt /= self._exp_z
 
@@ -603,7 +636,8 @@ class LongitudinalEquilibrium:
             where %= m
 
             diff = self._reshape_dist(gnew)
-            diff = _np.trapz(_np.abs(diff), self.zgrid, axis=1)
+            dz = self.zgrid[1] - self.zgrid[0]
+            diff = mytrapz(_np.abs(diff), dz)
             idx = _np.argmax(diff)
             tf = _time.time() - t0
             if self.print_flag:
