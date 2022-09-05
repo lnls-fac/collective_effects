@@ -178,9 +178,7 @@ class LongitudinalEquilibrium:
     def zgrid(self, value):
         self._zgrid = value
         self.main_voltage = self.ring.get_voltage_waveform(self._zgrid)
-        if self._calc_method == self.Methods.Wake:
-            beta = self.resonators[0].beta
-            self._exp_z = _ne.evaluate('exp(beta*value)')[None, :]
+        self._exp_z = None
 
     @property
     def main_voltage(self):
@@ -205,6 +203,7 @@ class LongitudinalEquilibrium:
         if value.size != self.ring.harm_num:
             raise ValueError('Wrong size for fillparttern.')
         self._fillpattern = value
+        self._wake_matrix = None
 
     @property
     def filled_buckets(self):
@@ -325,7 +324,7 @@ class LongitudinalEquilibrium:
 
         # subtract U0
         U0 = self.ring.en_lost_rad
-        pot = -_scy_int.cumtrapz(voltage-U0, self.zgrid, initial=0)
+        pot = -_scy_int.cumtrapz(voltage-U0, self.zgrid, initial=0, axis=1)
 
         # subtract minimum value for all bunches
         pot -= _np.min(pot, axis=1)[:, None]
@@ -336,12 +335,12 @@ class LongitudinalEquilibrium:
         # normalize by E0
         const *= self.ring.energy
 
-        dist = _np.exp(-pot/const)
-        norm = _np.trapz(dist, self.zgrid, axis=1)
+        dist = _ne.evaluate('exp(-pot/const)')
+        dist /= _np.trapz(dist, self.zgrid, axis=1)[:, None]
         if flag:
             dist = _np.tile(dist, (self.ring.harm_num, 1))
         # distribution must be normalized
-        return dist/norm[:, None], pot
+        return dist, pot
 
     def calc_fourier_transform(self, w, dist=None):
         """."""
@@ -388,29 +387,28 @@ class LongitudinalEquilibrium:
         fillpattern = self.fillpattern
         zgrid = self.zgrid
 
-        voltage = _np.zeros((h, zgrid.size), dtype=_np.complex)
-
-        ind = _np.arange(h)
-        zn_ph = 2j*_PI/h*ind
-        z_ph = 1j*w0*zgrid/_LSPEED
+        zn_ph = (2j*_PI/h) * _np.arange(h)[None, :]
+        z_ph = (1j*w0/_LSPEED) * zgrid[None, :]
 
         ps, zl_wps = self.get_harmonics_impedance_and_filling()
-        t0a = _time.time()
+        ps = ps[:, None]
+        zl_wp = _ne.evaluate('exp(ps*z_ph)')
+        zl_wp *= zl_wps[:, None].conj()
+
+        expph = _ne.evaluate('exp(-ps*zn_ph)')
+
+        voltage = _np.zeros((h, zgrid.size), dtype=_np.complex)
         for idx, p in enumerate(ps):
             dist_fourier = self.calc_fourier_transform(w=p*w0, dist=dist)
 
-            exp_phase = _np.exp(-p*zn_ph)
+            exp_phase = expph[idx]
             beam_part = _np.einsum(
                 'i,i,i', exp_phase, fillpattern, dist_fourier.conj())
             beam_part = beam_part / exp_phase
-            zl_wp = zl_wps[idx].conj() * _np.exp(p*z_ph)
 
             # sum over positive frequencies only -> factor 2
-            voltage += 2 * zl_wp[None, :] * beam_part[:, None]
-        t0b = _time.time() - t0a
-        if self.print_flag:
-            print(f'     E.T. to sum {ps.size:02d} harmonics: {t0b:.3f}s ')
-        return -voltage.real
+            voltage += (-2 * zl_wp[idx]) * beam_part[:, None]
+        return voltage.real
 
     def calc_voltage_harmonic_cavity_wake(self, dist=None):
         """."""
@@ -575,32 +573,36 @@ class LongitudinalEquilibrium:
         where = 0
         G_k = _np.zeros((xnew.size, m), dtype=float)
         X_k = _np.zeros((xnew.size, m), dtype=float)
+        mat = _np.zeros((xnew.size, m), dtype=float)
 
-        gm2 = xnew - xold
-        gm1 = self._ffunc(xnew) - xnew
-        G_k[:, where] = gm1 - gm2
-        X_k[:, where] = gm2
+        gold = xnew - xold
+        gnew = self._ffunc(xnew) - xnew
+        G_k[:, where] = gnew - gold
+        X_k[:, where] = gold
+        mat[:, where] = gnew
         where += 1
         where %= m
 
         for k in range(niter):
             t0 = _time.time()
-            gamma_k = _np.linalg.lstsq(G_k, gm1, rcond=None)[0]
-            mat = X_k + G_k
+            gamma_k = _np.linalg.lstsq(G_k, gnew, rcond=None)[0]
             xold = xnew
-            xnew = beta * (xold + gm1 - mat @ gamma_k)
+            xnew = xold + gnew
+            xnew -= mat @ gamma_k
+            xnew *= beta
             if beta != 1:
                 xnew += (1-beta) * (xold - X_k @ gamma_k)
             dists.append(xnew)
 
-            gm2 = gm1
-            gm1 = self._ffunc(xnew) - xnew
-            G_k[:, where] = gm1 - gm2
+            gold = gnew
+            gnew = self._ffunc(xnew) - xnew
+            G_k[:, where] = gnew - gold
             X_k[:, where] = xnew - xold
+            mat[:, where] = G_k[:, where] + X_k[:, where]
             where += 1
             where %= m
 
-            diff = self._reshape_dist(gm1)
+            diff = self._reshape_dist(gnew)
             diff = _np.trapz(_np.abs(diff), self.zgrid, axis=1)
             idx = _np.argmax(diff)
             tf = _time.time() - t0
@@ -622,8 +624,8 @@ class LongitudinalEquilibrium:
     def _ffunc(self, xk):
         """Haissinski operator."""
         xk = self._reshape_dist(xk)
-        hvolt = self._calc_fun(dist=xk)
-        tvolt = self.main_voltage[None, :] + hvolt
+        tvolt = self._calc_fun(dist=xk)
+        tvolt += self.main_voltage[None, :]
         fxk, _ = self.calc_distributions_from_voltage(tvolt)
         return fxk.ravel()
 
