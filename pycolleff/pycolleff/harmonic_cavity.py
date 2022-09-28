@@ -3,7 +3,6 @@ import time as _time
 
 import numpy as _np
 import numexpr as _ne
-import scipy.integrate as _scy_int
 
 from mathphys.constants import light_speed as _LSPEED
 from mathphys.functions import get_namedtuple as _get_namedtuple
@@ -39,22 +38,102 @@ def mytrapz(y, dx, cumul=False):
         return _ne.evaluate('(y1 + y2)*dx/2.0').sum(axis=-1)
 
 
-class Resonator:
+class ImpedanceSource:
     """."""
 
-    def __init__(self, Rs=0, Q=0, ang_freq=0, harm_rf=3):
+    Methods = _get_namedtuple('Methods', ['Impedance', 'Wake'])
+    ActivePassive = _get_namedtuple('ActivePassive', ['Active', 'Passive'])
+    ImpType = _get_namedtuple('ImpType', ['BroadBand', 'NarrowBand'])
+
+    def __init__(
+            self, Rs=0, Q=0, ang_freq=0, harm_rf=3,
+            imp_type=ImpType.NarrowBand, calc_method=Methods.Wake,
+            active_passive=ActivePassive.Passive):
         """."""
+        self._calc_method = None
+        self._active_passive = None
+        self._imp_type = None
+
         self.ang_freq = ang_freq
         self.Q = Q
         self.shunt_impedance = Rs
 
         self.harm_rf = harm_rf
         self.ang_freq_rf = 0
+        self.calc_method = calc_method
+        self.imp_type = imp_type
+        self.active_passive = active_passive
+
+    @property
+    def calc_method_str(self):
+        """."""
+        return self.Methods._fields[self._calc_method]
+
+    @property
+    def calc_method(self):
+        """."""
+        return self._calc_method
+
+    @calc_method.setter
+    def calc_method(self, value):
+        if value is None:
+            return
+        if isinstance(value, str):
+            self._calc_method = self.Methods._fields.index(value)
+        elif int(value) in self.Methods:
+            self._calc_method = int(value)
+        else:
+            raise ValueError('Wrong value for calc_method.')
+
+    @property
+    def active_passive_str(self):
+        """."""
+        return self.ActivePassive._fields[self._active_passive]
+
+    @property
+    def active_passive(self):
+        """."""
+        return self._active_passive
+
+    @active_passive.setter
+    def active_passive(self, value):
+        if value is None:
+            return
+        if isinstance(value, str):
+            self._active_passive = self.ActivePassive._fields.index(value)
+        elif int(value) in self.ActivePassive:
+            self._active_passive = int(value)
+        else:
+            raise ValueError('Wrong value for active_passive.')
+
+    @property
+    def imp_type_str(self):
+        """."""
+        return self.ImpType._fields[self._imp_type]
+
+    @property
+    def imp_type(self):
+        """."""
+        return self._imp_type
+
+    @imp_type.setter
+    def imp_type(self, value):
+        if value is None:
+            return
+        if isinstance(value, str):
+            self._imp_type = self.ImpType._fields.index(value)
+        elif int(value) in self.ImpType:
+            self._imp_type = int(value)
+        else:
+            raise ValueError('Wrong value for imp_type.')
 
     def get_impedance(self, w):
         """."""
-        return _imp.longitudinal_resonator(
-            Rs=self.shunt_impedance, Q=self.Q, wr=self.ang_freq, w=w)
+        imp = None
+        if self.imp_type == self.ImpType.NarrowBand:
+            imp = _imp.longitudinal_resonator(
+                Rs=self.shunt_impedance, Q=self.Q, wr=self.ang_freq, w=w)
+        return imp
 
     @property
     def RoverQ(self):
@@ -134,11 +213,7 @@ class Resonator:
 class LongitudinalEquilibrium:
     """."""
 
-    Methods = _get_namedtuple('Methods', ['Impedance', 'Wake'])
-
-    def __init__(
-            self, ring: _Ring, resonators: list,
-            method=Methods.Wake, fillpattern=None):
+    def __init__(self, ring: _Ring, impedance_sources: list, fillpattern=None):
         """."""
         self._zgrid = None
         self._dist = None
@@ -150,40 +225,13 @@ class LongitudinalEquilibrium:
         self._exp_z = None
         self._wake_matrix = None
 
-        self.calc_method = method
         self.ring = ring
-        self.resonators = resonators
+        self.impedance_sources = impedance_sources
         self.max_mode = 10*self.ring.harm_num
         self.min_mode0_ratio = 1e-9
 
         self.fillpattern = fillpattern
         self.zgrid = self.create_zgrid()
-
-    @property
-    def calc_method_str(self):
-        """."""
-        return self.Methods._fields[self._calc_method]
-
-    @property
-    def calc_method(self):
-        """."""
-        return self._calc_method
-
-    @calc_method.setter
-    def calc_method(self, value):
-        if value is None:
-            return
-        if isinstance(value, str):
-            self._calc_method = self.Methods._fields.index(value)
-        elif int(value) in self.Methods:
-            self._calc_method = int(value)
-        else:
-            raise ValueError('Wrong value for calc_method.')
-
-        if self._calc_method == self.Methods.Wake:
-            self._calc_fun = self.calc_voltage_harmonic_cavity_wake
-        elif self._calc_method == self.Methods.Impedance:
-            self._calc_fun = self.calc_voltage_harmonic_cavity_impedance
 
     @property
     def max_mode(self):
@@ -264,7 +312,8 @@ class LongitudinalEquilibrium:
         """Save state to dictionary."""
         return dict(
             ring=self.ring.to_dict(),
-            resonators=[res.to_dict() for res in self.resonators],
+            impedance_sources=[
+                imp.to_dict() for imp in self.impedance_sources],
             zgrid=self._zgrid,
             dist=self._dist,
             fillpatern=self._fillpattern,
@@ -277,10 +326,10 @@ class LongitudinalEquilibrium:
         """Load state from dictionary."""
         self.ring.from_dict(dic.get('ring', dict()))
         resons = []
-        for res in dic.get('resonators', self.resonators):
-            re = Resonator()
-            re.from_dict(res)
-            resons.append(re)
+        # for res in dic.get('resonators', self.resonators):
+        #     re = Resonator()
+        #     re.from_dict(res)
+        #     resons.append(re)
         self.resonators = resons
         self._zgrid = dic.get('zgrid', self._zgrid)
         self._dist = dic.get('dist', self._dist)
@@ -386,9 +435,26 @@ class LongitudinalEquilibrium:
         if w is None:
             w = self._create_freqs()
         total_zl = _np.zeros(w.shape, dtype=_np.complex)
-        for reson in self.resonators:
-            total_zl += reson.get_impedance(w=w)
+        imp_idx = self.get_impedance_types()
+        for imp in self.impedance_sources[imp_idx]:
+            total_zl += imp.get_impedance(w=w)
         return total_zl
+
+    def get_impedance_types(self):
+        """."""
+        imp_idx = []
+        for idx, imp in enumerate(self.impedance_sources):
+            if imp.imp_type == ImpedanceSource.ImpType.Impedance:
+                imp_idx.append(idx)
+        return imp_idx
+
+    def get_wake_types(self):
+        """."""
+        wake_idx = []
+        for idx, imp in enumerate(self.impedance_sources):
+            if imp.imp_type == ImpedanceSource.ImpType.Wake:
+                wake_idx.append(idx)
+        return wake_idx
 
     def get_harmonics_impedance_and_filling(self, w=None):
         """."""
@@ -453,7 +519,7 @@ class LongitudinalEquilibrium:
         circum = self.ring.circum
         rev_time = self.ring.rev_time
 
-        hcav = self.resonators[0]
+        hcav = self.impedance_sources[0]
         beta = hcav.beta
 
         if self._exp_z is None:
@@ -658,10 +724,24 @@ class LongitudinalEquilibrium:
     def _ffunc(self, xk):
         """Haissinski operator."""
         xk = self._reshape_dist(xk)
-        tvolt = self._calc_fun(dist=xk)
-        tvolt += self.main_voltage[None, :]
+        tvolt = self.main_voltage[None, :]
+        idx_wake = self.get_wake_types()
+        if idx_wake:
+            for imp in self.impedance_sources[idx_wake]:
+                calc_fun = self._get_calc_fun(imp)
+                tvol += calc_fun(dist=xk)
+        else:
+            calc_fun = self.calc_voltage_harmonic_cavity_impedance
+            tvol += calc_fun(dist=xk)
         fxk, _ = self.calc_distributions_from_voltage(tvolt)
         return fxk.ravel()
 
     def _reshape_dist(self, dist):
         return dist.reshape((self.ring.harm_num, self.zgrid.size))
+
+    def _get_calc_fun(self, imp_source):
+        if imp_source._calc_method == ImpedanceSource.Methods.Wake:
+            calc_fun = self.calc_voltage_harmonic_cavity_wake
+        elif imp_source._calc_method == ImpedanceSource.Methods.Impedance:
+            calc_fun = self.calc_voltage_harmonic_cavity_impedance
+        return calc_fun
