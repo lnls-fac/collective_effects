@@ -13,7 +13,7 @@ from .colleff import Ring as _Ring
 _PI = _np.pi
 
 
-def mytrapz(y, dx, cumul=False):
+def _mytrapz(y, dx, cumul=False):
     """Perform trapezoidal integration along last axis of array.
 
     Args:
@@ -25,6 +25,7 @@ def mytrapz(y, dx, cumul=False):
     Returns:
         numpy.ndarray: if cumul is True, then the shape matches y, else the
             number of dimensions is reduced.
+
     """
     y1 = y[..., :-1]
     y2 = y[..., 1:]
@@ -346,12 +347,12 @@ class LongitudinalEquilibrium:
     def from_dict(self, dic):
         """Load state from dictionary."""
         self.ring.from_dict(dic.get('ring', dict()))
-        resons = []
-        # for res in dic.get('resonators', self.resonators):
-        #     re = Resonator()
-        #     re.from_dict(res)
-        #     resons.append(re)
-        self.resonators = resons
+        imps = []
+        for imp in dic.get('impedance_sources', self.impedance_sources):
+            _imp = ImpedanceSource()
+            _imp.from_dict(imp)
+            imps.append(_imp)
+        self.impedance_sources = imps
         self._zgrid = dic.get('zgrid', self._zgrid)
         self._dist = dic.get('dist', self._dist)
         self._fillpattern = dic.get('fillpattern', self._fillpattern)
@@ -368,10 +369,10 @@ class LongitudinalEquilibrium:
     def calc_moments(zgrid, dist):
         """."""
         dz = zgrid[1] - zgrid[0]
-        zm = mytrapz(zgrid[None, :]*dist, dz)
+        zm = _mytrapz(zgrid[None, :]*dist, dz)
 
         zgrid2 = zgrid*zgrid
-        z2 = mytrapz(zgrid2[None, :]*dist, dz)
+        z2 = _mytrapz(zgrid2[None, :]*dist, dz)
         return zm, _np.sqrt(z2 - zm**2)
 
     def get_gaussian_distributions(self, sigmaz, z0=0):
@@ -380,7 +381,7 @@ class LongitudinalEquilibrium:
 
         arg = (self.zgrid - z0)/sigmaz
         dist = _np.exp(-arg**2/2)
-        dist /= mytrapz(dist, dz)
+        dist /= _mytrapz(dist, dz)
         dist = _np.tile(dist, (self.ring.harm_num, 1))
         return dist
 
@@ -424,7 +425,7 @@ class LongitudinalEquilibrium:
 
         # subtract U0
         U0 = self.ring.en_lost_rad
-        pot = -mytrapz(voltage-U0, dz, cumul=True)
+        pot = -_mytrapz(voltage-U0, dz, cumul=True)
 
         # subtract minimum value for all bunches
         pot -= _np.min(pot, axis=1)[:, None]
@@ -436,7 +437,7 @@ class LongitudinalEquilibrium:
         const *= self.ring.energy
 
         dist = _ne.evaluate('exp(-pot/const)')
-        dist /= mytrapz(dist, dz)[:, None]
+        dist /= _mytrapz(dist, dz)[:, None]
         if flag:
             dist = _np.tile(dist, (self.ring.harm_num, 1))
         # distribution must be normalized
@@ -449,31 +450,33 @@ class LongitudinalEquilibrium:
         arg = _np.exp((1j*w/_LSPEED)*self.zgrid)[None, :]
         arg = _ne.evaluate('dist * arg')
         dz = self.zgrid[1] - self.zgrid[0]
-        return mytrapz(arg, dz)
+        return _mytrapz(arg, dz)
 
     def get_impedance(self, w=None):
         """."""
         if w is None:
             w = self._create_freqs()
         total_zl = _np.zeros(w.shape, dtype=_np.complex)
-        imp_idx = self.get_impedance_types()
-        for imp in self.impedance_sources[imp_idx]:
-            total_zl += imp.get_impedance(w=w)
+        imp_idx = self.get_impedance_types_idx()
+        if imp_idx:
+            imp_sources = [self.impedance_sources[idx] for idx in imp_idx]
+            for imp in imp_sources:
+                total_zl += imp.get_impedance(w=w)
         return total_zl
 
-    def get_impedance_types(self):
+    def get_impedance_types_idx(self):
         """."""
         imp_idx = []
         for idx, imp in enumerate(self.impedance_sources):
-            if imp.imp_type == ImpedanceSource.ImpType.Impedance:
+            if imp.imp_type == ImpedanceSource.Methods.Impedance:
                 imp_idx.append(idx)
         return imp_idx
 
-    def get_wake_types(self):
+    def get_wake_types_idx(self):
         """."""
         wake_idx = []
         for idx, imp in enumerate(self.impedance_sources):
-            if imp.imp_type == ImpedanceSource.ImpType.Wake:
+            if imp.imp_type == ImpedanceSource.Methods.Wake:
                 wake_idx.append(idx)
         return wake_idx
 
@@ -516,7 +519,7 @@ class LongitudinalEquilibrium:
 
         expph = _ne.evaluate('exp(-ps*zn_ph)')
 
-        voltage = _np.zeros((h, zgrid.size), dtype=_np.complex)
+        harm_volt = _np.zeros((h, zgrid.size), dtype=_np.complex)
         for idx, p in enumerate(ps):
             dist_fourier = self.calc_fourier_transform(w=p*w0, dist=dist)
             dist_fourier = dist_fourier.conj()
@@ -526,10 +529,11 @@ class LongitudinalEquilibrium:
             beam_part = beam_part.sum(axis=-1) / exp_phase
 
             # sum over positive frequencies only -> factor 2
-            voltage += (-2 * zl_wp[idx]) * beam_part[:, None]
-        return voltage.real
+            harm_volt += (-2 * zl_wp[idx]) * beam_part[:, None]
+        return harm_volt.real
 
-    def calc_voltage_harmonic_cavity_wake(self, dist=None):
+    def calc_voltage_harmonic_cavity_wake(
+            self, wake_source, dist=None):
         """."""
         if dist is None:
             dist = self.distributions
@@ -540,8 +544,10 @@ class LongitudinalEquilibrium:
         circum = self.ring.circum
         rev_time = self.ring.rev_time
 
-        hcav = self.impedance_sources[0]
-        beta = hcav.beta
+        alpha = wake_source.alpha
+        beta = wake_source.beta
+        wrbar = wake_source.ang_freq_bar
+        rsh = wake_source.shunt_impedance
 
         if self._exp_z is None:
             self._exp_z = _ne.evaluate('exp(beta*zgrid)')[None, :]
@@ -551,7 +557,7 @@ class LongitudinalEquilibrium:
         dist_exp_z *= fillpattern
         dist_exp_z *= self._exp_z
         dz = zgrid[1] - zgrid[0]
-        dist_fourier = mytrapz(dist_exp_z, dz)
+        dist_fourier = _mytrapz(dist_exp_z, dz)
 
         # NOTE: Alternative implementation without matrix multiplication. This
         # calculation did not reduce the evaluation time too much, then the
@@ -581,13 +587,13 @@ class LongitudinalEquilibrium:
             self._wake_matrix = wmat
         V = _np.dot(self._wake_matrix, dist_fourier)
 
-        Vt = mytrapz(dist_exp_z, dz, cumul=True)
+        Vt = _mytrapz(dist_exp_z, dz, cumul=True)
         Vt += V[:, None]
         Vt /= self._exp_z
 
         harm_volt = Vt.real
-        harm_volt -= hcav.alpha / hcav.ang_freq_bar * Vt.imag
-        harm_volt *= -2*hcav.alpha * hcav.shunt_impedance * rev_time
+        harm_volt -= alpha / wrbar * Vt.imag
+        harm_volt *= -2*alpha * rsh * rev_time
         return harm_volt
 
     def calc_longitudinal_equilibrium(
@@ -599,8 +605,11 @@ class LongitudinalEquilibrium:
             dists, niter, tol, beta=beta, m=m)
         dists = [self._reshape_dist(rho) for rho in dists]
         self.distributions = dists[-1]
+        self._wake_matrix = None
+        self._exp_z = None
         return dists
 
+    # Instabilities calcultations
     def calc_robinson_growth_rate(
             self, w, approx=False, wr=None, Rs=None, Q=None):
         """."""
@@ -724,7 +733,7 @@ class LongitudinalEquilibrium:
 
             diff = self._reshape_dist(gnew)
             dz = self.zgrid[1] - self.zgrid[0]
-            diff = mytrapz(_np.abs(diff), dz)
+            diff = _mytrapz(_np.abs(diff), dz)
             idx = _np.argmax(diff)
             tf = _time.time() - t0
             if self.print_flag:
@@ -745,24 +754,21 @@ class LongitudinalEquilibrium:
     def _ffunc(self, xk):
         """Haissinski operator."""
         xk = self._reshape_dist(xk)
-        tvolt = self.main_voltage[None, :]
-        idx_wake = self.get_wake_types()
+        total_volt = _np.zeros(xk.shape)
+        idx_wake = self.get_wake_types_idx()
         if idx_wake:
-            for imp in self.impedance_sources[idx_wake]:
-                calc_fun = self._get_calc_fun(imp)
-                tvol += calc_fun(dist=xk)
+            wake_sources = [self.impedance_sources[idx] for idx in idx_wake]
+            # Wakes need to be evaluated one by one
+            for wake in wake_sources:
+                _func = self.calc_voltage_harmonic_cavity_wake
+                total_volt += _func(wake_source=wake, dist=xk)
         else:
-            calc_fun = self.calc_voltage_harmonic_cavity_impedance
-            tvol += calc_fun(dist=xk)
-        fxk, _ = self.calc_distributions_from_voltage(tvolt)
+            # Impedances can be summed and calculated together
+            _func = self.calc_voltage_harmonic_cavity_impedance
+            total_volt += _func(dist=xk)
+        total_volt += self.main_voltage[None, :]
+        fxk, _ = self.calc_distributions_from_voltage(total_volt)
         return fxk.ravel()
 
     def _reshape_dist(self, dist):
         return dist.reshape((self.ring.harm_num, self.zgrid.size))
-
-    def _get_calc_fun(self, imp_source):
-        if imp_source._calc_method == ImpedanceSource.Methods.Wake:
-            calc_fun = self.calc_voltage_harmonic_cavity_wake
-        elif imp_source._calc_method == ImpedanceSource.Methods.Impedance:
-            calc_fun = self.calc_voltage_harmonic_cavity_impedance
-        return calc_fun
