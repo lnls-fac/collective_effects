@@ -209,6 +209,27 @@ class ImpedanceSource:
         self.harm_rf = dic.get('harm_rf', self.harm_rf)
         self.ang_freq_rf = dic.get('ang_freq_rf', self.ang_freq_rf)
 
+    def __str__(self):
+        """."""
+        stmp = '{0:20s}: {1:}  {2:s}\n'.format
+        ftmp = '{0:20s}: {1:3.2f}  {2:s}\n'.format
+        etmp = '{0:20s}: {1:.2e}  {2:s}\n'.format
+        mega = 1e-6
+        stg = stmp('calc_method', self.calc_method_str, '')
+        stg += stmp('active_passive', self.active_passive_str, '')
+        stg += stmp('imp_type', self.imp_type_str, '')
+        stg += ftmp('ang_freq_rf', self.ang_freq_rf*mega, '[MHz]')
+        stg += ftmp('ang_freq', self.ang_freq*mega, '[Mrad/s]')
+        stg += ftmp('shunt_impedance', self.shunt_impedance*mega, '[MOhm]')
+        stg += etmp('Q', self.Q, '')
+        stg += ftmp('RoverQ', self.RoverQ, '[Ohm]')
+        stg += ftmp('harm_rf', self.harm_rf, '')
+        stg += ftmp('detune_angle', self.detune_angle, '[rad]')
+        stg += ftmp('detune_w', self.detune_w, '[rad/s]')
+        stg += ftmp('alpha', self.alpha, '[rad/s]')
+        stg += ftmp('ang_freq_bar', self.ang_freq_bar*mega, '[Mrad/s]')
+        return stg
+
 
 class LongitudinalEquilibrium:
     """."""
