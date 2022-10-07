@@ -44,16 +44,13 @@ class ImpedanceSource:
 
     Methods = _get_namedtuple('Methods', ['Impedance', 'Wake'])
     ActivePassive = _get_namedtuple('ActivePassive', ['Active', 'Passive'])
-    ImpType = _get_namedtuple('ImpType', ['BroadBand', 'NarrowBand'])
 
     def __init__(
             self, Rs=0, Q=0, ang_freq=0, harm_rf=3,
-            imp_type=ImpType.NarrowBand, calc_method=Methods.Wake,
-            active_passive=ActivePassive.Passive):
+            calc_method=Methods.Wake, active_passive=ActivePassive.Passive):
         """."""
         self._calc_method = None
         self._active_passive = None
-        self._imp_type = None
 
         self.ang_freq = ang_freq
         self.Q = Q
@@ -61,8 +58,8 @@ class ImpedanceSource:
 
         self.harm_rf = harm_rf
         self.ang_freq_rf = 0
+        self._loop_ctrl_freq = 0
         self.calc_method = calc_method
-        self.imp_type = imp_type
         self.active_passive = active_passive
 
     @property
@@ -107,34 +104,31 @@ class ImpedanceSource:
         else:
             raise ValueError('Wrong value for active_passive.')
 
-    @property
-    def imp_type_str(self):
-        """."""
-        return self.ImpType._fields[self._imp_type]
-
-    @property
-    def imp_type(self):
-        """."""
-        return self._imp_type
-
-    @imp_type.setter
-    def imp_type(self, value):
-        if value is None:
-            return
-        if isinstance(value, str):
-            self._imp_type = self.ImpType._fields.index(value)
-        elif int(value) in self.ImpType:
-            self._imp_type = int(value)
-        else:
-            raise ValueError('Wrong value for imp_type.')
-
     def get_impedance(self, w):
         """."""
-        imp = None
-        if self.imp_type == self.ImpType.NarrowBand:
-            imp = _imp.longitudinal_resonator(
-                Rs=self.shunt_impedance, Q=self.Q, wr=self.ang_freq, w=w)
+        imp = _imp.longitudinal_resonator(
+            Rs=self.shunt_impedance, Q=self.Q, wr=self.ang_freq, w=w)
         return imp
+
+    @property
+    def loop_ctrl_freq(self):
+        """."""
+        return self._loop_ctrl_freq
+
+    @loop_ctrl_freq.setter
+    def loop_ctrl_freq(self, value):
+        """."""
+        self._loop_ctrl_freq = value
+
+    @property
+    def loop_ctrl_ang_freq(self):
+        """."""
+        return 2*_PI*self._loop_ctrl_freq
+
+    @loop_ctrl_ang_freq.setter
+    def loop_ctrl_ang_freq(self, value):
+        """."""
+        self._loop_ctrl_freq = value/2/_PI
 
     @property
     def RoverQ(self):
@@ -218,7 +212,6 @@ class ImpedanceSource:
         mega = 1e-6
         stg = stmp('calc_method', self.calc_method_str, '')
         stg += stmp('active_passive', self.active_passive_str, '')
-        stg += stmp('imp_type', self.imp_type_str, '')
         stg += ftmp('ang_freq_rf', self.ang_freq_rf*mega, '[MHz]')
         stg += ftmp('ang_freq', self.ang_freq*mega, '[Mrad/s]')
         stg += ftmp('shunt_impedance', self.shunt_impedance*mega, '[MOhm]')
@@ -458,17 +451,27 @@ class LongitudinalEquilibrium:
             w = self._create_freqs()
         total_zl = _np.zeros(w.shape, dtype=_np.complex)
         imp_idx = self.get_impedance_types_idx()
-        if imp_idx:
-            imp_sources = [self.impedance_sources[idx] for idx in imp_idx]
-            for imp in imp_sources:
-                total_zl += imp.get_impedance(w=w)
+        loop_freq_idx = []
+        for iidx in imp_idx:
+            imp = self.impedance_sources[iidx]
+            if imp.active_passive == ImpedanceSource.ActivePassive.Active:
+                w_loop = imp.loop_ctrl_ang_freq
+                if w_loop not in w:
+                    w = _np.sort(_np.r_[w, w_loop])
+                loop_freq_idx = _np.where(w == w_loop)[0][0]
+            _zl = imp.get_impedance(w=w)
+            # low-level control loop makes the impedance
+            # go to zero at the loop actuation frequency
+            # for active impedance sources
+            _zl[loop_freq_idx] = 0 + 0j
+            total_zl += _zl
         return total_zl
 
     def get_impedance_types_idx(self):
         """."""
         imp_idx = []
         for idx, imp in enumerate(self.impedance_sources):
-            if imp.imp_type == ImpedanceSource.Methods.Impedance:
+            if imp.calc_method == ImpedanceSource.Methods.Impedance:
                 imp_idx.append(idx)
         return imp_idx
 
@@ -476,7 +479,7 @@ class LongitudinalEquilibrium:
         """."""
         wake_idx = []
         for idx, imp in enumerate(self.impedance_sources):
-            if imp.imp_type == ImpedanceSource.Methods.Wake:
+            if imp.calc_method == ImpedanceSource.Methods.Wake:
                 wake_idx.append(idx)
         return wake_idx
 
