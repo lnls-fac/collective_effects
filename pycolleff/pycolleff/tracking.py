@@ -129,21 +129,24 @@ class Ring:
         """."""
         self.damping_number = 2*self.rev_time / value / self.u0_norm
 
-    def track_one_turn(self, beam):
+    def track_one_turn(self, beam, excitation=True, damping=True):
         """."""
-        damping = (1 - self.damping_number*self.u0_norm)
-        exc_quant = _np.sqrt(1 - damping*damping)*self.espread
-        if not self._use_gaussian_noise:
-            exc_quant *= _np.math.sqrt(12)
-            noise = _np.random.rand(*beam.de.shape)
-            noise -= 0.5
-        else:
-            noise = _np.random.randn(*beam.de.shape)  # 2/7 of exec. time
-        noise *= exc_quant
+        damp = (1 - self.damping_number*self.u0_norm)
+        if excitation:
+            exc_quant = _np.sqrt(1 - damp*damp)*self.espread
+            if not self._use_gaussian_noise:
+                exc_quant *= _np.math.sqrt(12)
+                noise = _np.random.rand(*beam.de.shape)
+                noise -= 0.5
+            else:
+                noise = _np.random.randn(*beam.de.shape)  # 2/7 of exec. time
+            noise *= exc_quant
 
         beam.ss += (self.circum * self.mom_comp) * beam.de
-        beam.de *= damping
-        beam.de += noise
+        if damping:
+            beam.de *= damp
+        if excitation:
+            beam.de += noise
         beam.de += _np.interp(
             beam.ss, self.cav_pos, self.cav_volt_norm)  # 2/7 of exec. time
 
@@ -370,7 +373,8 @@ class Beam():
 
 def track_particles(
         ring, beam, wakes, num_turns=10000, stats_ev_nt=10,
-        dist_ev_nt=1000, print_progress=True, save_dist=False):
+        dist_ev_nt=1000, print_progress=True, save_dist=False,
+        excitation=True, damping=True):
     """."""
     avg_ss, avg_de = [], []
     std_ss, std_de = [], []
@@ -378,7 +382,7 @@ def track_particles(
 
     t0 = _time.time()
     for turn in range(num_turns):
-        ring.track_one_turn(beam)
+        ring.track_one_turn(beam, excitation=excitation, damping=damping)
         beam.sort()
         for wake in wakes:
             wake.track_one_turn(beam, ring)

@@ -147,6 +147,11 @@ class ImpedanceSource:
         self.ang_freq = wr
 
     @property
+    def detune_freq(self):
+        """."""
+        return self.detune_w/2/_PI
+
+    @property
     def alpha(self):
         """."""
         return self.ang_freq/2/self.Q
@@ -219,6 +224,7 @@ class ImpedanceSource:
         stg += ftmp('RoverQ', self.RoverQ, '[Ohm]')
         stg += ftmp('harm_rf', self.harm_rf, '')
         stg += ftmp('detune_angle', self.detune_angle, '[rad]')
+        stg += ftmp('detune_freq', self.detune_freq/1e3, '[kHz]')
         stg += ftmp('detune_w', self.detune_w, '[rad/s]')
         stg += ftmp('alpha', self.alpha, '[rad/s]')
         stg += ftmp('ang_freq_bar', self.ang_freq_bar*mega, '[Mrad/s]')
@@ -455,6 +461,7 @@ class LongitudinalEquilibrium:
         for iidx in imp_idx:
             imp = self.impedance_sources[iidx]
             if imp.active_passive == ImpedanceSource.ActivePassive.Active:
+                # this part is broken for instabilities calculations
                 w_loop = imp.loop_ctrl_ang_freq
                 if w_loop not in w:
                     w = _np.sort(_np.r_[w, w_loop])
