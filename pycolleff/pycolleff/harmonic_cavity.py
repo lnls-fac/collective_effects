@@ -1,12 +1,12 @@
 """."""
 import time as _time
-
 import numpy as _np
 import numexpr as _ne
 
 from mathphys.constants import light_speed as _LSPEED
 from mathphys.functions import get_namedtuple as _get_namedtuple
 
+from scipy.optimize import least_squares as _least_squares
 from . import impedances as _imp
 from .colleff import Ring as _Ring
 
@@ -245,6 +245,7 @@ class LongitudinalEquilibrium:
         self._print_flag = False
         self._exp_z = None
         self._wake_matrix = None
+        self.beamload_active = None
 
         self.ring = ring
         self.impedance_sources = impedance_sources
@@ -619,6 +620,25 @@ class LongitudinalEquilibrium:
         self._exp_z = None
         return dists
 
+    def get_generator_voltage(self, feedback=True, method='phasor'):
+        """."""
+        if feedback:
+            if self.beamload_active is None:
+                raise ValueError(
+                    'Feedback is on but beam loading voltage is None!')
+            if method == 'phasor':
+                # Phasor compensation
+                vg = self._feedback_phasor()
+            elif method == 'lstqr':
+                # Least-squares minimization
+                vg = self._feedback_least_squares()
+            else:
+                raise ValueError(
+                    "Wrong feedback method: must be 'phasor' or 'lstqr'")
+        else:
+            vg = self.ring.get_voltage_waveform(self.zgrid)[None, :]
+        return vg
+
     # Instabilities calcultations
     def calc_robinson_growth_rate(
             self, w, approx=False, wr=None, Rs=None, Q=None):
@@ -761,24 +781,76 @@ class LongitudinalEquilibrium:
         p = _np.arange(0, self.max_mode)
         return p*w0
 
-    def _ffunc(self, xk):
+    def _ffunc(self, xk, feedback=True):
         """Haissinski operator."""
         xk = self._reshape_dist(xk)
         total_volt = _np.zeros(xk.shape)
+        self.beamload_active = _np.zeros(xk.shape)
         idx_wake = self.get_wake_types_idx()
         if idx_wake:
             wake_sources = [self.impedance_sources[idx] for idx in idx_wake]
             # Wakes need to be evaluated one by one
+            _func = self.calc_voltage_harmonic_cavity_wake
             for wake in wake_sources:
-                _func = self.calc_voltage_harmonic_cavity_wake
+                if wake.active_passive == ImpedanceSource.ActivePassive.Active:
+                    self.beamload_active = _func(wake_source=wake, dist=xk)
+                    self._wake_matrix = None
+                    self._exp_z = None
                 total_volt += _func(wake_source=wake, dist=xk)
+                self._wake_matrix = None
+                self._exp_z = None
         else:
             # Impedances can be summed and calculated together
             _func = self.calc_voltage_harmonic_cavity_impedance
             total_volt += _func(dist=xk)
-        total_volt += self.main_voltage[None, :]
+
+        # total_volt += self.main_voltage[None, :]
+        total_volt += self.get_generator_voltage(
+            feedback=feedback)
         fxk, _ = self.calc_distributions_from_voltage(total_volt)
         return fxk.ravel()
+
+    def _feedback_phasor(self):
+        vgap = self.ring.gap_voltage
+        wrf = 2*_PI*self.ring.rf_freq
+        phase = wrf*self.zgrid/_LSPEED
+        dz = self.zgrid[1] - self.zgrid[0]
+
+        vref_phasor = vgap*_np.exp(
+            1j*(_PI/2 - self.ring.sync_phase))
+        vbeamload_phasor = _np.mean(_mytrapz(
+            self.beamload_active*_np.exp(1j*phase)[None, :], dz))
+        vbeamload_phasor *= 2/(self.zgrid[-1]-self.zgrid[0])
+        vg_phasor = vref_phasor - vbeamload_phasor
+        vg = _np.real(vg_phasor*_np.exp(-1j*phase))
+        return vg[None, :]
+
+    def _feedback_least_squares(self):
+        x0 = [self.ring.gap_voltage, 0]
+        wrf = 2*_PI*self.ring.rf_freq
+        phase = wrf*self.zgrid/_LSPEED
+        dz = self.zgrid[1] - self.zgrid[0]
+
+        vref = self.ring.get_voltage_waveform(self.zgrid)
+        res = _least_squares(
+            fun=self._feedback_err, x0=x0,
+            args=(phase, dz, self.beamload_active, vref),
+            method='lm')
+        vg = LongitudinalEquilibrium._generator_model(
+            phase, res.x[0], res.x[1])
+        return vg[None, :]
+
+    @staticmethod
+    def _feedback_err(x, *args):
+        phase, dz, vbeamload, vref = args
+        vgen = LongitudinalEquilibrium._generator_model(phase, x[0], x[1])
+        err = (vgen[None, :] + vbeamload) - vref[None, :]
+        err = _mytrapz(err*err, dz)
+        return err
+
+    @staticmethod
+    def _generator_model(phase, a, b):
+        return a*_np.sin(phase) + b*_np.cos(phase)
 
     def _reshape_dist(self, dist):
         return dist.reshape((self.ring.harm_num, self.zgrid.size))
