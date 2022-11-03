@@ -452,16 +452,18 @@ class LongitudinalEquilibrium:
         dz = self.zgrid[1] - self.zgrid[0]
         return _mytrapz(arg, dz)
 
-    def get_impedance(self, w=None):
+    def get_impedance(self, w=None, apply_filter=False):
         """."""
         if w is None:
             w = self._create_freqs()
         total_zl = _np.zeros(w.shape, dtype=_np.complex)
-        imp_idx = self.get_impedance_types_idx()
+        imp_idx = self._get_impedance_types_idx()
         loop_freq_idx = []
         for iidx in imp_idx:
             imp = self.impedance_sources[iidx]
-            if imp.active_passive == ImpedanceSource.ActivePassive.Active:
+            cond = imp.active_passive == ImpedanceSource.ActivePassive.Active
+            cond |= apply_filter
+            if cond:
                 # this part is broken for instabilities calculations
                 w_loop = imp.loop_ctrl_ang_freq
                 if w_loop not in w:
@@ -475,22 +477,6 @@ class LongitudinalEquilibrium:
             total_zl += _zl
         return total_zl
 
-    def get_impedance_types_idx(self):
-        """."""
-        imp_idx = []
-        for idx, imp in enumerate(self.impedance_sources):
-            if imp.calc_method == ImpedanceSource.Methods.Impedance:
-                imp_idx.append(idx)
-        return imp_idx
-
-    def get_wake_types_idx(self):
-        """."""
-        wake_idx = []
-        for idx, imp in enumerate(self.impedance_sources):
-            if imp.calc_method == ImpedanceSource.Methods.Wake:
-                wake_idx.append(idx)
-        return wake_idx
-
     def get_harmonics_impedance_and_filling(self, w=None):
         """."""
         if w is None:
@@ -500,7 +486,7 @@ class LongitudinalEquilibrium:
         diff = self.max_mode - max_harm*h
         if diff > 0:
             max_harm = max_harm + 1
-        zl_wp = self.get_impedance(w=w)
+        zl_wp = self.get_impedance(w=w, apply_filter=True)
         fill_fft = _np.fft.fft(self.fillpattern)
         fill_fft = _np.tile(fill_fft, (max_harm, 1)).ravel()
         if diff > 0:
@@ -616,6 +602,7 @@ class LongitudinalEquilibrium:
             dists, niter, tol, beta=beta, m=m)
         dists = [self._reshape_dist(rho) for rho in dists]
         self.distributions = dists[-1]
+        # Flush pre-calculated data
         self._wake_matrix = None
         self._exp_z = None
         return dists
@@ -628,18 +615,18 @@ class LongitudinalEquilibrium:
                     'Feedback is on but beam loading voltage is None!')
             if method == 'phasor':
                 # Phasor compensation
-                vg = self._feedback_phasor()
+                _vg = self._feedback_phasor()
             elif method == 'lstqr':
                 # Least-squares minimization
-                vg = self._feedback_least_squares()
+                _vg = self._feedback_least_squares()
             else:
                 raise ValueError(
                     "Wrong feedback method: must be 'phasor' or 'lstqr'")
         else:
-            vg = self.ring.get_voltage_waveform(self.zgrid)[None, :]
-        return vg
+            _vg = self.ring.get_voltage_waveform(self.zgrid)[None, :]
+        return _vg
 
-    # Instabilities calcultations
+    # -------------------- instabilities calculations -------------------------
     def calc_robinson_growth_rate(
             self, w, approx=False, wr=None, Rs=None, Q=None):
         """."""
@@ -659,8 +646,8 @@ class LongitudinalEquilibrium:
             growth *= (1-x**2)*(1 + x**2)
             growth /= x**4 * (1 + Q**2 * (1/x - x)**2)**2
         else:
-            Zlp = self.get_impedance(w=wp)
-            Zln = self.get_impedance(w=wn)
+            Zlp = self.get_impedance(w=wp, apply_filter=False)
+            Zln = self.get_impedance(w=wn, apply_filter=False)
             growth = const*(wp*Zlp.real - wn*Zln.real)
         return growth
 
@@ -680,7 +667,7 @@ class LongitudinalEquilibrium:
             # only the min and max frequencies are required: w = [w_min, w_max]
             Zl = self.get_impedance
         else:
-            Zl = self.get_impedance(w=w)
+            Zl = self.get_impedance(w=w, apply_filter=False)
 
         deltaw, wp, interpol_Z, spectrum = ring.longitudinal_cbi(
             w=w, Zl=Zl, m=m, inverse=False, full=True)
@@ -705,7 +692,7 @@ class LongitudinalEquilibrium:
         if _np.array(w).size == 2:
             Zl = self.get_impedance
         else:
-            Zl = self.get_impedance(w=w)
+            Zl = self.get_impedance(w=w, apply_filter=False)
 
         eigenfreq, modecoup_matrix, fokker_matrix = \
             ring.longitudinal_mode_coupling(
@@ -786,7 +773,7 @@ class LongitudinalEquilibrium:
         xk = self._reshape_dist(xk)
         total_volt = _np.zeros(xk.shape)
         self.beamload_active = _np.zeros(xk.shape)
-        idx_wake = self.get_wake_types_idx()
+        idx_wake = self._get_wake_types_idx()
         if idx_wake:
             wake_sources = [self.impedance_sources[idx] for idx in idx_wake]
             # Wakes need to be evaluated one by one
@@ -800,15 +787,30 @@ class LongitudinalEquilibrium:
                 self._wake_matrix = None
                 self._exp_z = None
         else:
-            # Impedances can be summed and calculated together
+            # Impedances can be summed and calculated once
             _func = self.calc_voltage_harmonic_cavity_impedance
             total_volt += _func(dist=xk)
 
-        # total_volt += self.main_voltage[None, :]
         total_volt += self.get_generator_voltage(
             feedback=feedback)
         fxk, _ = self.calc_distributions_from_voltage(total_volt)
         return fxk.ravel()
+
+    def _get_impedance_types_idx(self):
+        """."""
+        imp_idx = []
+        for idx, imp in enumerate(self.impedance_sources):
+            if imp.calc_method == ImpedanceSource.Methods.Impedance:
+                imp_idx.append(idx)
+        return imp_idx
+
+    def _get_wake_types_idx(self):
+        """."""
+        wake_idx = []
+        for idx, imp in enumerate(self.impedance_sources):
+            if imp.calc_method == ImpedanceSource.Methods.Wake:
+                wake_idx.append(idx)
+        return wake_idx
 
     def _feedback_phasor(self):
         vgap = self.ring.gap_voltage
