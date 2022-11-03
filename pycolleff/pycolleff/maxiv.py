@@ -17,8 +17,8 @@ def create_ring(energy):
 
     """
     ring = _Ring()
-    ring.energy = energy  # energy [eV]
-    if energy == 3e9:
+    ring.energy = energy*1e9  # energy [eV]
+    if energy == 3:
         ring.version = 'MAX-IV-3GeV'
         ring.rf_freq = 99.931e6
         ring.mom_comp = 3.06e-4  # momentum compaction factor
@@ -47,7 +47,7 @@ def create_ring(energy):
         ring.damptx = 1/alphax  # [s]
         ring.dampty = 1/alpha0  # [s]
         ring.dampte = 1/alphae  # [s]
-    elif energy == 1.5e9:
+    elif energy == 1.5:
         ring.version = 'MAX-IV-1.5GeV'
         ring.rf_freq = 99.931e6
         ring.mom_comp = 3.055e-3  # momentum compaction factor
