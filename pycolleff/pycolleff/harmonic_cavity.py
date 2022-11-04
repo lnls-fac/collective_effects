@@ -511,22 +511,21 @@ class LongitudinalEquilibrium:
 
         ps, zl_wps = self.get_harmonics_impedance_and_filling()
         ps = ps[:, None]
-        zl_wp = _ne.evaluate('exp(ps*z_ph)')
-        zl_wp *= zl_wps[:, None].conj()
+        expphz = _ne.evaluate('exp(ps*z_ph)')
+        expphn = _ne.evaluate('exp(ps*zn_ph)')
+        ps = ps.ravel()
 
-        expph = _ne.evaluate('exp(-ps*zn_ph)')
-
-        harm_volt = _np.zeros((h, zgrid.size), dtype=_np.complex)
-        for idx, p in enumerate(ps):
-            dist_fourier = self.calc_fourier_transform(w=p*w0, dist=dist)
-            dist_fourier = dist_fourier.conj()
-
-            exp_phase = expph[idx]
-            beam_part = _ne.evaluate('exp_phase*fillpattern*dist_fourier')
-            beam_part = beam_part.sum(axis=-1) / exp_phase
-
-            # sum over positive frequencies only -> factor 2
-            harm_volt += (-2 * zl_wp[idx]) * beam_part[:, None]
+        # remove last point to do not overlap domains
+        dist_beam = (fillpattern[:, None]*dist[:, :-1]).ravel()
+        dist_dft = _np.fft.rfft(dist_beam) * (zgrid[1] - zgrid[0])
+        dist_dft = dist_dft[ps]
+        # shift phase due to difference of DFT reference frame
+        # (initial point z=0) and our reference (initial point z=-lambda_rf/2)
+        dist_dft *= _np.exp(1j*ps*_PI/h)
+        dist_dft *= zl_wps.conj()
+        # sum over positive frequencies only -> factor 2
+        expphn *= dist_dft[:, None]
+        harm_volt = -2*_np.dot(expphn.T, expphz)
         return harm_volt.real
 
     def calc_voltage_harmonic_cavity_wake(
