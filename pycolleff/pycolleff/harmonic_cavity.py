@@ -245,9 +245,9 @@ class LongitudinalEquilibrium:
         self._calc_fun = None
         self._calc_method = None
         self._print_flag = False
-        self._exp_z = None
         self._wake_matrix = None
         self.beamload_active = None
+        self.total_voltage = None
 
         self.ring = ring
         self.impedance_sources = impedance_sources
@@ -820,8 +820,8 @@ class LongitudinalEquilibrium:
             _func = self.calc_voltage_harmonic_cavity_impedance
             total_volt += _func(dist=xk)
 
-        total_volt += self.get_generator_voltage(
-            feedback=feedback)
+        total_volt += self.get_generator_voltage()
+        self.total_voltage = total_volt
         fxk, _ = self.calc_distributions_from_voltage(total_volt)
         return fxk.ravel()
 
