@@ -119,7 +119,7 @@ class ImpedanceSource:
     def loop_ctrl_freq(self, value):
         """."""
         self._loop_ctrl_freq = value
-
+        
     @property
     def loop_ctrl_ang_freq(self):
         """."""
@@ -234,6 +234,8 @@ class ImpedanceSource:
 class LongitudinalEquilibrium:
     """."""
 
+    FeedbackMethod = _get_namedtuple('FeedbackMethod', ['Phasor', 'LeastSquares'])
+
     def __init__(self, ring: _Ring, impedance_sources: list, fillpattern=None):
         """."""
         self._zgrid = None
@@ -252,8 +254,32 @@ class LongitudinalEquilibrium:
         self.max_mode = 10*self.ring.harm_num
         self.min_mode0_ratio = 1e-9
 
+        self.feedback_method = self.FeedbackMethod.LeastSquares
+        self.feedback_on = True
+
         self.fillpattern = fillpattern
         self.zgrid = self.create_zgrid()
+
+    @property
+    def feedback_method_str(self):
+        """."""
+        return self.FeedbackMethod._fields[self._feedback_method]
+
+    @property
+    def feedback_method(self):
+        """."""
+        return self._feedback_method
+
+    @feedback_method.setter
+    def feedback_method(self, value):
+        if value is None:
+            return
+        if isinstance(value, str):
+            self._feedback_method = self.FeedbackMethod._fields.index(value)
+        elif int(value) in self.FeedbackMethod:
+            self._feedback_method = int(value)
+        else:
+            raise ValueError('Wrong value for feedback_method.')
 
     @property
     def max_mode(self):
@@ -606,21 +632,25 @@ class LongitudinalEquilibrium:
         self._exp_z = None
         return dists
 
-    def get_generator_voltage(self, feedback=True, method='phasor'):
+    def get_generator_voltage(self):
         """."""
-        if feedback:
-            if self.beamload_active is None:
-                raise ValueError(
-                    'Feedback is on but beam loading voltage is None!')
-            if method == 'phasor':
+        if self.feedback_on:
+            error_stg = 'Feedback is on but there is no active beam loading voltage!'
+            if self.beamload_active is not None:
+                val = _np.sum(self.beamload_active)
+                if not val:
+                    raise ValueError(error_stg)
+            else:
+                raise ValueError(error_stg)
+            if self.feedback_method == self.FeedbackMethod.Phasor:
                 # Phasor compensation
                 _vg = self._feedback_phasor()
-            elif method == 'lstqr':
+            elif self.feedback_method == self.FeedbackMethod.LeastSquares:
                 # Least-squares minimization
                 _vg = self._feedback_least_squares()
             else:
                 raise ValueError(
-                    "Wrong feedback method: must be 'phasor' or 'lstqr'")
+                    "Wrong feedback method: must be 'Phasor' or 'LeastSquares'")
         else:
             _vg = self.ring.get_voltage_waveform(self.zgrid)[None, :]
         return _vg
