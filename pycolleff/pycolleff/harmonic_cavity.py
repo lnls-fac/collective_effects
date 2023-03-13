@@ -809,13 +809,15 @@ class LongitudinalEquilibrium:
             _func = self.calc_voltage_harmonic_cavity_wake
             for wake in wake_sources:
                 if wake.active_passive == ImpedanceSource.ActivePassive.Active:
-                    self.beamload_active = _func(wake_source=wake, dist=xk)
+                    self.beamload_active += _func(wake_source=wake, dist=xk)
                     self._wake_matrix = None
                     self._exp_z = None
                 total_volt += _func(wake_source=wake, dist=xk)
                 self._wake_matrix = None
                 self._exp_z = None
-        else:
+                
+        idx_imp = self._get_impedance_types_idx()
+        if idx_imp:
             # Impedances can be summed and calculated once
             _func = self.calc_voltage_harmonic_cavity_impedance
             total_volt += _func(dist=xk)
