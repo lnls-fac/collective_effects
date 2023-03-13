@@ -217,7 +217,7 @@ class ImpedanceSource:
         mega = 1e-6
         stg = stmp('calc_method', self.calc_method_str, '')
         stg += stmp('active_passive', self.active_passive_str, '')
-        stg += ftmp('ang_freq_rf', self.ang_freq_rf*mega, '[MHz]')
+        stg += ftmp('ang_freq_rf', self.ang_freq_rf*mega, '[Mrad/s]')
         stg += ftmp('ang_freq', self.ang_freq*mega, '[Mrad/s]')
         stg += ftmp('shunt_impedance', self.shunt_impedance*mega, '[MOhm]')
         stg += etmp('Q', self.Q, '')
@@ -463,10 +463,10 @@ class LongitudinalEquilibrium:
         const *= self.ring.energy
 
         dist = _ne.evaluate('exp(-pot/const)')
+        # distribution must be normalized
         dist /= _mytrapz(dist, dz)[:, None]
         if flag:
             dist = _np.tile(dist, (self.ring.harm_num, 1))
-        # distribution must be normalized
         return dist, pot
 
     def calc_fourier_transform(self, w, dist=None):
@@ -529,11 +529,9 @@ class LongitudinalEquilibrium:
 
         if dist is None:
             dist = self.distributions
-        fillpattern = self.fillpattern
-        zgrid = self.zgrid
 
         zn_ph = (2j*_PI/h) * _np.arange(h)[None, :]
-        z_ph = (1j*w0/_LSPEED) * zgrid[None, :]
+        z_ph = (1j*w0/_LSPEED) * self.zgrid[None, :]
 
         ps, zl_wps = self.get_harmonics_impedance_and_filling()
         ps = ps[:, None]
@@ -874,13 +872,12 @@ class LongitudinalEquilibrium:
         vgap = self.ring.gap_voltage
         wrf = 2*_PI*self.ring.rf_freq
         phase = wrf*self.zgrid/_LSPEED
-        dz = self.zgrid[1] - self.zgrid[0]
-
+        dz = _np.diff(self.zgrid)[0]
         vref_phasor = vgap*_np.exp(
             1j*(_PI/2 - self.ring.sync_phase))
         vbeamload_phasor = _np.mean(_mytrapz(
             self.beamload_active*_np.exp(1j*phase)[None, :], dz))
-        vbeamload_phasor *= 2/(self.zgrid[-1]-self.zgrid[0])
+        vbeamload_phasor *= 2/dz
         vg_phasor = vref_phasor - vbeamload_phasor
         vg = _np.real(vg_phasor*_np.exp(-1j*phase))
         return vg[None, :]
