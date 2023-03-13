@@ -619,10 +619,11 @@ class LongitudinalEquilibrium:
         return harm_volt
 
     def calc_longitudinal_equilibrium(
-            self, niter=100, tol=1e-10, beta=1, m=3, print_flag=True):
+            self, niter=100, tol=1e-10, beta=1, m=None, print_flag=True):
         """."""
         self.print_flag = print_flag
         dists = [self.distributions, ]
+        m = m or niter
         dists = self._apply_anderson_acceleration(
             dists, niter, tol, beta=beta, m=m)
         dists = [self._reshape_dist(rho) for rho in dists]
@@ -736,7 +737,7 @@ class LongitudinalEquilibrium:
         return eigenfreq, modecoup_matrix, fokker_matrix
 
     # -------------------- auxiliary methods ----------------------------------
-    def _apply_anderson_acceleration(self, dists, niter, tol, m=3, beta=1):
+    def _apply_anderson_acceleration(self, dists, niter, tol, m=None, beta=1):
         """."""
         if beta < 0:
             raise Exception('relaxation parameter beta must be positive.')
@@ -745,6 +746,7 @@ class LongitudinalEquilibrium:
         xnew = self._ffunc(xold)
         dists.append(xnew)
 
+        m = m or niter
         where = 0
         G_k = _np.zeros((xnew.size, m), dtype=float)
         X_k = _np.zeros((xnew.size, m), dtype=float)
