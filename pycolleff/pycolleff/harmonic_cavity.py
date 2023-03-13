@@ -488,13 +488,13 @@ class LongitudinalEquilibrium:
         for iidx in imp_idx:
             imp = self.impedance_sources[iidx]
             cond = imp.active_passive == ImpedanceSource.ActivePassive.Active
-            cond |= apply_filter
+            cond &= apply_filter
             if cond:
                 # this part is broken for instabilities calculations
                 w_loop = imp.loop_ctrl_ang_freq
                 if w_loop not in w:
                     w = _np.sort(_np.r_[w, w_loop])
-                loop_freq_idx = _np.where(w == w_loop)[0][0]
+                loop_freq_idx = _np.searchsorted(w, w_loop)
             _zl = imp.get_impedance(w=w)
             # low-level control loop makes the impedance
             # go to zero at the loop actuation frequency
