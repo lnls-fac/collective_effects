@@ -541,10 +541,35 @@ class LongitudinalEquilibrium:
         expphn = _ne.evaluate('exp(ps*zn_ph)')
         ps = ps.ravel()
 
+        rf_lamb = self.ring.rf_lamb
+        dz = _np.diff(self.zgrid)[0]
+        # did_zero_pad = False
+        if self.zgrid[0] != -rf_lamb/2 or self.zgrid[-1] != rf_lamb/2:
+            # zero-padding
+            # did_zero_pad = True
+            nr_pts = int(rf_lamb/dz) + 1
+            if not nr_pts % 2:
+                nr_pts -= 1
+            zgrid_full = _np.linspace(-1, 1, nr_pts) * rf_lamb/2
+            pads_bef = _np.searchsorted(zgrid_full, self.zgrid[0])
+            pads_aft = nr_pts - _np.searchsorted(zgrid_full, self.zgrid[-1]) - 1
+            dist = _np.pad(dist, [(0, 0), (pads_bef, pads_aft)], 'constant')
+
         # remove last point to do not overlap domains
-        dist_beam = (fillpattern[:, None]*dist[:, :-1]).ravel()
-        dist_dft = _np.fft.rfft(dist_beam) * (zgrid[1] - zgrid[0])
-        dist_dft = dist_dft[ps]
+        dist_beam = (self.fillpattern[:, None]*dist[:, :-1]).ravel()
+        dist_dft_ = _np.fft.rfft(dist_beam)
+
+        # # calculate with DFT
+        # dist_dft = _np.zeros(dist_dft_.size, dtype=complex)
+        # dist_dft[ps] = dist_dft_[ps]
+        # dist_dft[ps] *= zl_wps.conj()
+        # harm_volt = _np.fft.irfft(dist_dft)
+        # harm_volt = harm_volt.reshape((dist.shape[0], -1))
+        # harm_volt *= - self.ring.circum
+        #  if did_zero_pad:
+        #    harm_volt = harm_volt[:, pads_bef-1:nr_pts-pads_aft]
+
+        dist_dft = dist_dft_[ps] * dz
         # shift phase due to difference of DFT reference frame
         # (initial point z=0) and our reference (initial point z=-lambda_rf/2)
         dist_dft *= _np.exp(1j*ps*_PI/h)
