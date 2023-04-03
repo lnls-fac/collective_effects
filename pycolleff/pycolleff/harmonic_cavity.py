@@ -48,7 +48,7 @@ class ImpedanceSource:
 
     def __init__(
             self, Rs=0, Q=0, ang_freq=0, harm_rf=3,
-            calc_method=Methods.Wake, active_passive=ActivePassive.Passive):
+            calc_method=Methods.Impedance, active_passive=ActivePassive.Passive):
         """."""
         self._calc_method = None
         self._active_passive = None
@@ -60,6 +60,9 @@ class ImpedanceSource:
         self.harm_rf = harm_rf
         self.ang_freq_rf = 0
         self._loop_ctrl_freq = 0
+        self._loop_ctrl_transfer = lambda x, y: 0
+        self._zl_table = None
+        self._ang_freq_table = None
         self.calc_method = calc_method
         self.active_passive = active_passive
 
@@ -107,8 +110,15 @@ class ImpedanceSource:
 
     def get_impedance(self, w):
         """."""
-        imp = _imp.longitudinal_resonator(
-            Rs=self.shunt_impedance, Q=self.Q, wr=self.ang_freq, w=w)
+        if self.zl_table is None:
+            imp = _imp.longitudinal_resonator(
+                Rs=self.shunt_impedance, Q=self.Q, 
+                wr=self.ang_freq, w=w, lorentz=False)
+        else:
+            w_tab = self.ang_freq_table
+            zl_tab = self.zl_table
+            imp = _np.interp(w, w_tab, zl_tab.imag)*1j
+            imp += _np.interp(w, w_tab, zl_tab.real)
         return imp
 
     @property
@@ -130,6 +140,16 @@ class ImpedanceSource:
     def loop_ctrl_ang_freq(self, value):
         """."""
         self._loop_ctrl_freq = value/2/_PI
+
+    @property
+    def loop_ctrl_transfer(self):
+        """."""
+        return self._loop_ctrl_transfer
+    
+    @loop_ctrl_transfer.setter
+    def loop_ctrl_transfer(self, func):
+        """."""
+        self._loop_ctrl_transfer = func
 
     @property
     def RoverQ(self):
@@ -193,6 +213,22 @@ class ImpedanceSource:
         delta = _np.tan(value)/2/Q
         self.ang_freq = nharm*wrf*(delta + (1+delta**2)**(1/2))
 
+    @property
+    def zl_table(self):
+        return self._zl_table
+    
+    @zl_table.setter
+    def zl_table(self, value):
+        self._zl_table = value
+
+    @property
+    def ang_freq_table(self):
+        return self._ang_freq_table
+    
+    @ang_freq_table.setter
+    def ang_freq_table(self, value):
+        self._ang_freq_table = value
+
     def to_dict(self):
         """Save state to dictionary."""
         return dict(
@@ -230,8 +266,7 @@ class ImpedanceSource:
         stg += ftmp('alpha', self.alpha, '[rad/s]')
         stg += ftmp('ang_freq_bar', self.ang_freq_bar*mega, '[Mrad/s]')
         return stg
-
-
+    
 class LongitudinalEquilibrium:
     """."""
 
@@ -485,22 +520,15 @@ class LongitudinalEquilibrium:
             w = self._create_freqs()
         total_zl = _np.zeros(w.shape, dtype=_np.complex)
         imp_idx = self._get_impedance_types_idx()
-        loop_freq_idx = []
         for iidx in imp_idx:
             imp = self.impedance_sources[iidx]
             cond = imp.active_passive == ImpedanceSource.ActivePassive.Active
             cond &= apply_filter
-            if cond:
-                # this part is broken for instabilities calculations
-                w_loop = imp.loop_ctrl_ang_freq
-                if w_loop not in w:
-                    w = _np.sort(_np.r_[w, w_loop])
-                loop_freq_idx = _np.searchsorted(w, w_loop)
             _zl = imp.get_impedance(w=w)
-            # low-level control loop makes the impedance
-            # go to zero at the loop actuation frequency
-            # for active impedance sources
-            _zl[loop_freq_idx] = 0 + 0j
+            if cond:
+                # closed-loop impedance
+                _zl /= (1 + imp.loop_ctrl_transfer(
+                    w, imp.loop_ctrl_ang_freq)*_zl)
             total_zl += _zl
         return total_zl
 
