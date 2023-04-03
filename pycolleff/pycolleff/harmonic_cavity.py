@@ -522,7 +522,7 @@ class LongitudinalEquilibrium:
             zl_fill > zl_fill.max()*self.min_mode0_ratio)[0]
         return modes, zl_wp[modes]
 
-    def calc_voltage_harmonic_cavity_impedance(self, dist=None):
+    def calc_voltage_harmonic_cavity_impedance_matrix(self, dist=None):
         """."""
         h = self.ring.harm_num
         w0 = self.ring.rev_ang_freq
@@ -530,21 +530,18 @@ class LongitudinalEquilibrium:
         if dist is None:
             dist = self.distributions
 
-        zn_ph = (2j*_PI/h) * _np.arange(h)[None, :]
-        z_ph = (1j*w0/_LSPEED) * self.zgrid[None, :]
-
         ps, zl_wps = self.get_harmonics_impedance_and_filling()
         ps = ps[:, None]
+        zn_ph = (2j*_PI/h) * _np.arange(h)[None, :]
+        z_ph = (1j*w0/_LSPEED) * self.zgrid[None, :]
         expphz = _ne.evaluate('exp(ps*z_ph)')
         expphn = _ne.evaluate('exp(ps*zn_ph)')
         ps = ps.ravel()
 
         rf_lamb = self.ring.rf_lamb
         dz = _np.diff(self.zgrid)[0]
-        # did_zero_pad = False
         if self.zgrid[0] != -rf_lamb/2 or self.zgrid[-1] != rf_lamb/2:
             # zero-padding
-            # did_zero_pad = True
             nr_pts = int(rf_lamb/dz) + 1
             if not nr_pts % 2:
                 nr_pts -= 1
@@ -555,26 +552,51 @@ class LongitudinalEquilibrium:
 
         # remove last point to do not overlap domains
         dist_beam = (self.fillpattern[:, None]*dist[:, :-1]).ravel()
-        dist_dft_ = _np.fft.rfft(dist_beam)
-
-        # # calculate with DFT
-        # dist_dft = _np.zeros(dist_dft_.size, dtype=complex)
-        # dist_dft[ps] = dist_dft_[ps]
-        # dist_dft[ps] *= zl_wps.conj()
-        # harm_volt = _np.fft.irfft(dist_dft)
-        # harm_volt = harm_volt.reshape((dist.shape[0], -1))
-        # harm_volt *= - self.ring.circum
-        #  if did_zero_pad:
-        #    harm_volt = harm_volt[:, pads_bef-1:nr_pts-pads_aft]
+        dist_dft_ = _rfft(dist_beam)
 
         dist_dft = dist_dft_[ps] * dz
         # shift phase due to difference of DFT reference frame
         # (initial point z=0) and our reference (initial point z=-lambda_rf/2)
-        dist_dft *= _np.exp(1j*ps*_PI/h)
+        dist_dft *= _ne.evaluate('exp(1j*ps*_PI/h)')
         dist_dft *= zl_wps.conj()
         # sum over positive frequencies only -> factor 2
         expphn *= dist_dft[:, None]
-        harm_volt = -2*_np.dot(expphn.T, expphz)
+        harm_volt = -2*(expphn.T @ expphz)
+        return harm_volt.real
+
+    def calc_voltage_harmonic_cavity_impedance_dft(self, dist=None):
+        """."""
+        if dist is None:
+            dist = self.distributions
+
+        ps, zl_wps = self.get_harmonics_impedance_and_filling()
+        rf_lamb = self.ring.rf_lamb
+        dz = _np.diff(self.zgrid)[0]
+        did_zero_pad = False
+        if self.zgrid[0] != -rf_lamb/2 or self.zgrid[-1] != rf_lamb/2:
+            # zero-padding
+            did_zero_pad = True
+            nr_pts = int(rf_lamb/dz) + 1
+            if not nr_pts % 2:
+                nr_pts -= 1
+            zgrid_full = _np.linspace(-1, 1, nr_pts) * rf_lamb/2
+            pads_bef = _np.searchsorted(zgrid_full, self.zgrid[0])
+            pads_aft = nr_pts - _np.searchsorted(zgrid_full, self.zgrid[-1]) - 1
+            dist = _np.pad(dist, [(0, 0), (pads_bef, pads_aft)], 'constant')
+
+        # remove last point to do not overlap domains
+        dist_beam = (self.fillpattern[:, None]*dist[:, :-1]).ravel()
+        dist_dft_ = _rfft(dist_beam)
+
+        # calculate with DFT
+        dist_dft = _np.zeros(dist_dft_.size, dtype=complex)
+        dist_dft[ps] = dist_dft_[ps]
+        dist_dft[ps] *= zl_wps.conj()
+        harm_volt = _irfft(dist_dft)
+        harm_volt = harm_volt.reshape((dist.shape[0], -1))
+        harm_volt *= - self.ring.circum
+        if did_zero_pad:
+           harm_volt = harm_volt[:, pads_bef-1:nr_pts-pads_aft]
         return harm_volt.real
 
     def calc_voltage_harmonic_cavity_wake(
@@ -844,7 +866,8 @@ class LongitudinalEquilibrium:
         idx_imp = self._get_impedance_types_idx()
         if idx_imp:
             # Impedances can be summed and calculated once
-            _func = self.calc_voltage_harmonic_cavity_impedance
+            _func = self.calc_voltage_harmonic_cavity_impedance_dft
+            # _func = self.calc_voltage_harmonic_cavity_impedance_matrix
             total_volt += _func(dist=xk)
 
         total_volt += self.get_generator_voltage()
