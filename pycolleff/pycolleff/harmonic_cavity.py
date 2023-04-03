@@ -7,6 +7,7 @@ from mathphys.constants import light_speed as _LSPEED
 from mathphys.functions import get_namedtuple as _get_namedtuple
 
 from scipy.optimize import least_squares as _least_squares
+from scipy.fft import fft as _fft, rfft as _rfft, irfft as _irfft
 from . import impedances as _imp
 from .colleff import Ring as _Ring
 
@@ -508,18 +509,12 @@ class LongitudinalEquilibrium:
         if w is None:
             w = self._create_freqs()
         h = self.ring.harm_num
-        max_harm = self.max_mode//h
-        diff = self.max_mode - max_harm*h
-        if diff > 0:
-            max_harm = max_harm + 1
         zl_wp = self.get_impedance(w=w, apply_filter=True)
-        fill_fft = _np.fft.fft(self.fillpattern)
-        fill_fft = _np.tile(fill_fft, (max_harm, 1)).ravel()
-        if diff > 0:
-            fill_fft = fill_fft[:-(h-diff)]
+        fill_fft = _fft(self.fillpattern)
+        fill_fft = _np.tile(fill_fft, (zl_wp.size//h, 1)).ravel()
         zl_fill = _np.abs(zl_wp * fill_fft)
         modes = _np.where(
-            zl_fill > zl_fill.max()*self.min_mode0_ratio)[0]
+            zl_fill >= zl_fill.max()*self.min_mode0_ratio)[0]
         return modes, zl_wp[modes]
 
     def calc_voltage_harmonic_cavity_impedance_matrix(self, dist=None):
