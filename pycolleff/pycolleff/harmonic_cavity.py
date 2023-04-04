@@ -913,7 +913,7 @@ class LongitudinalEquilibrium:
             1j*(_PI/2 - self.ring.sync_phase))
         vbeamload_phasor = _np.mean(_mytrapz(
             self.beamload_active*_np.exp(1j*phase)[None, :], dz))
-        vbeamload_phasor *= 2/dz
+        vbeamload_phasor *= 2/(self.zgrid[-1] - self.zgrid[0])
         vg_phasor = vref_phasor - vbeamload_phasor
         vg = _np.real(vg_phasor*_np.exp(-1j*phase))
         return vg[None, :]
