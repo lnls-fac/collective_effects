@@ -215,16 +215,18 @@ class ImpedanceSource:
 
     @property
     def zl_table(self):
+        """."""
         return self._zl_table
-    
+
     @zl_table.setter
     def zl_table(self, value):
         self._zl_table = value
 
     @property
     def ang_freq_table(self):
+        """."""
         return self._ang_freq_table
-    
+
     @ang_freq_table.setter
     def ang_freq_table(self, value):
         self._ang_freq_table = value
@@ -266,11 +268,13 @@ class ImpedanceSource:
         stg += ftmp('alpha', self.alpha, '[rad/s]')
         stg += ftmp('ang_freq_bar', self.ang_freq_bar*mega, '[Mrad/s]')
         return stg
-    
+
+
 class LongitudinalEquilibrium:
     """."""
 
-    FeedbackMethod = _get_namedtuple('FeedbackMethod', ['Phasor', 'LeastSquares'])
+    FeedbackMethod = _get_namedtuple(
+        'FeedbackMethod', ['Phasor', 'LeastSquares'])
 
     def __init__(self, ring: _Ring, impedance_sources: list, fillpattern=None):
         """."""
