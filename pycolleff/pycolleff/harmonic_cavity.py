@@ -111,9 +111,12 @@ class ImpedanceSource:
     def get_impedance(self, w):
         """."""
         if self.zl_table is None:
+            # imp = _imp.longitudinal_resonator(
+            #     Rs=self.shunt_impedance, Q=self.Q,
+            #     wr=self.ang_freq, w=w, lorentz=False)
             imp = _imp.longitudinal_resonator(
-                Rs=self.shunt_impedance, Q=self.Q, 
-                wr=self.ang_freq, w=w, lorentz=False)
+                Rs=self.shunt_impedance, Q=self.Q,
+                wr=self.ang_freq, w=w)
         else:
             w_tab = self.ang_freq_table
             zl_tab = self.zl_table
@@ -130,7 +133,7 @@ class ImpedanceSource:
     def loop_ctrl_freq(self, value):
         """."""
         self._loop_ctrl_freq = value
-        
+
     @property
     def loop_ctrl_ang_freq(self):
         """."""
@@ -145,7 +148,7 @@ class ImpedanceSource:
     def loop_ctrl_transfer(self):
         """."""
         return self._loop_ctrl_transfer
-    
+
     @loop_ctrl_transfer.setter
     def loop_ctrl_transfer(self, func):
         """."""
@@ -547,7 +550,10 @@ class LongitudinalEquilibrium:
         zl_fill = _np.abs(zl_wp * fill_fft)
         modes = _np.where(
             zl_fill >= zl_fill.max()*self.min_mode0_ratio)[0]
-        return modes, zl_wp[modes]
+
+        idx_sort = _np.argsort(_np.abs(zl_wp[modes]))[::-1]
+        idx_sort = idx_sort[:self.nr_max_mode]
+        return modes[idx_sort], zl_wp[modes][idx_sort]
 
     def calc_voltage_harmonic_cavity_impedance_matrix(self, dist=None):
         """."""
