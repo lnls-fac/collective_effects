@@ -48,7 +48,8 @@ class ImpedanceSource:
 
     def __init__(
             self, Rs=0, Q=0, ang_freq=0, harm_rf=3,
-            calc_method=Methods.Impedance, active_passive=ActivePassive.Passive):
+            calc_method=Methods.Impedance,
+            active_passive=ActivePassive.Passive):
         """."""
         self._calc_method = None
         self._active_passive = None
@@ -551,9 +552,10 @@ class LongitudinalEquilibrium:
         modes = _np.where(
             zl_fill >= zl_fill.max()*self.min_mode0_ratio)[0]
 
-        idx_sort = _np.argsort(_np.abs(zl_wp[modes]))[::-1]
-        idx_sort = idx_sort[:self.nr_max_mode]
-        return modes[idx_sort], zl_wp[modes][idx_sort]
+        idx_sort = _np.argsort(_np.abs(zl_fill[modes]))[::-1]
+        if self.nr_max_mode is not None:
+            idx_sort = idx_sort[:self.nr_max_mode]
+        return modes[idx_sort], zl_wp[modes][idx_sort], zl_fill
 
     def calc_voltage_harmonic_cavity_impedance_matrix(self, dist=None):
         """."""
@@ -563,7 +565,7 @@ class LongitudinalEquilibrium:
         if dist is None:
             dist = self.distributions
 
-        ps, zl_wps = self.get_harmonics_impedance_and_filling()
+        ps, zl_wps, _ = self.get_harmonics_impedance_and_filling()
         ps = ps[:, None]
         zn_ph = (2j*_PI/h) * _np.arange(h)[None, :]
         z_ph = (1j*w0/_LSPEED) * self.zgrid[None, :]
@@ -595,7 +597,7 @@ class LongitudinalEquilibrium:
         if dist is None:
             dist = self.distributions
 
-        ps, zl_wps = self.get_harmonics_impedance_and_filling()
+        ps, zl_wps, _ = self.get_harmonics_impedance_and_filling()
 
         did_zero_pad = False
         rf_lamb = self.ring.rf_lamb
