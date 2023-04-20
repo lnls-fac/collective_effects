@@ -664,15 +664,14 @@ class LongitudinalEquilibrium:
 
         if self._wake_matrix is None:
             exp_betac0 = _np.exp(-beta*circum)
-            Ll = 1/(1-exp_betac0)  # buckets ahead current one (l<n)
-            Gl = Ll*exp_betac0     # buckets behind current one (l>=n)
-            wmat = Ll*_np.tri(h, h, -1,)
-            wmat += Gl*_np.tri(h, h).T
-
+            log_Ll = -_np.log(1-exp_betac0) # buckets ahead current one (l<n)
+            log_Gl = log_Ll - beta*circum # buckets behind current one (l>=n)
+            log_wmat = log_Ll*_np.tri(h, h, -1,)
+            log_wmat += log_Gl*_np.tri(h, h).T
             ind = _np.arange(h)
             diff = ind[:, None] - ind[None, :]
-            wmat *= _ne.evaluate('exp(-beta*circum*diff/h)')
-            self._wake_matrix = wmat
+            log_wmat += -beta*circum*diff/h
+            self._wake_matrix = _np.exp(log_wmat)
         V = _np.dot(self._wake_matrix, dist_fourier)
 
         Vt = _mytrapz(dist_exp_z, dz, cumul=True)
