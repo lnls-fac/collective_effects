@@ -44,7 +44,8 @@ class ImpedanceSource:
     """."""
 
     Methods = _get_namedtuple(
-        'Methods', ['ImpedanceDFT', 'ImpedanceModeSel', 'Wake'])
+        'Methods',
+        ['ImpedanceDFT', 'ImpedanceModeSel', 'Wake', 'UniformFillAnalytic'])
     ActivePassive = _get_namedtuple('ActivePassive', ['Active', 'Passive'])
 
     def __init__(
@@ -204,7 +205,7 @@ class ImpedanceSource:
             raise Exception('wrf cannot be zero!')
         tan = Q * (wr/(nharm*wrf) - nharm*wrf/wr)
         angle = _np.arctan2(tan, 1)
-        return _PI + angle
+        return angle
 
     @detune_angle.setter
     def detune_angle(self, value):
@@ -555,42 +556,57 @@ class LongitudinalEquilibrium:
             idx_sort = idx_sort[:self.nr_max_mode]
         return modes[idx_sort], zl_wp[modes][idx_sort], zl_fill
 
-    def calc_voltage_harmonic_cavity_impedance_matrix(self, dist=None):
+    def calc_induced_voltage_uniform_filling(self, wake_source, dist=None):
+        """."""
+        if dist is None:
+            dist = self.distributions
+        wr = wake_source.harm_rf * wake_source.ang_freq_rf
+        form = self.calc_fourier_transform(wr, dist=dist)
+        F0 = _np.abs(form)[0]
+        Phi0 = _np.angle(form)[0]
+
+        It = _np.sum(self.fillpattern)
+        ang = wake_source.detune_angle
+        Rs = wake_source.shunt_impedance
+
+        volt = -2*It*F0*Rs*_np.cos(ang)
+        volt *= _np.cos(wr*self.zgrid/_LSPEED + ang - Phi0)
+        return _np.tile(volt, (self.ring.harm_num, 1))
+
+    def calc_induced_voltage_impedance_mode_selection(
+                self, dist=None):
         """."""
         h = self.ring.harm_num
         w0 = self.ring.rev_ang_freq
 
         if dist is None:
             dist = self.distributions
+        fillpattern = self.fillpattern
+        zgrid = self.zgrid
+
+        zn_ph = (2j*_PI/h) * _np.arange(h)[None, :]
+        z_ph = (1j*w0/_LSPEED) * zgrid[None, :]
 
         ps, zl_wps, _ = self.get_harmonics_impedance_and_filling()
         ps = ps[:, None]
-        zn_ph = (2j*_PI/h) * _np.arange(h)[None, :]
-        z_ph = (1j*w0/_LSPEED) * self.zgrid[None, :]
-        expphz = _ne.evaluate('exp(ps*z_ph)')
-        expphn = _ne.evaluate('exp(ps*zn_ph)')
-        ps = ps.ravel()
+        zl_wp = _ne.evaluate('exp(ps*z_ph)')
+        zl_wp *= zl_wps[:, None].conj()
 
-        rf_lamb = self.ring.rf_lamb
-        dz = _np.diff(self.zgrid)[0]
-        if self.zgrid[0] != -rf_lamb/2 or self.zgrid[-1] != rf_lamb/2:
-            dist, _ = self._do_zero_padding(dist)
+        expph = _ne.evaluate('exp(-ps*zn_ph)')
+        harm_volt = _np.zeros((h, zgrid.size), dtype=_np.complex)
+        for idx, p in enumerate(ps):
+            dist_fourier = self.calc_fourier_transform(w=p*w0, dist=dist)
 
-        # remove last point to do not overlap domains (?)
-        dist_beam = (self.fillpattern[:, None]*dist[:, :-1]).ravel()
-        dist_dft_ = _rfft(dist_beam)
+            exp_phase = expph[idx]
+            beam_part = _np.einsum(
+                'i,i,i', exp_phase, fillpattern, dist_fourier.conj())
+            beam_part = beam_part / exp_phase
 
-        dist_dft = dist_dft_[ps] * dz
-        # shift phase due to difference of DFT reference frame
-        # (initial point z=0) and our reference (initial point z=-lambda_rf/2)
-        dist_dft *= _ne.evaluate('exp(1j*ps*_PI/h)')
-        dist_dft *= zl_wps.conj()
-        # sum over positive frequencies only -> factor 2
-        expphn *= dist_dft[:, None]
-        harm_volt = -2*(expphn.T @ expphz)
+            # sum over positive frequencies only -> factor 2
+            harm_volt += -2 * zl_wp[idx] * beam_part[:, None]
         return harm_volt.real
 
-    def calc_voltage_harmonic_cavity_impedance_dft(self, dist=None):
+    def calc_induced_voltage_impedance_dft(self, dist=None):
         """."""
         if dist is None:
             dist = self.distributions
@@ -620,7 +636,7 @@ class LongitudinalEquilibrium:
             harm_volt = harm_volt[:, idx_ini:idx_ini+self.zgrid.size]
         return harm_volt.real
 
-    def calc_voltage_harmonic_cavity_wake(
+    def calc_induced_voltage_wake(
             self, wake_source, dist=None):
         """."""
         if dist is None:
@@ -873,7 +889,7 @@ class LongitudinalEquilibrium:
         if idx_wake:
             wake_sources = [self.impedance_sources[idx] for idx in idx_wake]
             # Wakes need to be evaluated one by one
-            _func = self.calc_voltage_harmonic_cavity_wake
+            _func = self.calc_induced_voltage_wake
             for wake in wake_sources:
                 if wake.active_passive == ImpedanceSource.ActivePassive.Active:
                     self.beamload_active += _func(wake_source=wake, dist=xk)
@@ -886,15 +902,22 @@ class LongitudinalEquilibrium:
         idx_imp = self._get_impedance_types_idx()
         if idx_imp:
             # Impedances can be summed and calculated once
-            imp_obj = self.impedance_sources[idx_imp[0]]
-            if 'dft' in imp_obj.calc_method_str.lower():
-                _func = self.calc_voltage_harmonic_cavity_impedance_dft
-            elif 'sel' in imp_obj.calc_method_str.lower():
-                _func = self.calc_voltage_harmonic_cavity_impedance_matrix
+            mthd = self.impedance_sources[idx_imp[0]].calc_method
+            if mthd == ImpedanceSource.Methods.ImpedanceDFT:
+                _func = self.calc_induced_voltage_impedance_dft
+            elif mthd == ImpedanceSource.Methods.ImpedanceModeSel:
+                _func = self.calc_induced_voltage_impedance_mode_selection
             else:
                 raise Exception(
                     'Methods must be ImpedanceDFT or ImpedanceModeSel.')
             total_volt += _func(dist=xk)
+
+        if not idx_imp and not idx_wake:
+            wksrc = self.impedance_sources[0]
+            mthd = wksrc.calc_method
+            if mthd == ImpedanceSource.Methods.UniformFillAnalytic:
+                _func = self.calc_induced_voltage_uniform_filling
+            total_volt += _func(wake_source=wksrc, dist=xk)
 
         total_volt += self.get_generator_voltage()
         self.total_voltage = total_volt
