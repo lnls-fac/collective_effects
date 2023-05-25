@@ -43,12 +43,13 @@ def _mytrapz(y, dx, cumul=False):
 class ImpedanceSource:
     """."""
 
-    Methods = _get_namedtuple('Methods', ['Impedance', 'Wake'])
+    Methods = _get_namedtuple(
+        'Methods', ['ImpedanceDFT', 'ImpedanceModeSel', 'Wake'])
     ActivePassive = _get_namedtuple('ActivePassive', ['Active', 'Passive'])
 
     def __init__(
             self, Rs=0, Q=0, ang_freq=0, harm_rf=3,
-            calc_method=Methods.Impedance,
+            calc_method=Methods.ImpedanceDFT,
             active_passive=ActivePassive.Passive):
         """."""
         self._calc_method = None
@@ -112,9 +113,6 @@ class ImpedanceSource:
     def get_impedance(self, w):
         """."""
         if self.zl_table is None:
-            # imp = _imp.longitudinal_resonator(
-            #     Rs=self.shunt_impedance, Q=self.Q,
-            #     wr=self.ang_freq, w=w, lorentz=False)
             imp = _imp.longitudinal_resonator(
                 Rs=self.shunt_impedance, Q=self.Q,
                 wr=self.ang_freq, w=w)
@@ -579,7 +577,7 @@ class LongitudinalEquilibrium:
             dist, _ = self._do_zero_padding(dist)
 
         # remove last point to do not overlap domains (?)
-        dist_beam = (self.fillpattern[:, None]*dist).ravel()
+        dist_beam = (self.fillpattern[:, None]*dist[:, :-1]).ravel()
         dist_dft_ = _rfft(dist_beam)
 
         dist_dft = dist_dft_[ps] * dz
@@ -605,17 +603,19 @@ class LongitudinalEquilibrium:
             dist, idx_ini = self._do_zero_padding(dist)
             did_zero_pad = True
 
-        # remove last point to do not overlap domains (?)
-        dist_beam = (self.fillpattern[:, None]*dist).ravel()
+        # remove last point to do not overlap domains
+        dist_beam = (self.fillpattern[:, None]*dist[:, :-1]).ravel()
         dist_dft_ = _rfft(dist_beam)
 
         # calculate with DFT
         dist_dft = _np.zeros(dist_dft_.size, dtype=complex)
         dist_dft[ps] = dist_dft_[ps]
         dist_dft[ps] *= zl_wps.conj()
-        harm_volt = _irfft(dist_dft)
-        harm_volt = harm_volt.reshape((dist.shape[0], -1))
-        harm_volt *= - self.ring.circum
+        _harm_volt = (-self.ring.circum) * _irfft(dist_dft)
+        harm_volt = _np.zeros_like(dist, dtype=complex)
+        harm_volt[:, :-1] = _harm_volt.reshape((dist.shape[0], -1))
+        harm_volt[:-1, -1] = harm_volt[1:, 0]
+        harm_volt[-1, -1] = harm_volt[0, 0]
         if did_zero_pad:
             harm_volt = harm_volt[:, idx_ini:idx_ini+self.zgrid.size]
         return harm_volt.real
@@ -664,14 +664,14 @@ class LongitudinalEquilibrium:
 
         if self._wake_matrix is None:
             exp_betac0 = _np.exp(-beta*circum)
-            log_Ll = -_np.log(1-exp_betac0) # buckets ahead current one (l<n)
-            log_Gl = log_Ll - beta*circum # buckets behind current one (l>=n)
+            log_Ll = -_np.log(1-exp_betac0)  # buckets ahead current one (l<n)
+            log_Gl = log_Ll - beta*circum  # buckets behind current one (l>=n)
             log_wmat = log_Ll*_np.tri(h, h, -1,)
             log_wmat += log_Gl*_np.tri(h, h).T
             ind = _np.arange(h)
             diff = ind[:, None] - ind[None, :]
             log_wmat += -beta*circum*diff/h
-            self._wake_matrix = _np.exp(log_wmat)
+            self._wake_matrix = _ne.evaluate('exp(log_wmat)')
         V = _np.dot(self._wake_matrix, dist_fourier)
 
         Vt = _mytrapz(dist_exp_z, dz, cumul=True)
@@ -886,8 +886,14 @@ class LongitudinalEquilibrium:
         idx_imp = self._get_impedance_types_idx()
         if idx_imp:
             # Impedances can be summed and calculated once
-            _func = self.calc_voltage_harmonic_cavity_impedance_dft
-            # _func = self.calc_voltage_harmonic_cavity_impedance_matrix
+            imp_obj = self.impedance_sources[idx_imp[0]]
+            if 'dft' in imp_obj.calc_method_str.lower():
+                _func = self.calc_voltage_harmonic_cavity_impedance_dft
+            elif 'sel' in imp_obj.calc_method_str.lower():
+                _func = self.calc_voltage_harmonic_cavity_impedance_matrix
+            else:
+                raise Exception(
+                    'Methods must be ImpedanceDFT or ImpedanceModeSel.')
             total_volt += _func(dist=xk)
 
         total_volt += self.get_generator_voltage()
@@ -899,7 +905,7 @@ class LongitudinalEquilibrium:
         """."""
         imp_idx = []
         for idx, imp in enumerate(self.impedance_sources):
-            if imp.calc_method == ImpedanceSource.Methods.Impedance:
+            if 'impedance' in imp.calc_method_str.lower():
                 imp_idx.append(idx)
         return imp_idx
 
@@ -907,7 +913,7 @@ class LongitudinalEquilibrium:
         """."""
         wake_idx = []
         for idx, imp in enumerate(self.impedance_sources):
-            if imp.calc_method == ImpedanceSource.Methods.Wake:
+            if 'wake' in imp.calc_method_str.lower():
                 wake_idx.append(idx)
         return wake_idx
 
