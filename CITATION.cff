@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "de Sá"
+  given-names: "Fernando"
+
+- family-names: "Alves"
+  given-names: "Murilo"
+
+title: "Pycolleff. Python module for impedances and instability analysis in electron storage rings."
+version: 0.1.0
+doi: 10.5281/zenodo.7974571
+date-released: 2023-05-26
+url: "https://github.com/lnls-fac/collective_effects/pycolleff"
