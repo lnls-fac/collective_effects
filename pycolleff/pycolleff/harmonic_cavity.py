@@ -548,13 +548,28 @@ class LongitudinalEquilibrium:
         fill_fft = _fft(self.fillpattern)
         fill_fft = _np.tile(fill_fft, (zl_wp.size//h, 1)).ravel()
         zl_fill = _np.abs(zl_wp * fill_fft)
+
+        # # select modes based max peak neighbor
+        # peak = _np.argmax(zl_fill)
+        # modes = [peak, ]
+        # i = 1
+        # if self.nr_max_mode is not None:
+        #     while len(modes) <= self.nr_max_mode:
+        #         modes.append(peak - i)
+        #         modes.append(peak + i)
+        #         i += 1
+        # modes = _np.sort(modes)
+        # out = modes, zl_wp[modes], zl_fill
+
+        # select modes based sorted imp * fill spectrum
         modes = _np.where(
             zl_fill >= zl_fill.max()*self.min_mode0_ratio)[0]
 
         idx_sort = _np.argsort(_np.abs(zl_fill[modes]))[::-1]
         if self.nr_max_mode is not None:
             idx_sort = idx_sort[:self.nr_max_mode]
-        return modes[idx_sort], zl_wp[modes][idx_sort], zl_fill
+        out = modes[idx_sort], zl_wp[modes][idx_sort], zl_fill
+        return out
 
     def calc_induced_voltage_uniform_filling(self, wake_source, dist=None):
         """."""
@@ -661,7 +676,8 @@ class LongitudinalEquilibrium:
         dist_exp_z *= fillpattern
         dist_exp_z *= self._exp_z
         dz = zgrid[1] - zgrid[0]
-        dist_fourier = _mytrapz(dist_exp_z, dz)
+        Sn = _mytrapz(dist_exp_z, dz, cumul=True)
+        dist_laplace = Sn[:, -1]
 
         # NOTE: Alternative implementation without matrix multiplication. This
         # calculation did not reduce the evaluation time too much, then the
@@ -688,11 +704,8 @@ class LongitudinalEquilibrium:
             diff = ind[:, None] - ind[None, :]
             log_wmat += -beta*circum*diff/h
             self._wake_matrix = _ne.evaluate('exp(log_wmat)')
-        V = _np.dot(self._wake_matrix, dist_fourier)
-
-        Vt = _mytrapz(dist_exp_z, dz, cumul=True)
-        Vt += V[:, None]
-        Vt /= self._exp_z
+        V = _np.dot(self._wake_matrix, dist_laplace)
+        Vt = (Sn + V[:, None]) / self._exp_z
 
         harm_volt = Vt.real
         harm_volt -= alpha / wrbar * Vt.imag
@@ -844,6 +857,8 @@ class LongitudinalEquilibrium:
         for k in range(niter):
             t0 = _time.time()
             gamma_k = _np.linalg.lstsq(G_k, gnew, rcond=None)[0]
+            # tf1 = _time.time()
+            # print(f'AndersonLeastSquares: {tf1-t0:.3f}s')
             xold = xnew
             xnew = xold + gnew
             xnew -= mat @ gamma_k
@@ -853,7 +868,10 @@ class LongitudinalEquilibrium:
             dists.append(xnew)
 
             gold = gnew
+            # tf2 = _time.time()
+            # print(f'MatrixMul: {tf2-tf1:.3f}s')
             gnew = self._ffunc(xnew) - xnew
+            # tf3 = _time.time()
             G_k[:, where] = gnew - gold
             X_k[:, where] = xnew - xold
             mat[:, where] = G_k[:, where] + X_k[:, where]
@@ -864,11 +882,14 @@ class LongitudinalEquilibrium:
             dz = self.zgrid[1] - self.zgrid[0]
             diff = _mytrapz(_np.abs(diff), dz)
             idx = _np.argmax(diff)
-            tf = _time.time() - t0
+            tf = _time.time()
+            # print(f'Trapz: {tf-tf3:.3f}s')
             if self.print_flag:
-                print(
-                    f'Iter.: {k+1:03d}, Dist. Diff.: {diff[idx]:.3e}' +
-                    f' (bucket {idx:03d}), E.T.: {tf:.3f}s')
+                # print(
+                #     f'Iter.: {k+1:03d}, Dist. Diff.: {diff[idx]:.3e}' +
+                #     f' (bucket {idx:03d}), E.T.: {tf:.3f}s')
+                print(f'Iter.: {k+1:03d}, E.T.: {tf-t0:.3f}s')
+                print('-'*20)
             if diff[idx] < tol:
                 if self.print_flag:
                     print('distribution ok!')
@@ -882,6 +903,7 @@ class LongitudinalEquilibrium:
 
     def _ffunc(self, xk, feedback=True):
         """Haissinski operator."""
+        t0 = _time.time()
         xk = self._reshape_dist(xk)
         total_volt = _np.zeros(xk.shape)
         self.beamload_active = _np.zeros(xk.shape)
@@ -918,10 +940,15 @@ class LongitudinalEquilibrium:
             if mthd == ImpedanceSource.Methods.UniformFillAnalytic:
                 _func = self.calc_induced_voltage_uniform_filling
             total_volt += _func(wake_source=wksrc, dist=xk)
-
+        # tf1 = _time.time()
+        # print(f'CalcIndVoltage: {tf1-t0:.3f}s')
+        # tf2 = _time.time()
         total_volt += self.get_generator_voltage()
+        # print(f'CalcGenVoltage: {tf2-tf1:.3f}s')
         self.total_voltage = total_volt
+        # tf3 = _time.time()
         fxk, _ = self.calc_distributions_from_voltage(total_volt)
+        # print(f'CalcDist: {tf3-tf2:.3f}s')
         return fxk.ravel()
 
     def _get_impedance_types_idx(self):

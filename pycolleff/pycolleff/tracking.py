@@ -233,7 +233,7 @@ class Wake:
         pot_summ[0] = self.pot_phasor*_np.exp(cpl_kr*rf_lamb*delta_bun)
 
         for i, ind in enumerate(beam.bun_indices):
-            # summ potential of the this bunch with the one it generated:
+            # summ potential of this bunch with the one it generated:
             pot_summ[i+1] = pot_summ[i] + pot_sum[i, -1]
             # propagate the potential from this bunch to the next:
             if i == beam.bun_indices.size-1:
