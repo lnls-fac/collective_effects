@@ -549,17 +549,13 @@ class LongitudinalEquilibrium:
         fill_fft = _np.tile(fill_fft, (zl_wp.size//h, 1)).ravel()
         zl_fill = _np.abs(zl_wp * fill_fft)
 
-        # # select modes based max peak neighbor
+        # # select modes based on max peak neighbors
         # peak = _np.argmax(zl_fill)
-        # modes = [peak, ]
-        # i = 1
+        # nr_modes = 0
         # if self.nr_max_mode is not None:
-        #     while len(modes) <= self.nr_max_mode:
-        #         modes.append(peak - i)
-        #         modes.append(peak + i)
-        #         i += 1
-        # modes = _np.sort(modes)
-        # out = modes, zl_wp[modes], zl_fill
+        #     nr_modes = (self.nr_max_mode // 2)
+        # modes = _np.arange(nr_modes + 1)
+        # modes = _np.r_[-modes[:0:-1], modes] + peak
 
         # select modes based sorted imp * fill spectrum
         modes = _np.where(
