@@ -556,6 +556,7 @@ class LongitudinalEquilibrium:
         #     nr_modes = (self.nr_max_mode // 2)
         # modes = _np.arange(nr_modes + 1)
         # modes = _np.r_[-modes[:0:-1], modes] + peak
+        # out = modes, zl_wp[modes], zl_fill
 
         # select modes based sorted imp * fill spectrum
         modes = _np.where(
@@ -726,13 +727,13 @@ class LongitudinalEquilibrium:
     def get_generator_voltage(self):
         """."""
         if self.feedback_on:
-            error_stg = 'Feedback is on but there is no active beam loading voltage!'
+            err = 'Feedback is on but there is no active beam loading voltage!'
             if self.beamload_active is not None:
                 val = _np.sum(self.beamload_active)
                 if not val:
-                    raise ValueError(error_stg)
+                    raise ValueError(err)
             else:
-                raise ValueError(error_stg)
+                raise ValueError(err)
             if self.feedback_method == self.FeedbackMethod.Phasor:
                 # Phasor compensation
                 _vg = self._feedback_phasor()
@@ -741,7 +742,8 @@ class LongitudinalEquilibrium:
                 _vg = self._feedback_least_squares()
             else:
                 raise ValueError(
-                    "Wrong feedback method: must be 'Phasor' or 'LeastSquares'")
+                    'Wrong feedback method: must be' +
+                    "'Phasor' or 'LeastSquares'")
         else:
             _vg = self.ring.get_voltage_waveform(self.zgrid)[None, :]
         return _vg
