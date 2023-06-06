@@ -2,7 +2,7 @@
 
 import numpy as _np
 from .colleff import Ring as _Ring
-from .harmonic_cavity import ImpedanceSource as _ImpSource
+from .equilibrium import ImpedanceSource as _ImpSource
 
 
 def create_ring():
