@@ -1,35 +1,158 @@
 """."""
 import time as _time
-
 import numpy as _np
 import numexpr as _ne
-import scipy.integrate as _scy_int
 
 from mathphys.constants import light_speed as _LSPEED
 from mathphys.functions import get_namedtuple as _get_namedtuple
 
+from scipy.optimize import least_squares as _least_squares
+from scipy.fft import fft as _fft, rfft as _rfft, irfft as _irfft
 from . import impedances as _imp
 from .colleff import Ring as _Ring
 
 _PI = _np.pi
 
 
-class Resonator:
+def _mytrapz(y, dx, cumul=False):
+    """Perform trapezoidal integration along last axis of array.
+
+    Args:
+        y (numpy.ndarray, (..., N)): array where integration is performed.
+        dx (float): step size.
+        cumul (bool, optional): Whether or not to return cummulative integral.
+            Defaults to False.
+
+    Returns:
+        numpy.ndarray: if cumul is True, then the shape matches y, else the
+            number of dimensions is reduced.
+
+    """
+    y1 = y[..., :-1]
+    y2 = y[..., 1:]
+    if cumul:
+        intg = _np.zeros_like(y)
+        intg[..., 1:] = _ne.evaluate('(y1 + y2)*dx/2.0')
+        res = _np.cumsum(intg, axis=-1)
+        res.shape = intg.shape
+        return res
+    else:
+        return _ne.evaluate('(y1 + y2)*dx/2.0').sum(axis=-1)
+
+
+class ImpedanceSource:
     """."""
 
-    def __init__(self, Rs=0, Q=0, ang_freq=0, harm_rf=3):
+    Methods = _get_namedtuple(
+        'Methods',
+        ['ImpedanceDFT', 'ImpedanceModeSel', 'Wake', 'UniformFillAnalytic'])
+    ActivePassive = _get_namedtuple('ActivePassive', ['Active', 'Passive'])
+
+    def __init__(
+            self, Rs=0, Q=0, ang_freq=0, harm_rf=3,
+            calc_method=Methods.ImpedanceDFT,
+            active_passive=ActivePassive.Passive):
         """."""
+        self._calc_method = None
+        self._active_passive = None
+
         self.ang_freq = ang_freq
         self.Q = Q
         self.shunt_impedance = Rs
 
         self.harm_rf = harm_rf
         self.ang_freq_rf = 0
+        self._loop_ctrl_freq = 0
+        self._loop_ctrl_transfer = lambda x, y: 0
+        self._zl_table = None
+        self._ang_freq_table = None
+        self.calc_method = calc_method
+        self.active_passive = active_passive
+
+    @property
+    def calc_method_str(self):
+        """."""
+        return self.Methods._fields[self._calc_method]
+
+    @property
+    def calc_method(self):
+        """."""
+        return self._calc_method
+
+    @calc_method.setter
+    def calc_method(self, value):
+        if value is None:
+            return
+        if isinstance(value, str):
+            self._calc_method = self.Methods._fields.index(value)
+        elif int(value) in self.Methods:
+            self._calc_method = int(value)
+        else:
+            raise ValueError('Wrong value for calc_method.')
+
+    @property
+    def active_passive_str(self):
+        """."""
+        return self.ActivePassive._fields[self._active_passive]
+
+    @property
+    def active_passive(self):
+        """."""
+        return self._active_passive
+
+    @active_passive.setter
+    def active_passive(self, value):
+        if value is None:
+            return
+        if isinstance(value, str):
+            self._active_passive = self.ActivePassive._fields.index(value)
+        elif int(value) in self.ActivePassive:
+            self._active_passive = int(value)
+        else:
+            raise ValueError('Wrong value for active_passive.')
 
     def get_impedance(self, w):
         """."""
-        return _imp.longitudinal_resonator(
-            Rs=self.shunt_impedance, Q=self.Q, wr=self.ang_freq, w=w)
+        if self.zl_table is None:
+            imp = _imp.longitudinal_resonator(
+                Rs=self.shunt_impedance, Q=self.Q,
+                wr=self.ang_freq, w=w)
+        else:
+            w_tab = self.ang_freq_table
+            zl_tab = self.zl_table
+            imp = _np.interp(w, w_tab, zl_tab.imag)*1j
+            imp += _np.interp(w, w_tab, zl_tab.real)
+        return imp
+
+    @property
+    def loop_ctrl_freq(self):
+        """."""
+        return self._loop_ctrl_freq
+
+    @loop_ctrl_freq.setter
+    def loop_ctrl_freq(self, value):
+        """."""
+        self._loop_ctrl_freq = value
+
+    @property
+    def loop_ctrl_ang_freq(self):
+        """."""
+        return 2*_PI*self._loop_ctrl_freq
+
+    @loop_ctrl_ang_freq.setter
+    def loop_ctrl_ang_freq(self, value):
+        """."""
+        self._loop_ctrl_freq = value/2/_PI
+
+    @property
+    def loop_ctrl_transfer(self):
+        """."""
+        return self._loop_ctrl_transfer
+
+    @loop_ctrl_transfer.setter
+    def loop_ctrl_transfer(self, func):
+        """."""
+        self._loop_ctrl_transfer = func
 
     @property
     def RoverQ(self):
@@ -46,6 +169,11 @@ class Resonator:
         """."""
         wr = self.harm_rf*self.ang_freq_rf + value
         self.ang_freq = wr
+
+    @property
+    def detune_freq(self):
+        """."""
+        return self.detune_w/2/_PI
 
     @property
     def alpha(self):
@@ -77,7 +205,7 @@ class Resonator:
             raise Exception('wrf cannot be zero!')
         tan = Q * (wr/(nharm*wrf) - nharm*wrf/wr)
         angle = _np.arctan2(tan, 1)
-        return _PI + angle
+        return angle
 
     @detune_angle.setter
     def detune_angle(self, value):
@@ -87,6 +215,24 @@ class Resonator:
 
         delta = _np.tan(value)/2/Q
         self.ang_freq = nharm*wrf*(delta + (1+delta**2)**(1/2))
+
+    @property
+    def zl_table(self):
+        """."""
+        return self._zl_table
+
+    @zl_table.setter
+    def zl_table(self, value):
+        self._zl_table = value
+
+    @property
+    def ang_freq_table(self):
+        """."""
+        return self._ang_freq_table
+
+    @ang_freq_table.setter
+    def ang_freq_table(self, value):
+        self._ang_freq_table = value
 
     def to_dict(self):
         """Save state to dictionary."""
@@ -105,15 +251,35 @@ class Resonator:
         self.harm_rf = dic.get('harm_rf', self.harm_rf)
         self.ang_freq_rf = dic.get('ang_freq_rf', self.ang_freq_rf)
 
+    def __str__(self):
+        """."""
+        stmp = '{0:20s}: {1:}  {2:s}\n'.format
+        ftmp = '{0:20s}: {1:3.2f}  {2:s}\n'.format
+        etmp = '{0:20s}: {1:.2e}  {2:s}\n'.format
+        mega = 1e-6
+        stg = stmp('calc_method', self.calc_method_str, '')
+        stg += stmp('active_passive', self.active_passive_str, '')
+        stg += ftmp('ang_freq_rf', self.ang_freq_rf*mega, '[Mrad/s]')
+        stg += ftmp('ang_freq', self.ang_freq*mega, '[Mrad/s]')
+        stg += ftmp('shunt_impedance', self.shunt_impedance*mega, '[MOhm]')
+        stg += etmp('Q', self.Q, '')
+        stg += ftmp('RoverQ', self.RoverQ, '[Ohm]')
+        stg += ftmp('harm_rf', self.harm_rf, '')
+        stg += ftmp('detune_angle', self.detune_angle, '[rad]')
+        stg += ftmp('detune_freq', self.detune_freq/1e3, '[kHz]')
+        stg += ftmp('detune_w', self.detune_w, '[rad/s]')
+        stg += ftmp('alpha', self.alpha, '[rad/s]')
+        stg += ftmp('ang_freq_bar', self.ang_freq_bar*mega, '[Mrad/s]')
+        return stg
+
 
 class LongitudinalEquilibrium:
     """."""
 
-    Methods = _get_namedtuple('Methods', ['Impedance', 'Wake'])
+    FeedbackMethod = _get_namedtuple(
+        'FeedbackMethod', ['Phasor', 'LeastSquares'])
 
-    def __init__(
-            self, ring: _Ring, resonators: list,
-            method=Methods.Wake, fillpattern=None):
+    def __init__(self, ring: _Ring, impedance_sources: list, fillpattern=None):
         """."""
         self._zgrid = None
         self._dist = None
@@ -122,43 +288,41 @@ class LongitudinalEquilibrium:
         self._calc_fun = None
         self._calc_method = None
         self._print_flag = False
-        self._exp_z = None
         self._wake_matrix = None
+        self.beamload_active = None
+        self.total_voltage = None
 
-        self.calc_method = method
         self.ring = ring
-        self.resonators = resonators
+        self.impedance_sources = impedance_sources
         self.max_mode = 10*self.ring.harm_num
         self.min_mode0_ratio = 1e-9
+
+        self.feedback_method = self.FeedbackMethod.LeastSquares
+        self.feedback_on = True
 
         self.fillpattern = fillpattern
         self.zgrid = self.create_zgrid()
 
     @property
-    def calc_method_str(self):
+    def feedback_method_str(self):
         """."""
-        return self.Methods._fields[self._calc_method]
+        return self.FeedbackMethod._fields[self._feedback_method]
 
     @property
-    def calc_method(self):
+    def feedback_method(self):
         """."""
-        return self._calc_method
+        return self._feedback_method
 
-    @calc_method.setter
-    def calc_method(self, value):
+    @feedback_method.setter
+    def feedback_method(self, value):
         if value is None:
             return
         if isinstance(value, str):
-            self._calc_method = self.Methods._fields.index(value)
-        elif int(value) in self.Methods:
-            self._calc_method = int(value)
+            self._feedback_method = self.FeedbackMethod._fields.index(value)
+        elif int(value) in self.FeedbackMethod:
+            self._feedback_method = int(value)
         else:
-            raise ValueError('Wrong value for calc_method.')
-
-        if self._calc_method == self.Methods.Wake:
-            self._calc_fun = self.calc_voltage_harmonic_cavity_wake
-        elif self._calc_method == self.Methods.Impedance:
-            self._calc_fun = self.calc_voltage_harmonic_cavity_impedance
+            raise ValueError('Wrong value for feedback_method.')
 
     @property
     def max_mode(self):
@@ -239,7 +403,8 @@ class LongitudinalEquilibrium:
         """Save state to dictionary."""
         return dict(
             ring=self.ring.to_dict(),
-            resonators=[res.to_dict() for res in self.resonators],
+            impedance_sources=[
+                imp.to_dict() for imp in self.impedance_sources],
             zgrid=self._zgrid,
             dist=self._dist,
             fillpatern=self._fillpattern,
@@ -251,12 +416,12 @@ class LongitudinalEquilibrium:
     def from_dict(self, dic):
         """Load state from dictionary."""
         self.ring.from_dict(dic.get('ring', dict()))
-        resons = []
-        for res in dic.get('resonators', self.resonators):
-            re = Resonator()
-            re.from_dict(res)
-            resons.append(re)
-        self.resonators = resons
+        imps = []
+        for imp in dic.get('impedance_sources', self.impedance_sources):
+            _imp = ImpedanceSource()
+            _imp.from_dict(imp)
+            imps.append(_imp)
+        self.impedance_sources = imps
         self._zgrid = dic.get('zgrid', self._zgrid)
         self._dist = dic.get('dist', self._dist)
         self._fillpattern = dic.get('fillpattern', self._fillpattern)
@@ -272,17 +437,20 @@ class LongitudinalEquilibrium:
     @staticmethod
     def calc_moments(zgrid, dist):
         """."""
-        zm = _np.trapz(zgrid[None, :]*dist, zgrid, axis=1)
+        dz = zgrid[1] - zgrid[0]
+        zm = _mytrapz(zgrid[None, :]*dist, dz)
+
         zgrid2 = zgrid*zgrid
-        z2 = _np.trapz(zgrid2[None, :]*dist, zgrid, axis=1)
+        z2 = _mytrapz(zgrid2[None, :]*dist, dz)
         return zm, _np.sqrt(z2 - zm**2)
 
     def get_gaussian_distributions(self, sigmaz, z0=0):
         """."""
+        dz = self.zgrid[1] - self.zgrid[0]
+
         arg = (self.zgrid - z0)/sigmaz
         dist = _np.exp(-arg**2/2)
-        norm = _np.trapz(dist, self.zgrid)
-        dist = dist/norm
+        dist /= _mytrapz(dist, dz)
         dist = _np.tile(dist, (self.ring.harm_num, 1))
         return dist
 
@@ -322,9 +490,11 @@ class LongitudinalEquilibrium:
             # voltage must be (h, zgrid) or (1, zgrid)
             voltage = voltage[None, :]
 
+        dz = self.zgrid[1] - self.zgrid[0]
+
         # subtract U0
         U0 = self.ring.en_lost_rad
-        pot = -_scy_int.cumtrapz(voltage-U0, self.zgrid, initial=0, axis=1)
+        pot = -_mytrapz(voltage-U0, dz, cumul=True)
 
         # subtract minimum value for all bunches
         pot -= _np.min(pot, axis=1)[:, None]
@@ -336,26 +506,37 @@ class LongitudinalEquilibrium:
         const *= self.ring.energy
 
         dist = _ne.evaluate('exp(-pot/const)')
-        dist /= _np.trapz(dist, self.zgrid, axis=1)[:, None]
+        # distribution must be normalized
+        dist /= _mytrapz(dist, dz)[:, None]
         if flag:
             dist = _np.tile(dist, (self.ring.harm_num, 1))
-        # distribution must be normalized
         return dist, pot
 
     def calc_fourier_transform(self, w, dist=None):
         """."""
         if dist is None:
             dist = self.distributions
-        arg = dist*_np.exp(1j*w*self.zgrid/_LSPEED)[None, :]
-        return _np.trapz(arg, self.zgrid, axis=1)
+        arg = _np.exp((1j*w/_LSPEED)*self.zgrid)[None, :]
+        arg = _ne.evaluate('dist * arg')
+        dz = self.zgrid[1] - self.zgrid[0]
+        return _mytrapz(arg, dz)
 
-    def get_impedance(self, w=None):
+    def get_impedance(self, w=None, apply_filter=False):
         """."""
         if w is None:
             w = self._create_freqs()
         total_zl = _np.zeros(w.shape, dtype=_np.complex)
-        for reson in self.resonators:
-            total_zl += reson.get_impedance(w=w)
+        imp_idx = self._get_impedance_types_idx()
+        for iidx in imp_idx:
+            imp = self.impedance_sources[iidx]
+            cond = imp.active_passive == ImpedanceSource.ActivePassive.Active
+            cond &= apply_filter
+            _zl = imp.get_impedance(w=w)
+            if cond:
+                # closed-loop impedance
+                _zl /= (1 + imp.loop_ctrl_transfer(
+                    w, imp.loop_ctrl_ang_freq)*_zl)
+            total_zl += _zl
         return total_zl
 
     def get_harmonics_impedance_and_filling(self, w=None):
@@ -363,21 +544,50 @@ class LongitudinalEquilibrium:
         if w is None:
             w = self._create_freqs()
         h = self.ring.harm_num
-        max_harm = self.max_mode//h
-        diff = self.max_mode - max_harm*h
-        if diff > 0:
-            max_harm = max_harm + 1
-        zl_wp = self.get_impedance(w=w)
-        fill_fft = _np.fft.fft(self.fillpattern)
-        fill_fft = _np.tile(fill_fft, (max_harm, 1)).ravel()
-        if diff > 0:
-            fill_fft = fill_fft[:-(h-diff)]
+        zl_wp = self.get_impedance(w=w, apply_filter=True)
+        fill_fft = _fft(self.fillpattern)
+        fill_fft = _np.tile(fill_fft, (zl_wp.size//h, 1)).ravel()
         zl_fill = _np.abs(zl_wp * fill_fft)
-        modes = _np.where(
-            zl_fill > zl_fill.max()*self.min_mode0_ratio)[0]
-        return modes, zl_wp[modes]
 
-    def calc_voltage_harmonic_cavity_impedance(self, dist=None):
+        # # select modes based on max peak neighbors
+        # peak = _np.argmax(zl_fill)
+        # nr_modes = 0
+        # if self.nr_max_mode is not None:
+        #     nr_modes = (self.nr_max_mode // 2)
+        # modes = _np.arange(nr_modes + 1)
+        # modes = _np.r_[-modes[:0:-1], modes] + peak
+        # modes = _np.sort(modes)
+        # out = modes, zl_wp[modes], zl_fill
+
+        # select modes based sorted imp * fill spectrum
+        modes = _np.where(
+            zl_fill >= zl_fill.max()*self.min_mode0_ratio)[0]
+
+        idx_sort = _np.argsort(_np.abs(zl_fill[modes]))[::-1]
+        if self.nr_max_mode is not None:
+            idx_sort = idx_sort[:self.nr_max_mode]
+        out = modes[idx_sort], zl_wp[modes][idx_sort], zl_fill
+        return out
+
+    def calc_induced_voltage_uniform_filling(self, wake_source, dist=None):
+        """."""
+        if dist is None:
+            dist = self.distributions
+        wr = wake_source.harm_rf * wake_source.ang_freq_rf
+        form = self.calc_fourier_transform(wr, dist=dist)
+        F0 = _np.abs(form)[0]
+        Phi0 = _np.angle(form)[0]
+
+        It = _np.sum(self.fillpattern)
+        ang = wake_source.detune_angle
+        Rs = wake_source.shunt_impedance
+
+        volt = -2*It*F0*Rs*_np.cos(ang)
+        volt *= _np.cos(wr*self.zgrid/_LSPEED + ang - Phi0)
+        return _np.tile(volt, (self.ring.harm_num, 1))
+
+    def calc_induced_voltage_impedance_mode_selection(
+                self, dist=None):
         """."""
         h = self.ring.harm_num
         w0 = self.ring.rev_ang_freq
@@ -390,14 +600,13 @@ class LongitudinalEquilibrium:
         zn_ph = (2j*_PI/h) * _np.arange(h)[None, :]
         z_ph = (1j*w0/_LSPEED) * zgrid[None, :]
 
-        ps, zl_wps = self.get_harmonics_impedance_and_filling()
+        ps, zl_wps, _ = self.get_harmonics_impedance_and_filling()
         ps = ps[:, None]
         zl_wp = _ne.evaluate('exp(ps*z_ph)')
         zl_wp *= zl_wps[:, None].conj()
 
         expph = _ne.evaluate('exp(-ps*zn_ph)')
-
-        voltage = _np.zeros((h, zgrid.size), dtype=_np.complex)
+        harm_volt = _np.zeros((h, zgrid.size), dtype=_np.complex)
         for idx, p in enumerate(ps):
             dist_fourier = self.calc_fourier_transform(w=p*w0, dist=dist)
 
@@ -407,10 +616,41 @@ class LongitudinalEquilibrium:
             beam_part = beam_part / exp_phase
 
             # sum over positive frequencies only -> factor 2
-            voltage += (-2 * zl_wp[idx]) * beam_part[:, None]
-        return voltage.real
+            harm_volt += -2 * zl_wp[idx] * beam_part[:, None]
+        return harm_volt.real
 
-    def calc_voltage_harmonic_cavity_wake(self, dist=None):
+    def calc_induced_voltage_impedance_dft(self, dist=None):
+        """."""
+        if dist is None:
+            dist = self.distributions
+
+        ps, zl_wps, _ = self.get_harmonics_impedance_and_filling()
+
+        did_zero_pad = False
+        rf_lamb = self.ring.rf_lamb
+        if self.zgrid[0] != -rf_lamb/2 or self.zgrid[-1] != rf_lamb/2:
+            dist, idx_ini = self._do_zero_padding(dist)
+            did_zero_pad = True
+
+        # remove last point to do not overlap domains
+        dist_beam = (self.fillpattern[:, None]*dist[:, :-1]).ravel()
+        dist_dft_ = _rfft(dist_beam)
+
+        # calculate with DFT
+        dist_dft = _np.zeros(dist_dft_.size, dtype=complex)
+        dist_dft[ps] = dist_dft_[ps]
+        dist_dft[ps] *= zl_wps.conj()
+        _harm_volt = (-self.ring.circum) * _irfft(dist_dft)
+        harm_volt = _np.zeros_like(dist, dtype=complex)
+        harm_volt[:, :-1] = _harm_volt.reshape((dist.shape[0], -1))
+        harm_volt[:-1, -1] = harm_volt[1:, 0]
+        harm_volt[-1, -1] = harm_volt[0, 0]
+        if did_zero_pad:
+            harm_volt = harm_volt[:, idx_ini:idx_ini+self.zgrid.size]
+        return harm_volt.real
+
+    def calc_induced_voltage_wake(
+            self, wake_source, dist=None):
         """."""
         if dist is None:
             dist = self.distributions
@@ -421,8 +661,10 @@ class LongitudinalEquilibrium:
         circum = self.ring.circum
         rev_time = self.ring.rev_time
 
-        hcav = self.resonators[0]
-        beta = hcav.beta
+        alpha = wake_source.alpha
+        beta = wake_source.beta
+        wrbar = wake_source.ang_freq_bar
+        rsh = wake_source.shunt_impedance
 
         if self._exp_z is None:
             self._exp_z = _ne.evaluate('exp(beta*zgrid)')[None, :]
@@ -431,7 +673,9 @@ class LongitudinalEquilibrium:
         dist_exp_z += dist
         dist_exp_z *= fillpattern
         dist_exp_z *= self._exp_z
-        dist_fourier = _np.trapz(dist_exp_z, zgrid)
+        dz = zgrid[1] - zgrid[0]
+        Sn = _mytrapz(dist_exp_z, dz, cumul=True)
+        dist_laplace = Sn[:, -1]
 
         # NOTE: Alternative implementation without matrix multiplication. This
         # calculation did not reduce the evaluation time too much, then the
@@ -450,37 +694,61 @@ class LongitudinalEquilibrium:
 
         if self._wake_matrix is None:
             exp_betac0 = _np.exp(-beta*circum)
-            Ll = 1/(1-exp_betac0)  # buckets ahead current one (l<n)
-            Gl = Ll*exp_betac0     # buckets behind current one (l>=n)
-            wmat = Ll*_np.tri(h, h, -1,)
-            wmat += Gl*_np.tri(h, h).T
-
+            log_Ll = -_np.log(1-exp_betac0)  # buckets ahead current one (l<n)
+            log_Gl = log_Ll - beta*circum  # buckets behind current one (l>=n)
+            log_wmat = log_Ll*_np.tri(h, h, -1,)
+            log_wmat += log_Gl*_np.tri(h, h).T
             ind = _np.arange(h)
             diff = ind[:, None] - ind[None, :]
-            wmat *= _ne.evaluate('exp(-beta*circum*diff/h)')
-            self._wake_matrix = wmat
-        V = _np.dot(self._wake_matrix, dist_fourier)
-
-        Vt = _scy_int.cumtrapz(dist_exp_z, x=zgrid, initial=0j)
-        Vt += V[:, None]
-        Vt /= self._exp_z
+            log_wmat += -beta*circum*diff/h
+            self._wake_matrix = _ne.evaluate('exp(log_wmat)')
+        V = _np.dot(self._wake_matrix, dist_laplace)
+        Vt = (Sn + V[:, None]) / self._exp_z
 
         harm_volt = Vt.real
-        harm_volt -= hcav.alpha / hcav.ang_freq_bar * Vt.imag
-        harm_volt *= -2*hcav.alpha * hcav.shunt_impedance * rev_time
+        harm_volt -= alpha / wrbar * Vt.imag
+        harm_volt *= -2*alpha * rsh * rev_time
         return harm_volt
 
     def calc_longitudinal_equilibrium(
-            self, niter=100, tol=1e-10, beta=1, m=3, print_flag=True):
+            self, niter=100, tol=1e-10, beta=1, m=None, print_flag=True):
         """."""
         self.print_flag = print_flag
         dists = [self.distributions, ]
+        m = m or niter
         dists = self._apply_anderson_acceleration(
             dists, niter, tol, beta=beta, m=m)
         dists = [self._reshape_dist(rho) for rho in dists]
         self.distributions = dists[-1]
+        # Flush pre-calculated data
+        self._wake_matrix = None
+        self._exp_z = None
         return dists
 
+    def get_generator_voltage(self):
+        """."""
+        if self.feedback_on:
+            error_stg = 'Feedback is on but there is no active beam loading voltage!'
+            if self.beamload_active is not None:
+                val = _np.sum(self.beamload_active)
+                if not val:
+                    raise ValueError(error_stg)
+            else:
+                raise ValueError(error_stg)
+            if self.feedback_method == self.FeedbackMethod.Phasor:
+                # Phasor compensation
+                _vg = self._feedback_phasor()
+            elif self.feedback_method == self.FeedbackMethod.LeastSquares:
+                # Least-squares minimization
+                _vg = self._feedback_least_squares()
+            else:
+                raise ValueError(
+                    "Wrong feedback method: must be 'Phasor' or 'LeastSquares'")
+        else:
+            _vg = self.ring.get_voltage_waveform(self.zgrid)[None, :]
+        return _vg
+
+    # -------------------- instabilities calculations -------------------------
     def calc_robinson_growth_rate(
             self, w, approx=False, wr=None, Rs=None, Q=None):
         """."""
@@ -500,8 +768,8 @@ class LongitudinalEquilibrium:
             growth *= (1-x**2)*(1 + x**2)
             growth /= x**4 * (1 + Q**2 * (1/x - x)**2)**2
         else:
-            Zlp = self.get_impedance(w=wp)
-            Zln = self.get_impedance(w=wn)
+            Zlp = self.get_impedance(w=wp, apply_filter=False)
+            Zln = self.get_impedance(w=wn, apply_filter=False)
             growth = const*(wp*Zlp.real - wn*Zln.real)
         return growth
 
@@ -521,7 +789,7 @@ class LongitudinalEquilibrium:
             # only the min and max frequencies are required: w = [w_min, w_max]
             Zl = self.get_impedance
         else:
-            Zl = self.get_impedance(w=w)
+            Zl = self.get_impedance(w=w, apply_filter=False)
 
         deltaw, wp, interpol_Z, spectrum = ring.longitudinal_cbi(
             w=w, Zl=Zl, m=m, inverse=False, full=True)
@@ -546,7 +814,7 @@ class LongitudinalEquilibrium:
         if _np.array(w).size == 2:
             Zl = self.get_impedance
         else:
-            Zl = self.get_impedance(w=w)
+            Zl = self.get_impedance(w=w, apply_filter=False)
 
         eigenfreq, modecoup_matrix, fokker_matrix = \
             ring.longitudinal_mode_coupling(
@@ -561,7 +829,7 @@ class LongitudinalEquilibrium:
         return eigenfreq, modecoup_matrix, fokker_matrix
 
     # -------------------- auxiliary methods ----------------------------------
-    def _apply_anderson_acceleration(self, dists, niter, tol, m=3, beta=1):
+    def _apply_anderson_acceleration(self, dists, niter, tol, m=None, beta=1):
         """."""
         if beta < 0:
             raise Exception('relaxation parameter beta must be positive.')
@@ -570,6 +838,7 @@ class LongitudinalEquilibrium:
         xnew = self._ffunc(xold)
         dists.append(xnew)
 
+        m = m or niter
         where = 0
         G_k = _np.zeros((xnew.size, m), dtype=float)
         X_k = _np.zeros((xnew.size, m), dtype=float)
@@ -586,6 +855,8 @@ class LongitudinalEquilibrium:
         for k in range(niter):
             t0 = _time.time()
             gamma_k = _np.linalg.lstsq(G_k, gnew, rcond=None)[0]
+            # tf1 = _time.time()
+            # print(f'AndersonLeastSquares: {tf1-t0:.3f}s')
             xold = xnew
             xnew = xold + gnew
             xnew -= mat @ gamma_k
@@ -595,7 +866,10 @@ class LongitudinalEquilibrium:
             dists.append(xnew)
 
             gold = gnew
+            # tf2 = _time.time()
+            # print(f'MatrixMul: {tf2-tf1:.3f}s')
             gnew = self._ffunc(xnew) - xnew
+            # tf3 = _time.time()
             G_k[:, where] = gnew - gold
             X_k[:, where] = xnew - xold
             mat[:, where] = G_k[:, where] + X_k[:, where]
@@ -603,13 +877,17 @@ class LongitudinalEquilibrium:
             where %= m
 
             diff = self._reshape_dist(gnew)
-            diff = _np.trapz(_np.abs(diff), self.zgrid, axis=1)
+            dz = self.zgrid[1] - self.zgrid[0]
+            diff = _mytrapz(_np.abs(diff), dz)
             idx = _np.argmax(diff)
-            tf = _time.time() - t0
+            tf = _time.time()
+            # print(f'Trapz: {tf-tf3:.3f}s')
             if self.print_flag:
-                print(
-                    f'Iter.: {k+1:03d}, Dist. Diff.: {diff[idx]:.3e}' +
-                    f' (bucket {idx:03d}), E.T.: {tf:.3f}s')
+                # print(
+                #     f'Iter.: {k+1:03d}, Dist. Diff.: {diff[idx]:.3e}' +
+                #     f' (bucket {idx:03d}), E.T.: {tf:.3f}s')
+                print(f'Iter.: {k+1:03d}, E.T.: {tf-t0:.3f}s')
+                print('-'*20)
             if diff[idx] < tol:
                 if self.print_flag:
                     print('distribution ok!')
@@ -621,13 +899,126 @@ class LongitudinalEquilibrium:
         p = _np.arange(0, self.max_mode)
         return p*w0
 
-    def _ffunc(self, xk):
+    def _ffunc(self, xk, feedback=True):
         """Haissinski operator."""
+        t0 = _time.time()
         xk = self._reshape_dist(xk)
-        tvolt = self._calc_fun(dist=xk)
-        tvolt += self.main_voltage[None, :]
-        fxk, _ = self.calc_distributions_from_voltage(tvolt)
+        total_volt = _np.zeros(xk.shape)
+        self.beamload_active = _np.zeros(xk.shape)
+        idx_wake = self._get_wake_types_idx()
+        if idx_wake:
+            wake_sources = [self.impedance_sources[idx] for idx in idx_wake]
+            # Wakes need to be evaluated one by one
+            _func = self.calc_induced_voltage_wake
+            for wake in wake_sources:
+                if wake.active_passive == ImpedanceSource.ActivePassive.Active:
+                    self.beamload_active += _func(wake_source=wake, dist=xk)
+                    self._wake_matrix = None
+                    self._exp_z = None
+                total_volt += _func(wake_source=wake, dist=xk)
+                self._wake_matrix = None
+                self._exp_z = None
+
+        idx_imp = self._get_impedance_types_idx()
+        if idx_imp:
+            # Impedances can be summed and calculated once
+            mthd = self.impedance_sources[idx_imp[0]].calc_method
+            if mthd == ImpedanceSource.Methods.ImpedanceDFT:
+                _func = self.calc_induced_voltage_impedance_dft
+            elif mthd == ImpedanceSource.Methods.ImpedanceModeSel:
+                _func = self.calc_induced_voltage_impedance_mode_selection
+            else:
+                raise Exception(
+                    'Methods must be ImpedanceDFT or ImpedanceModeSel.')
+            total_volt += _func(dist=xk)
+
+        if not idx_imp and not idx_wake:
+            wksrc = self.impedance_sources[0]
+            mthd = wksrc.calc_method
+            if mthd == ImpedanceSource.Methods.UniformFillAnalytic:
+                _func = self.calc_induced_voltage_uniform_filling
+            total_volt += _func(wake_source=wksrc, dist=xk)
+        # tf1 = _time.time()
+        # print(f'CalcIndVoltage: {tf1-t0:.3f}s')
+        # tf2 = _time.time()
+        total_volt += self.get_generator_voltage()
+        # print(f'CalcGenVoltage: {tf2-tf1:.3f}s')
+        self.total_voltage = total_volt
+        # tf3 = _time.time()
+        fxk, _ = self.calc_distributions_from_voltage(total_volt)
+        # print(f'CalcDist: {tf3-tf2:.3f}s')
         return fxk.ravel()
+
+    def _get_impedance_types_idx(self):
+        """."""
+        imp_idx = []
+        for idx, imp in enumerate(self.impedance_sources):
+            if 'impedance' in imp.calc_method_str.lower():
+                imp_idx.append(idx)
+        return imp_idx
+
+    def _get_wake_types_idx(self):
+        """."""
+        wake_idx = []
+        for idx, imp in enumerate(self.impedance_sources):
+            if 'wake' in imp.calc_method_str.lower():
+                wake_idx.append(idx)
+        return wake_idx
+
+    def _feedback_phasor(self):
+        vgap = self.ring.gap_voltage
+        wrf = 2*_PI*self.ring.rf_freq
+        phase = wrf*self.zgrid/_LSPEED
+        dz = _np.diff(self.zgrid)[0]
+        vref_phasor = vgap*_np.exp(
+            1j*(_PI/2 - self.ring.sync_phase))
+        vbeamload_phasor = _np.mean(_mytrapz(
+            self.beamload_active*_np.exp(1j*phase)[None, :], dz))
+        vbeamload_phasor *= 2/(self.zgrid[-1] - self.zgrid[0])
+        vg_phasor = vref_phasor - vbeamload_phasor
+        vg = _np.real(vg_phasor*_np.exp(-1j*phase))
+        return vg[None, :]
+
+    def _feedback_least_squares(self):
+        x0 = [self.ring.gap_voltage, 0]
+        wrf = 2*_PI*self.ring.rf_freq
+        phase = wrf*self.zgrid/_LSPEED
+        dz = self.zgrid[1] - self.zgrid[0]
+
+        vref = self.ring.get_voltage_waveform(self.zgrid)
+        res = _least_squares(
+            fun=self._feedback_err, x0=x0,
+            args=(phase, dz, self.beamload_active, vref),
+            method='lm')
+        vg = LongitudinalEquilibrium._generator_model(
+            phase, res.x[0], res.x[1])
+        return vg[None, :]
+
+    def _do_zero_padding(self, dist):
+        rf_lamb = self.ring.rf_lamb
+        dz = _np.diff(self.zgrid)[0]
+        # zero-padding
+        nr_pts = int(rf_lamb/dz) + 1
+        if not nr_pts % 2:
+            nr_pts -= 1
+        zgrid_full = _np.linspace(-1, 1, nr_pts) * rf_lamb/2
+        dist_new = _np.zeros((dist.shape[0], nr_pts))
+        idx_ini = _np.searchsorted(zgrid_full, self.zgrid[0])
+        dist_new[:, idx_ini:idx_ini+self.zgrid.size] = dist
+        dist = dist_new
+        return dist, idx_ini
+
+    @staticmethod
+    def _feedback_err(x, *args):
+        phase, dz, vbeamload, vref = args
+        vgen = LongitudinalEquilibrium._generator_model(phase, x[0], x[1])
+        err = (vgen[None, :] + vbeamload) - vref[None, :]
+        err = _mytrapz(err*err, dz)
+        return err
+
+    @staticmethod
+    def _generator_model(phase, a, b):
+        return a*_np.sin(phase) + b*_np.cos(phase)
 
     def _reshape_dist(self, dist):
         return dist.reshape((self.ring.harm_num, self.zgrid.size))
