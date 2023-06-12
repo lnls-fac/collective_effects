@@ -4,7 +4,7 @@ import time
 import math
 import numpy as np
 import cppcolleff as coll
-import pycolleff.sirius as si
+import pycolleff.rings.sirius as si
 
 
 def perform_time_domain_simulation(rin, wake, currents,

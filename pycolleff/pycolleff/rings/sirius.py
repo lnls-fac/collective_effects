@@ -1,9 +1,15 @@
 """."""
 
-from .colleff import Ring as _Ring
+from ..colleff import Ring as _Ring
 
 
 def create_ring():
+    """Create SIRIUS collective effects model ring.
+
+    Returns:
+        ring (pycolleff.colleff.Ring): main parameters for collective effects
+
+    """
     ring = _Ring()
     ring.version = 'SI.v25.01-s05.02'
     ring.rf_freq = 499666600
