@@ -1,6 +1,6 @@
 """."""
 
-from .colleff import Ring as _Ring
+from ..colleff import Ring as _Ring
 
 
 def create_ring(energy):

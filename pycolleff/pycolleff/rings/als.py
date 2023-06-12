@@ -1,8 +1,8 @@
 """."""
 
 import numpy as _np
-from .colleff import Ring as _Ring
-from .equilibrium import ImpedanceSource as _ImpSource
+from ..colleff import Ring as _Ring
+from ..longitudinal_equilibrium import ImpedanceSource as _ImpSource
 
 
 def create_ring():

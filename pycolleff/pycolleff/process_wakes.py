@@ -14,7 +14,7 @@ import matplotlib.pyplot as _plt
 
 from mathphys.constants import light_speed as _LSPEED
 
-from . import sirius as _sirius
+from .rings import sirius as _sirius
 
 try:
     from pyaccel import naff as _naff
