@@ -7,8 +7,8 @@ authors:
 - family-names: "Alves"
   given-names: "Murilo"
 
-title: "Pycolleff. Python module for impedances and instability analysis in electron storage rings."
+title: "pycolleff and cppcolleff: python modules for impedances and instability analysis in electron storage rings. cppcolleff has a tracking code in C++."
 version: 0.1.0
 doi: 10.5281/zenodo.7974571
 date-released: 2023-05-26
-url: "https://github.com/lnls-fac/collective_effects/pycolleff"
+url: "https://github.com/lnls-fac/collective_effects"
