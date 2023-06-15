@@ -166,8 +166,8 @@ def prepare_inputs_epr_mur(w, epb, mub, ange, angm, sigmadc, tau):
         mur (numpy.ndarray, (M, N)): relative complex permeability.
 
     """
-    epr = _np.zeros((len(epb), len(w)), dtype=_np.complex)
-    mur = _np.zeros((len(epb), len(w)), dtype=_np.complex)
+    epr = _np.zeros((len(epb), len(w)), dtype=complex)
+    mur = _np.zeros((len(epb), len(w)), dtype=complex)
     for j in range(len(epb)):
         epr[j] = epb[j]*(1 - 1j*_np.sign(w)*_np.tan(ange[j]))
         mur[j] = mub[j]*(1 - 1j*_np.sign(w)*_np.tan(angm[j]))
@@ -343,8 +343,8 @@ def _round_alpha_tm(m, epr, mur, bet, nu, b):
     for i in range(len(b)):
         x = nu[i+1] * b[i]
         y = nu[i] * b[i]
-        Mt = _np.zeros((4, 4, nu.shape[1]), dtype=_np.complex)
-        D = _np.zeros((4, 4, nu.shape[1]), dtype=_np.complex)
+        Mt = _np.zeros((4, 4, nu.shape[1]), dtype=complex)
+        D = _np.zeros((4, 4, nu.shape[1]), dtype=complex)
 
         kmx = _kve(m, x)
         kmy = _kve(m, y)
