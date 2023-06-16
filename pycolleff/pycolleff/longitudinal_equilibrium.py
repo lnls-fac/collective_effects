@@ -525,7 +525,7 @@ class LongitudinalEquilibrium:
         """."""
         if w is None:
             w = self._create_freqs()
-        total_zl = _np.zeros(w.shape, dtype=_np.complex)
+        total_zl = _np.zeros(w.shape, dtype=complex)
         imp_idx = self._get_impedance_types_idx()
         for iidx in imp_idx:
             imp = self.impedance_sources[iidx]
@@ -605,7 +605,7 @@ class LongitudinalEquilibrium:
         zl_wp *= zl_wps[:, None].conj()
 
         expph = _ne.evaluate('exp(-ps*zn_ph)')
-        harm_volt = _np.zeros((h, zgrid.size), dtype=_np.complex)
+        harm_volt = _np.zeros((h, zgrid.size), dtype=complex)
         for idx, p in enumerate(ps):
             dist_fourier = self.calc_fourier_transform(w=p*w0, dist=dist)
 
@@ -668,7 +668,7 @@ class LongitudinalEquilibrium:
         if self._exp_z is None:
             self._exp_z = _ne.evaluate('exp(beta*zgrid)')[None, :]
 
-        dist_exp_z = _np.zeros(dist.shape, dtype=_np.complex)
+        dist_exp_z = _np.zeros(dist.shape, dtype=complex)
         dist_exp_z += dist
         dist_exp_z *= fillpattern
         dist_exp_z *= self._exp_z
