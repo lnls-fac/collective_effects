@@ -322,28 +322,10 @@ class Ring:
         limw = 5 * _LSPEED / bunlen
         wmin = max(w[0], -limw)
         wmax = min(w[-1], limw)
-
-        if fillpattern is not None:
-            if fillpattern.ndim != 1:
-                raise ValueError('fillpattern must be one-dimensional.')
-            elif fillpattern.size != hnum:
-                raise ValueError('Length of fillpattern must be harm_num.')
-            elif not _np.allclose(fillpattern.sum(), 1):
-                raise ValueError('fillpattern must sum to unit.')
-            elif _np.any(fillpattern < 0):
-                raise ValueError('All entries of fillpattern must be >= 0.')
-            nb = 1
-            wp, p = self._get_sampling_ang_freq(
-                wmin, wmax, w0, nb, 0, 0, [0], return_p=True)
-            pmin, pmax = abs(int(p[0])), abs(int(p[-1]))+1
-            tile_neg, tile_pos = int(pmin/hnum)+1, int(pmax/hnum)+1
-
-            dft_sqr = _np.abs(_np.fft.fft(fillpattern))**2
-            dft_sqr_neg = _np.tile(dft_sqr, tile_neg)[::-1][:pmin][::-1]
-            dft_sqr_pos = _np.tile(dft_sqr, tile_pos)[:pmax]
-            dft_sqr = _np.r_[dft_sqr_neg, dft_sqr_pos]
-        else:
-            wp = self._get_sampling_ang_freq(wmin, wmax, w0, nb, 0, 0, [0])
+        wp_args = wmin, wmax, w0, nb, 0, 0, [0]
+        wp_kws = dict()
+        nb, wp, dft_sqr = self._process_fillpattern(
+            fillpattern, nb, wp_args, wp_kws)
 
         gmk = self.calc_spectrum(wp, bunlen, max_rad=0, max_azi=1)
         Zl_interp = self._get_interpolated_impedance(wp, w, Zl)
@@ -430,29 +412,10 @@ class Ring:
         limw = 5 * _LSPEED / bunlen
         wmin = max(w[0], -limw)
         wmax = min(w[-1], limw)
-
-        if fillpattern is not None:
-            if fillpattern.ndim != 1:
-                raise ValueError('fillpattern must be one-dimensional.')
-            elif fillpattern.size != hnum:
-                raise ValueError('Length of fillpattern must be harm_num.')
-            elif not _np.allclose(fillpattern.sum(), 1):
-                raise ValueError('fillpattern must sum to unit.')
-            elif _np.any(fillpattern < 0):
-                raise ValueError('All entries of fillpattern must be >= 0.')
-            nb = 1
-            wp, p = self._get_sampling_ang_freq(
-                wmin, wmax, w0, nb, 0, 0, [0], nut=nut, return_p=True)
-            pmin, pmax = abs(int(p[0])), abs(int(p[-1]))+1
-            tile_neg, tile_pos = int(pmin/hnum)+1, int(pmax/hnum)+1
-
-            dft_sqr = _np.abs(_np.fft.fft(fillpattern))**2
-            dft_sqr_neg = _np.tile(dft_sqr, tile_neg)[::-1][:pmin][::-1]
-            dft_sqr_pos = _np.tile(dft_sqr, tile_pos)[:pmax]
-            dft_sqr = _np.r_[dft_sqr_neg, dft_sqr_pos]
-        else:
-            wp = self._get_sampling_ang_freq(
-                wmin, wmax, w0, nb, 0, 0, [0], nut=nut)
+        wp_args = wmin, wmax, w0, nb, 0, 0, [0]
+        wp_kws = dict(nut=nut)
+        nb, wp, dft_sqr = self._process_fillpattern(
+            fillpattern, nb, wp_args, wp_kws)
 
         gmk = self.calc_spectrum(wp, bunlen, max_rad=0, max_azi=1)
         Zt_interp = self._get_interpolated_impedance(wp, w, Z)
@@ -467,6 +430,32 @@ class Ring:
             kick_factor /= _np.sum(fillpattern*fillpattern)
 
         return kick_factor, Tush
+
+    def _process_fillpattern(self, fillp, nb, wp_args, wp_kws):
+        hnum = self.harm_num
+        dft_sqr = None
+        if fillp is not None:
+            if fillp.ndim != 1:
+                raise ValueError('fillpattern must be one-dimensional.')
+            elif fillp.size != hnum:
+                raise ValueError('Length of fillpattern must be harm_num.')
+            elif not _np.allclose(fillp.sum(), 1):
+                raise ValueError('fillpattern must sum to unit.')
+            elif _np.any(fillp < 0):
+                raise ValueError('All entries of fillpattern must be >= 0.')
+            nb = 1
+            wp, p = self._get_sampling_ang_freq(
+                *wp_args, return_p=True, **wp_kws)
+            pmin, pmax = abs(int(p[0])), abs(int(p[-1]))+1
+            tile_neg, tile_pos = int(pmin/hnum)+1, int(pmax/hnum)+1
+
+            dft_sqr = _np.abs(_np.fft.fft(fillp))**2
+            dft_sqr_neg = _np.tile(dft_sqr, tile_neg)[::-1][:pmin][::-1]
+            dft_sqr_pos = _np.tile(dft_sqr, tile_pos)[:pmax]
+            dft_sqr = _np.r_[dft_sqr_neg, dft_sqr_pos]
+        else:
+            wp = self._get_sampling_ang_freq(*wp_args, **wp_kws)
+        return nb, wp, dft_sqr
 
     def longitudinal_cbi(
             self, budget=None, element=None, w=None, Zl=None, m=1,
