@@ -312,7 +312,6 @@ class Ring:
         """
         w0 = self.rev_ang_freq
         nb = self.num_bun
-        hnum = self.harm_num
         bunlen = self.bunlen
         tot_curr = self.total_current
         rev_time = self.rev_time
@@ -322,7 +321,7 @@ class Ring:
         limw = 5 * _LSPEED / bunlen
         wmin = max(w[0], -limw)
         wmax = min(w[-1], limw)
-        wp_args = wmin, wmax, w0, nb, 0, 0, [0]
+        wp_args = wmin, wmax, w0
         wp_kws = dict()
         nb, wp, dft_sqr = self._process_fillpattern(
             fillpattern, nb, wp_args, wp_kws)
@@ -403,7 +402,6 @@ class Ring:
         energy = self.energy
         w0 = self.rev_ang_freq
         nb = self.num_bun
-        hnum = self.harm_num
         bunlen = self.bunlen
         tot_curr = self.total_current
 
@@ -412,7 +410,7 @@ class Ring:
         limw = 5 * _LSPEED / bunlen
         wmin = max(w[0], -limw)
         wmax = min(w[-1], limw)
-        wp_args = wmin, wmax, w0, nb, 0, 0, [0]
+        wp_args = wmin, wmax, w0
         wp_kws = dict(nut=nut)
         nb, wp, dft_sqr = self._process_fillpattern(
             fillpattern, nb, wp_args, wp_kws)
@@ -445,7 +443,7 @@ class Ring:
                 raise ValueError('All entries of fillpattern must be >= 0.')
             nb = 1
             wp, p = self._get_sampling_ang_freq(
-                *wp_args, return_p=True, **wp_kws)
+                *wp_args, nb, return_p=True, **wp_kws)
             pmin, pmax = abs(int(p[0])), abs(int(p[-1]))+1
             tile_neg, tile_pos = int(pmin/hnum)+1, int(pmax/hnum)+1
 
@@ -454,7 +452,7 @@ class Ring:
             dft_sqr_pos = _np.tile(dft_sqr, tile_pos)[:pmax]
             dft_sqr = _np.r_[dft_sqr_neg, dft_sqr_pos]
         else:
-            wp = self._get_sampling_ang_freq(*wp_args, **wp_kws)
+            wp = self._get_sampling_ang_freq(*wp_args, nb, **wp_kws)
         return nb, wp, dft_sqr
 
     def longitudinal_cbi(
@@ -1626,7 +1624,8 @@ class Ring:
 
     @staticmethod
     def _get_sampling_ang_freq(
-            wmin, wmax, w0, nb, m, sync_tune, cbmodes, nut=0, return_p=False):
+            wmin, wmax, w0, nb, m=0, sync_tune=0, cbmodes=(0, ), nut=0,
+            return_p=False):
         wp = []
         cbmodes = _np.array(cbmodes)
         shift = cbmodes + m*sync_tune + nut
