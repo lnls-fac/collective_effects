@@ -163,7 +163,7 @@ class Ring:
         voltage = self.gap_voltage*_np.sin(phase)
         return voltage
 
-    def budget_summary(self, budget):
+    def budget_summary(self, budget, fillpattern=None):
         """."""
         props = ['lsf', 'zln', 'pls', 'kdx', 'kdy', 'kqx', 'kqy',
                  'ktx', 'kty', 'ndx', 'ndy', 'nqx', 'nqy', 'ntx', 'nty']
@@ -208,20 +208,23 @@ class Ring:
 
             Zl = el.Zll * el.quantity
             if len(Zl) != 0:
-                lossf, pl, zn, *_ = self.loss_factor(w=w, Zl=Zl)
+                lossf, pl, zn, *_ = self.loss_factor(
+                    w=w, Zl=Zl, fillpattern=fillpattern)
                 values['lsf'] = lossf
                 values['pls'] = pl
                 values['zln'] = zn
 
             Zd = el.Zdy * el.quantity * el.betay
             if len(Zd) != 0:
-                kd, tus = self.kick_factor(w=w, Z=Zd, imp_type='Zdy')
+                kd, tus = self.kick_factor(
+                    w=w, Z=Zd, imp_type='Zdy', fillpattern=fillpattern)
                 values['kdy'] = kd
                 values['ndy'] = tus
 
             Zq = el.Zqy * el.quantity * el.betay
             if len(Zq) != 0:
-                kd, tus = self.kick_factor(w=w, Z=Zq, imp_type='Zqy')
+                kd, tus = self.kick_factor(
+                    w=w, Z=Zq, imp_type='Zqy', fillpattern=fillpattern)
                 values['kqy'] = kd
                 values['nqy'] = tus
 
@@ -231,13 +234,15 @@ class Ring:
 
             Zd = el.Zdx * el.quantity * el.betax
             if len(Zd) != 0:
-                kd, tus = self.kick_factor(w=w, Z=Zd, imp_type='Zdx')
+                kd, tus = self.kick_factor(
+                    w=w, Z=Zd, imp_type='Zdx', fillpattern=fillpattern)
                 values['kdx'] = kd
                 values['ndx'] = tus
 
             Zq = el.Zqx * el.quantity * el.betax
             if len(Zq) != 0:
-                kd, tus = self.kick_factor(w=w, Z=Zq, imp_type='Zqx')
+                kd, tus = self.kick_factor(
+                    w=w, Z=Zq, imp_type='Zqx', fillpattern=fillpattern)
                 values['kqx'] = kd
                 values['nqx'] = tus
 
@@ -251,7 +256,9 @@ class Ring:
             bud_res[el.name] = pd.Series(values)
         return bud_res
 
-    def loss_factor(self, budget=None, element=None, w=None, Zl=None):
+    def loss_factor(
+            self, budget=None, element=None, w=None, Zl=None,
+            fillpattern=None):
         """Calculate the loss factor and effective impedance.
 
         The Effective impedance returned is the one of the azimuthal mode m=1
@@ -284,10 +291,14 @@ class Ring:
             w (numpy.ndarray, (M, ), optional): Angular frequency in [rad/s].
                 Only considered if `budget` and `element` are `None`. Defaults
                 to `None`.
-            Zl (numpy.ndarray (M, ), optional): longitudinal impedance in
+            Zl (numpy.ndarray, (M, ), optional): longitudinal impedance in
                 units of [Ohm] evaluated at angular frequencies in `w`.
                 Only considered if `budget` and `element` are `None`.
                 Defaults to None.
+            fillpattern (numpy.ndarray, (h, ), optional): vector with the size
+                of the harmonic number describing the current profile. All
+                entries must be non-negative and sum to one. If not None it
+                will overwrite the parameter self.num_bun in calculations.
 
         Returns:
             lossf (float): Loss factor in [V/C].
@@ -308,18 +319,25 @@ class Ring:
         w, Zl = self._prepare_input_impedance(budget, element, w, Zl, 'Zll')
 
         limw = 5 * _LSPEED / bunlen
-        w[-1] = min(w[-1], limw)
-        w[0] = max(w[0], -limw)
-        wp = self._get_sampling_ang_freq(w, w0, nb, 0, 0, [0])
+        wmin = max(w[0], -limw)
+        wmax = min(w[-1], limw)
+        wp_args = wmin, wmax, w0
+        wp_kws = dict()
+        nb, wp, dft_sqr = self._process_fillpattern(
+            fillpattern, nb, wp_args, wp_kws)
 
         gmk = self.calc_spectrum(wp, bunlen, max_rad=0, max_azi=1)
         Zl_interp = self._get_interpolated_impedance(wp, w, Zl)
 
         # Multibunch loss factor and power loss:
         h00 = gmk[(0, 0)]**2
-        lossfp = nb * w0/(2*_np.pi) * Zl_interp.real * h00
-        lossf = lossfp.sum()
+        lossfp = Zl_interp.real * h00
+        if fillpattern is not None:
+            lossfp *= dft_sqr
+        lossf = nb * w0/(2*_np.pi) * lossfp.sum()
         Pl = lossf * rev_time * tot_curr**2 / nb
+        if fillpattern is not None:
+            lossf /= _np.sum(fillpattern*fillpattern)
 
         # eq. 9.94 of ref. [2] and eqs. 6.143 + 6.140 of ref. [1]
         # please, notice the factor of 2 here to convert from gmk to hmk:
@@ -331,7 +349,8 @@ class Ring:
         return lossf, Pl, Zovn_eff, wp, lossfp
 
     def kick_factor(
-            self, budget=None, element=None, w=None, Z=None, imp_type='Zdy'):
+            self, budget=None, element=None, w=None, Z=None, imp_type='Zdy',
+            fillpattern=None):
         """Calculate the kick factor, tune shift and effective impedance.
 
         The kick factor and tune-shifts will be calculated for uniform
@@ -362,6 +381,10 @@ class Ring:
                 Defaults to None.
             imp_type (str, optional): string with type of impedance to
                 consider. Options: Zdy, Zqy, Zdx, Zqx. Defaults to Zdy.
+            fillpattern (numpy.ndarray, (h, ), optional): vector with the size
+                of the harmonic number describing the current profile. All
+                entries must be non-negative and sum to one. If not None it
+                will overwrite the parameter self.num_bun in calculations.
 
         Returns:
             kick_factor (float): Kick Factor factor in [V/C]
@@ -385,17 +408,52 @@ class Ring:
         w, Z = self._prepare_input_impedance(budget, element, w, Z, imp_type)
 
         limw = 5 * _LSPEED / bunlen
-        w[-1] = min(w[-1], limw)
-        w[0] = max(w[0], -limw)
-        wp = self._get_sampling_ang_freq(w, w0, nb, 0, 0, [0], nut=nut)
+        wmin = max(w[0], -limw)
+        wmax = min(w[-1], limw)
+        wp_args = wmin, wmax, w0
+        wp_kws = dict(nut=nut)
+        nb, wp, dft_sqr = self._process_fillpattern(
+            fillpattern, nb, wp_args, wp_kws)
 
         gmk = self.calc_spectrum(wp, bunlen, max_rad=0, max_azi=1)
         Zt_interp = self._get_interpolated_impedance(wp, w, Z)
 
         h00 = gmk[(0, 0)]**2
-        kick_factor = nb * w0/(2*_np.pi) * sum(Zt_interp.imag*h00)
+        kick_factorp = Zt_interp.imag*h00
+        if fillpattern is not None:
+            kick_factorp *= dft_sqr
+        kick_factor = nb * w0/(2*_np.pi) * kick_factorp.sum()
         Tush = (tot_curr/nb) / (2*energy) * kick_factor / w0
+        if fillpattern is not None:
+            kick_factor /= _np.sum(fillpattern*fillpattern)
+
         return kick_factor, Tush
+
+    def _process_fillpattern(self, fillp, nb, wp_args, wp_kws):
+        hnum = self.harm_num
+        dft_sqr = None
+        if fillp is not None:
+            if fillp.ndim != 1:
+                raise ValueError('fillpattern must be one-dimensional.')
+            elif fillp.size != hnum:
+                raise ValueError('Length of fillpattern must be harm_num.')
+            elif not _np.allclose(fillp.sum(), 1):
+                raise ValueError('fillpattern must sum to unit.')
+            elif _np.any(fillp < 0):
+                raise ValueError('All entries of fillpattern must be >= 0.')
+            nb = 1
+            wp, p = self._get_sampling_ang_freq(
+                *wp_args, nb, return_p=True, **wp_kws)
+            pmin, pmax = abs(int(p[0])), abs(int(p[-1]))+1
+            tile_neg, tile_pos = int(pmin/hnum)+1, int(pmax/hnum)+1
+
+            dft_sqr = _np.abs(_np.fft.fft(fillp))**2
+            dft_sqr_neg = _np.tile(dft_sqr, tile_neg)[::-1][:pmin][::-1]
+            dft_sqr_pos = _np.tile(dft_sqr, tile_pos)[:pmax]
+            dft_sqr = _np.r_[dft_sqr_neg, dft_sqr_pos]
+        else:
+            wp = self._get_sampling_ang_freq(*wp_args, nb, **wp_kws)
+        return nb, wp, dft_sqr
 
     def longitudinal_cbi(
             self, budget=None, element=None, w=None, Zl=None, m=1,
@@ -498,7 +556,8 @@ class Ring:
 
         # Calculate Effective Impedance
         cbmodes = _np.arange(nb)
-        wp = self._get_sampling_ang_freq(w, w0, nb, m, sync_tune, cbmodes)
+        wp = self._get_sampling_ang_freq(
+            w[0], w[-1], w0, nb, m, sync_tune, cbmodes)
         gm0 = self.calc_spectrum(wp, bunlen, max_rad=0, max_azi=m, only=True)
         Zl_interp = self._get_interpolated_impedance(wp, w, Zl)
         Zl_sum = (Zl_interp/wp * gm0 * gm0).sum(axis=1)
@@ -618,7 +677,8 @@ class Ring:
 
         # Calculate Effective Impedance
         cbmodes = _np.arange(nb)
-        wp = self._get_sampling_ang_freq(w, w0, nb, m, sync_tune, cbmodes, nut)
+        wp = self._get_sampling_ang_freq(
+            w[0], w[-1], w0, nb, m, sync_tune, cbmodes, nut)
         wpcro = wp - w_crom
 
         gm0 = self.calc_spectrum(
@@ -749,7 +809,8 @@ class Ring:
 
         # There is an approximation here which is only valid for broad-band
         # impedances. I sample the impedance only at the azimuthal mode m=1.
-        wp = self._get_sampling_ang_freq(w, w0, nb, 1, sync_tune, [cbmode])
+        wp = self._get_sampling_ang_freq(
+            w[0], w[-1], w0, nb, 1, sync_tune, [cbmode])
 
         Zl_interp = self._get_interpolated_impedance(wp, w, Zl)
         Zl_wp = Zl_interp / wp
@@ -959,7 +1020,8 @@ class Ring:
 
         # There is an approximation here which is only valid for broad-band
         # impedances. I sample the impedance only at the azimuthal mode m=1.
-        wp = self._get_sampling_ang_freq(w, w0, nb, 1, sync_tune[0], [cbmode])
+        wp = self._get_sampling_ang_freq(
+            w[0], w[-1], w0, nb, 1, sync_tune[0], [cbmode])
 
         Zl_interp = self._get_interpolated_impedance(wp, w, Zl)
         Zl_wp = Zl_interp / wp
@@ -1177,7 +1239,7 @@ class Ring:
         # There is an approximation here which is only valid for broad-band
         # impedances. I sample the impedance only at the azimuthal mode m=1.
         wp = self._get_sampling_ang_freq(
-            w, w0, nb, 1, sync_tune, [cbmode], nut)
+            w[0], w[-1], w0, nb, 1, sync_tune, [cbmode], nut)
         w_crom = chrom/eta * w0
         wpcro = wp - w_crom
 
@@ -1561,16 +1623,20 @@ class Ring:
             raise Exception('Incorrect impedance input.')
 
     @staticmethod
-    def _get_sampling_ang_freq(w, w0, nb, m, sync_tune, cbmodes, nut=0):
+    def _get_sampling_ang_freq(
+            wmin, wmax, w0, nb, m=0, sync_tune=0, cbmodes=(0, ), nut=0,
+            return_p=False):
         wp = []
         cbmodes = _np.array(cbmodes)
         shift = cbmodes + m*sync_tune + nut
-        pmin = _np.ceil((w[0]/w0 - shift.min())/nb)
-        pmax = _np.floor((w[-1]/w0 - shift.max())/nb)
+        pmin = _np.ceil((wmin/w0 - shift.min())/nb)
+        pmax = _np.floor((wmax/w0 - shift.max())/nb)
         p = _np.arange(pmin, pmax+1)
         wp = nb*p[None, :] + shift[:, None]
         wp = wp.squeeze()
         wp *= w0
+        if return_p:
+            return wp, p
         return wp
 
     @staticmethod
