@@ -1,13 +1,16 @@
 """."""
 import time as _time
-import numpy as _np
+
 import numexpr as _ne
-
-from mathphys.constants import light_speed as _LSPEED
+import numpy as _np
+from mathphys.constants import light_speed as _c
 from mathphys.functions import get_namedtuple as _get_namedtuple
+from scipy.fft import fft as _fft, irfft as _irfft, rfft as _rfft
+from scipy.integrate import quad as _quad
+from scipy.interpolate import interp1d as _interp1d
+from scipy.optimize import least_squares as _least_squares, root as _root
+from scipy.special import gamma as _gammafunc
 
-from scipy.optimize import least_squares as _least_squares
-from scipy.fft import fft as _fft, rfft as _rfft, irfft as _irfft
 from . import impedances as _imp
 from .colleff import Ring as _Ring
 
@@ -190,7 +193,7 @@ class ImpedanceSource:
     @property
     def beta(self):
         """."""
-        return (self.alpha - 1j*self.ang_freq_bar)/_LSPEED
+        return (self.alpha - 1j * self.ang_freq_bar) / _c
 
     @property
     def detune_angle(self):
@@ -516,7 +519,7 @@ class LongitudinalEquilibrium:
         """."""
         if dist is None:
             dist = self.distributions
-        arg = _np.exp((1j*w/_LSPEED)*self.zgrid)[None, :]
+        arg = _np.exp((1j * w / _c) * self.zgrid)[None, :]
         arg = _ne.evaluate('dist * arg')
         dz = self.zgrid[1] - self.zgrid[0]
         return _mytrapz(arg, dz)
@@ -552,8 +555,8 @@ class LongitudinalEquilibrium:
         # # select modes based on max peak neighbors
         # peak = _np.argmax(zl_fill)
         # nr_modes = 0
-        # if self.nr_max_mode is not None:
-        #     nr_modes = (self.nr_max_mode // 2)
+        # if self.max_mode is not None:
+        #     nr_modes = (self.max_mode // 2)
         # modes = _np.arange(nr_modes + 1)
         # modes = _np.r_[-modes[:0:-1], modes] + peak
         # out = modes, zl_wp[modes], zl_fill
@@ -563,8 +566,8 @@ class LongitudinalEquilibrium:
             zl_fill >= zl_fill.max()*self.min_mode0_ratio)[0]
 
         idx_sort = _np.argsort(_np.abs(zl_fill[modes]))[::-1]
-        if self.nr_max_mode is not None:
-            idx_sort = idx_sort[:self.nr_max_mode]
+        if self.max_mode is not None:
+            idx_sort = idx_sort[: self.max_mode]
         out = modes[idx_sort], zl_wp[modes][idx_sort], zl_fill
         return out
 
@@ -581,8 +584,8 @@ class LongitudinalEquilibrium:
         ang = wake_source.detune_angle
         Rs = wake_source.shunt_impedance
 
-        volt = -2*It*F0*Rs*_np.cos(ang)
-        volt *= _np.cos(wr*self.zgrid/_LSPEED + ang - Phi0)
+        volt = -2 * It * F0 * Rs * _np.cos(ang)
+        volt *= _np.cos(wr * self.zgrid / _c + ang - Phi0)
         return _np.tile(volt, (self.ring.harm_num, 1))
 
     def calc_induced_voltage_impedance_mode_selection(
@@ -596,8 +599,8 @@ class LongitudinalEquilibrium:
         fillpattern = self.fillpattern
         zgrid = self.zgrid
 
-        zn_ph = (2j*_PI/h) * _np.arange(h)[None, :]
-        z_ph = (1j*w0/_LSPEED) * zgrid[None, :]
+        zn_ph = (2j * _PI / h) * _np.arange(h)[None, :]
+        z_ph = (1j * w0 / _c) * zgrid[None, :]
 
         ps, zl_wps, _ = self.get_harmonics_impedance_and_filling()
         ps = ps[:, None]
@@ -747,6 +750,158 @@ class LongitudinalEquilibrium:
         else:
             _vg = self.ring.get_voltage_waveform(self.zgrid)[None, :]
         return _vg
+
+    def calc_synchrotron_frequency(
+        self, total_voltage, method="action", nrpts=100, max_amp=5
+    ):
+        """Calculate synchrotron frequencies for given total voltage."""
+        lambda0, phiz = self.calc_distributions_from_voltage(total_voltage)
+        zgrid = self.zgrid
+        ring = self.ring
+        phiz = phiz[0, :]
+
+        z0, sigmaz0 = self.calc_moments(zgrid, lambda0)
+        z0 = z0[0]
+        sigmaz0 = sigmaz0[0]
+
+        # zmin = min_amplitude if min_amplitude is not None else sigmaz0/100
+        # zmax = max_amplitude if max_amplitude is not None else 3 * sigmaz0
+
+        alpha = ring.mom_comp
+        sigmae0 = ring.espread
+        factor = alpha * _c * sigmae0**2
+
+        if method == "action":
+            phiz_interp = _interp1d(zgrid, phiz * factor, kind="cubic")
+
+            # zmax = sigmaz0
+            # eps = 1e-1
+            # exp = _np.exp(-phiz_interp(zmax))
+            # while exp > eps:
+            #     exp = _np.exp(-phiz_interp(zmax))
+            #     zmax *= 1.01
+
+            def _energy_deviation(z):
+                return hamiltonian0i - phiz_interp(z)
+
+            # hamiltonian0i = phiz_interp(zmax)
+            # turn_pts = _root(_energy_deviation, x0=-zmax)
+            # zmin = turn_pts.x[0]
+
+            # exp = _np.exp(-phiz_interp(zmin))
+            # if exp > eps:
+            #     print("wrong zmax")
+
+            # dz = (zmax - zmin) / npts
+
+            nrpts = 500
+            dz = max_amp * sigmaz0 / nrpts
+            zamps = _np.arange(0, nrpts) * dz
+
+            actions = []
+            periods = []
+            hamiltonian = []
+
+            def _intg(z):
+                return _np.sqrt(
+                    (2 / alpha / _c)
+                    * _np.abs(hamiltonian0i - phiz_interp(z))
+                )
+
+            def _iintg(z):
+                return 1 / _intg(z)
+
+            for zamp in zamps:
+                zri = zamp + z0
+                hamiltonian0i = phiz_interp(zri)
+                hamiltonian.append(hamiltonian0i)
+
+                turn_pts = _root(_energy_deviation, x0=-zri)
+                zli = turn_pts.x[0]
+                if zli > zri:
+                    zli, zri = zri, zli
+
+                action, _ = _quad(_intg, zli, zri)
+                period, _ = _quad(_iintg, zli, zri)
+
+                actions.append(action / _PI)
+                periods.append(period * 2 / alpha / _c)
+
+            actions = _np.array(actions)
+            periods = _np.array(periods)
+            hamiltonian = _np.array(hamiltonian)
+
+            action_nanidx = _np.isnan(actions)
+            freq = 1 / periods
+            freq_nanidx = _np.isnan(freq)
+
+            if _np.any(action_nanidx) or _np.any(freq_nanidx):
+                print("removing nan")
+                nan_idx = ~(action_nanidx | freq_nanidx)
+                actions = actions[nan_idx]
+                freq = freq[nan_idx]
+                hamiltonian = hamiltonian[nan_idx]
+                zamps = zamps[nan_idx]
+
+            lambda0_ = _np.exp(-hamiltonian / factor)
+            lambda0_ /= _np.trapz(lambda0_, actions)
+
+            fs_avg = _np.trapz(freq * lambda0_, actions)
+            fs_std = _np.sqrt(
+                _np.trapz(freq**2 * lambda0_, actions) - fs_avg**2
+            )
+            return (
+                freq,
+                fs_avg,
+                fs_std,
+                lambda0_,
+                actions,
+                hamiltonian,
+                zamps,
+            )
+        elif method == "derivative":
+            wrf_c = ring.rf_ang_freq / _c
+            factor = _np.sqrt(
+                alpha * ring.harm_num / (2 * _PI * ring.energy) / wrf_c
+            )
+
+            fil = _np.abs(zgrid) < max_amp * sigmaz0
+            zgrid_ = zgrid[fil]
+
+            dv = -_np.gradient(total_voltage[0, fil], zgrid_)
+            remove_neg = dv > 0
+            zgrid_ = zgrid_[remove_neg]
+            lambda0_ = lambda0[0, fil]
+            lambda0_ = lambda0_[remove_neg]
+            dv = dv[remove_neg]
+
+            sync_tune = factor * _np.sqrt(dv)
+            synctune_avg = _np.trapz(sync_tune * lambda0_, zgrid_)
+            synctune_std = _np.sqrt(
+                _np.trapz(sync_tune**2 * lambda0_, zgrid_) - synctune_avg**2
+            )
+
+            fs_avg = synctune_avg * ring.rev_freq
+            fs_std = synctune_std * ring.rev_freq
+            freq = sync_tune * ring.rev_freq
+            return freq, fs_avg, fs_std, zgrid_
+
+    def calc_synchrotron_frequency_quadratic_potential(self):
+        """."""
+        ring = self.ring
+        nus0 = ring.mom_comp * ring.harm_num
+        nus0 *= -ring.gap_voltage * _np.cos(ring.sync_phase)
+        nus0 /= 2 * _PI * ring.energy
+        nus0 = _np.sqrt(nus0)
+        return nus0 * ring.rev_freq
+
+    def calc_synchrotron_frequency_quartic_potential(self, bunch_length):
+        """."""
+        ring = self.ring
+        fs_avg = 2 ** (3 / 4) / _gammafunc(1 / 4) ** 2
+        fs_avg *= ring.mom_comp * _c * ring.espread / bunch_length
+        fs_std = _np.sqrt((_PI - 2 ** (3 / 2))) / 2 ** (3 / 4) * fs_avg
+        return fs_avg, fs_std
 
     # -------------------- instabilities calculations -------------------------
     def calc_robinson_growth_rate(
@@ -981,8 +1136,8 @@ class LongitudinalEquilibrium:
 
     def _feedback_least_squares(self):
         x0 = [self.ring.gap_voltage, 0]
-        wrf = 2*_PI*self.ring.rf_freq
-        phase = wrf*self.zgrid/_LSPEED
+        wrf = 2 * _PI * self.ring.rf_freq
+        phase = wrf * self.zgrid / _c
         dz = self.zgrid[1] - self.zgrid[0]
 
         vref = self.ring.get_voltage_waveform(self.zgrid)
