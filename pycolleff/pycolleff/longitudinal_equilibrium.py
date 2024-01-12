@@ -769,20 +769,18 @@ class LongitudinalEquilibrium:
         return _vg
 
     def calc_synchrotron_frequency(
-        self, total_voltage, method="action", nrpts=100, max_amp=5
+        self, total_voltage, method="action", max_amp=5, nrpts=100
     ):
         """Calculate synchrotron frequencies for given total voltage."""
+        # _warnings.filterwarnings("error")
+
         lambda0, phiz = self.calc_distributions_from_voltage(total_voltage)
         zgrid = self.zgrid
         ring = self.ring
         phiz = phiz[0, :]
 
         z0, sigmaz0 = self.calc_moments(zgrid, lambda0)
-        z0 = z0[0]
-        sigmaz0 = sigmaz0[0]
-
-        # zmin = min_amplitude if min_amplitude is not None else sigmaz0/100
-        # zmax = max_amplitude if max_amplitude is not None else 3 * sigmaz0
+        z0, sigmaz0 = z0[0], sigmaz0[0]
 
         alpha = ring.mom_comp
         sigmae0 = ring.espread
@@ -791,90 +789,80 @@ class LongitudinalEquilibrium:
         if method == "action":
             phiz_interp = _interp1d(zgrid, phiz * factor, kind="cubic")
 
-            # zmax = sigmaz0
-            # eps = 1e-1
-            # exp = _np.exp(-phiz_interp(zmax))
-            # while exp > eps:
-            #     exp = _np.exp(-phiz_interp(zmax))
-            #     zmax *= 1.01
+            dz = max_amp * sigmaz0 / nrpts
+            # avoid zero amplitude
+            zamps = _np.arange(1, nrpts) * dz
 
-            def _energy_deviation(z):
+            actions, periods, hamiltonian, zamps_ = [], [], [], []
+
+            def energy_deviation(z):
                 return hamiltonian0i - phiz_interp(z)
 
-            # hamiltonian0i = phiz_interp(zmax)
-            # turn_pts = _root(_energy_deviation, x0=-zmax)
-            # zmin = turn_pts.x[0]
-
-            # exp = _np.exp(-phiz_interp(zmin))
-            # if exp > eps:
-            #     print("wrong zmax")
-
-            # dz = (zmax - zmin) / npts
-
-            nrpts = 500
-            dz = max_amp * sigmaz0 / nrpts
-            zamps = _np.arange(0, nrpts) * dz
-
-            actions = []
-            periods = []
-            hamiltonian = []
-
-            def _intg(z):
+            def intg(z):
                 return _np.sqrt(
                     (2 / alpha / _c) * _np.abs(hamiltonian0i - phiz_interp(z))
                 )
 
-            def _iintg(z):
-                return 1 / _intg(z)
+            def iintg(z):
+                return 1 / intg(z)
 
             for zamp in zamps:
                 zri = zamp + z0
                 hamiltonian0i = phiz_interp(zri)
-                hamiltonian.append(hamiltonian0i)
 
-                turn_pts = _root(_energy_deviation, x0=-zri)
+                turn_pts = _root(energy_deviation, x0=-zri)
                 zli = turn_pts.x[0]
-                if zli > zri:
-                    zli, zri = zri, zli
+                zli, zri = (zli, zri) if zli <= zri else (zri, zli)
 
-                action, _ = _quad(_intg, zli, zri)
-                period, _ = _quad(_iintg, zli, zri)
+                action, _ = _quad(intg, zli, zri)
+                period, _ = _quad(iintg, zli, zri)
 
                 actions.append(action / _PI)
                 periods.append(period * 2 / alpha / _c)
+                hamiltonian.append(hamiltonian0i)
+                zamps_.append(zamp)
 
-            actions = _np.array(actions)
-            periods = _np.array(periods)
-            hamiltonian = _np.array(hamiltonian)
+            actions, periods, hamiltonian, zamps = (
+                _np.array(actions),
+                _np.array(periods),
+                _np.array(hamiltonian),
+                _np.array(zamps_),
+            )
 
-            action_nanidx = _np.isnan(actions)
-            freq = 1 / periods
-            freq_nanidx = _np.isnan(freq)
-
-            if _np.any(action_nanidx) or _np.any(freq_nanidx):
-                print("removing nan")
-                nan_idx = ~(action_nanidx | freq_nanidx)
-                actions = actions[nan_idx]
-                freq = freq[nan_idx]
-                hamiltonian = hamiltonian[nan_idx]
-                zamps = zamps[nan_idx]
+            freqs = 1 / periods
+            nan_idx = ~(_np.isnan(actions) | _np.isnan(freqs))
+            diverge_idx = (_np.abs(freqs) < ring.rev_freq) & (freqs >= 0)
+            filter_idx = nan_idx & diverge_idx
+            actions, freqs, hamiltonian, zamps = (
+                actions[filter_idx],
+                freqs[filter_idx],
+                hamiltonian[filter_idx],
+                zamps[filter_idx],
+            )
 
             lambda0_ = _np.exp(-hamiltonian / factor)
             lambda0_ /= _np.trapz(lambda0_, actions)
 
-            fs_avg = _np.trapz(freq * lambda0_, actions)
+            fs_avg = _np.trapz(freqs * lambda0_, actions)
             fs_std = _np.sqrt(
-                _np.trapz(freq**2 * lambda0_, actions) - fs_avg**2
+                _np.trapz(freqs**2 * lambda0_, actions) - fs_avg**2
             )
-            return (
-                freq,
-                fs_avg,
-                fs_std,
-                lambda0_,
-                actions,
-                hamiltonian,
-                zamps,
+
+            deriv_freq = (
+                _np.gradient(hamiltonian) / _np.gradient(actions) / 2 / _PI
             )
+
+            out = dict()
+            out["sync_freq"] = freqs
+            out["avg_sync_freq"] = fs_avg
+            out["std_sync_freq"] = fs_std
+            out["action_distribution"] = lambda0_
+            out["action"] = actions
+            out["hamiltonian"] = hamiltonian
+            out["amplitude"] = zamps
+            out["sync_freq_numeric_derivative"] = deriv_freq
+            return out
+
         elif method == "derivative":
             wrf_c = ring.rf_ang_freq / _c
             factor = _np.sqrt(
@@ -886,21 +874,24 @@ class LongitudinalEquilibrium:
 
             dv = -_np.gradient(total_voltage[0, fil], zgrid_)
             remove_neg = dv > 0
-            zgrid_ = zgrid_[remove_neg]
-            lambda0_ = lambda0[0, fil]
-            lambda0_ = lambda0_[remove_neg]
-            dv = dv[remove_neg]
-
-            sync_tune = factor * _np.sqrt(dv)
-            synctune_avg = _np.trapz(sync_tune * lambda0_, zgrid_)
-            synctune_std = _np.sqrt(
-                _np.trapz(sync_tune**2 * lambda0_, zgrid_) - synctune_avg**2
+            zgrid_, lambda0_, dv = (
+                zgrid_[remove_neg],
+                lambda0[0, fil][remove_neg],
+                dv[remove_neg],
             )
 
-            fs_avg = synctune_avg * ring.rev_freq
-            fs_std = synctune_std * ring.rev_freq
-            freq = sync_tune * ring.rev_freq
-            return freq, fs_avg, fs_std, zgrid_
+            lambda0_ /= _np.trapz(lambda0_, zgrid_)
+            freqs = factor * _np.sqrt(dv) * ring.rev_freq
+            fs_avg = _np.trapz(freqs * lambda0_, zgrid_)
+            fs_std = _np.sqrt(
+                _np.trapz(freqs**2 * lambda0_, zgrid_) - fs_avg**2
+            )
+
+            out = dict()
+            out["sync_freq"] = freqs
+            out["avg_sync_freq"] = fs_avg
+            out["std_sync_freq"] = fs_std
+            return out
 
     def calc_synchrotron_frequency_quadratic_potential(self):
         """."""
