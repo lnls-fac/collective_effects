@@ -72,7 +72,7 @@ class ImpedanceSource:
         self.harm_rf = harm_rf
         self.ang_freq_rf = 0
         self._loop_ctrl_freq = 0
-        self._loop_ctrl_transfer = lambda x, y: 0
+        self._loop_ctrl_transfer = 0
         self._zl_table = None
         self._ang_freq_table = None
         self.calc_method = calc_method
@@ -807,11 +807,15 @@ class LongitudinalEquilibrium:
                 return 1 / intg(z)
 
             for zamp in zamps:
-                zri = zamp + z0
+                zri = z0 + zamp
+                zli = z0 - zamp
                 hamiltonian0i = phiz_interp(zri)
 
-                turn_pts = _root(energy_deviation, x0=-zri)
-                zli = turn_pts.x[0]
+                turn_pts = _root(energy_deviation, x0=zli)
+                if turn_pts.success:
+                    zli = turn_pts.x[0]
+                else:
+                    raise Exception("Problem in finding turning points.")
                 zli, zri = (zli, zri) if zli <= zri else (zri, zli)
 
                 action, _ = _quad(intg, zli, zri)
@@ -829,13 +833,20 @@ class LongitudinalEquilibrium:
                 _np.array(zamps_),
             )
 
+            freqs_deriv = _np.gradient(hamiltonian, actions) / 2 / _PI
             freqs = 1 / periods
-            nan_idx = ~(_np.isnan(actions) | _np.isnan(freqs))
-            diverge_idx = (_np.abs(freqs) < ring.rev_freq) & (freqs >= 0)
-            filter_idx = nan_idx & diverge_idx
-            actions, freqs, hamiltonian, zamps = (
+            nan_idx = ~(
+                _np.isnan(actions) | _np.isnan(freqs) | _np.isnan(freqs_deriv)
+            )
+            diverge_idx1 = (_np.abs(freqs) < ring.rev_freq) & (freqs >= 0)
+            diverge_idx2 = (_np.abs(freqs_deriv) < ring.rev_freq) & (
+                freqs_deriv >= 0
+            )
+            filter_idx = nan_idx & diverge_idx1 & diverge_idx2
+            actions, freqs, freqs_deriv, hamiltonian, zamps = (
                 actions[filter_idx],
                 freqs[filter_idx],
+                freqs_deriv[filter_idx],
                 hamiltonian[filter_idx],
                 zamps[filter_idx],
             )
@@ -844,23 +855,18 @@ class LongitudinalEquilibrium:
             lambda0_ /= _np.trapz(lambda0_, actions)
 
             fs_avg = _np.trapz(freqs * lambda0_, actions)
-            fs_std = _np.sqrt(
-                _np.trapz(freqs**2 * lambda0_, actions) - fs_avg**2
-            )
-
-            deriv_freq = (
-                _np.gradient(hamiltonian) / _np.gradient(actions) / 2 / _PI
-            )
+            fs_std = _np.trapz(freqs * freqs * lambda0_, actions)
+            fs_std = _np.sqrt(fs_std - fs_avg**2)
 
             out = dict()
             out["sync_freq"] = freqs
+            out["sync_freq_numeric_derivative"] = freqs_deriv
             out["avg_sync_freq"] = fs_avg
             out["std_sync_freq"] = fs_std
             out["action_distribution"] = lambda0_
             out["action"] = actions
             out["hamiltonian"] = hamiltonian
             out["amplitude"] = zamps
-            out["sync_freq_numeric_derivative"] = deriv_freq
             return out
 
         elif method == "derivative":
@@ -884,7 +890,7 @@ class LongitudinalEquilibrium:
             freqs = factor * _np.sqrt(dv) * ring.rev_freq
             fs_avg = _np.trapz(freqs * lambda0_, zgrid_)
             fs_std = _np.sqrt(
-                _np.trapz(freqs**2 * lambda0_, zgrid_) - fs_avg**2
+                _np.trapz((freqs - fs_avg) ** 2 * lambda0_, zgrid_)
             )
 
             out = dict()
