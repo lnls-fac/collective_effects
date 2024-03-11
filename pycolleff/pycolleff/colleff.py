@@ -87,6 +87,7 @@ class Ring:
             'Revolution Frequency [kHz]', self.rev_freq/1e3)
         string += tmpl_f.format('Energy [GeV]', self.energy/1e9)
         string += tmpl_f.format('U0 [keV]', self.en_lost_rad/1e3)
+        string += tmpl_f.format('Vgap [MV]', self.gap_voltage/1e6)
         string += '{0:28s}: {1:^20.2e}\n'.format(
             'Momentum Compaction', self.mom_comp)
         string += '{0:28s}: {1:^20d}\n'.format(
