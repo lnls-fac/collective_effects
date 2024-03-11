@@ -472,17 +472,19 @@ class LongitudinalEquilibrium:
         """."""
         U0 = self.ring.en_lost_rad
         Vrf = self.ring.gap_voltage
-        kharm = 1 / harm_rf**2 - ((U0 / Vrf) ** 2) / (harm_rf**2 - 1)
+        n2 = harm_rf**2
+        kharm = 1 / n2 - ((U0 / Vrf) ** 2) / (n2 - 1)
         return kharm ** (1 / 2)
 
     def calc_detune_for_fixed_harmonic_voltage(
-        self, peak_harm_volt, harm_rf=3, Rs=0
+        self, peak_harm_volt, harm_rf=3, Rs=0, form_factor=None
     ):
         """."""
         I0 = _np.sum(self.fillpattern)
         # TODO: This way of including the form factor is temporary. Fix it.
         wr = 2 * _PI * self.ring.rf_freq * harm_rf
-        form_factor = self.calc_fourier_transform(wr)[self.filled_buckets]
+        if form_factor is None:
+            form_factor = self.calc_fourier_transform(wr)[self.filled_buckets]
         ib = 2 * I0 * _np.abs(form_factor).mean()
         arg = peak_harm_volt / ib / Rs
         return _np.arccos(arg)
@@ -736,11 +738,36 @@ class LongitudinalEquilibrium:
         dists = self._apply_anderson_acceleration(
             dists, niter, tol, beta=beta, m=m
         )
+
+        # dists = self._apply_random_convergence(dists, niter, tol)
         dists = [self._reshape_dist(rho) for rho in dists]
         self.distributions = dists[-1]
         # Flush pre-calculated data
         self._wake_matrix = None
         self._exp_z = None
+        return dists
+
+    def _apply_random_convergence(self, dists, niter, tol):
+        xold = dists[-1].ravel()
+        for k in range(niter):
+            xnew = self._ffunc(xold)
+            dists.append(xnew)
+            diff = self._reshape_dist(xnew - xold)
+            dz = self.zgrid[1] - self.zgrid[0]
+            diff = _mytrapz(_np.abs(diff), dz)
+            idx = _np.argmax(diff)
+            if self.print_flag:
+                print(
+                    f"Iter.: {k+1:03d}, Dist. Diff.: {diff[idx]:.3e}"
+                    + f" (bucket {idx:03d})"
+                )
+                print("-" * 20)
+            if diff[idx] < tol:
+                if self.print_flag:
+                    print("distribution ok!")
+                break
+            r = _np.random.randn() / 2
+            xold = (1 - r) * xnew + r * xold
         return dists
 
     def get_generator_voltage(self):
@@ -782,6 +809,9 @@ class LongitudinalEquilibrium:
         z0, sigmaz0 = self.calc_moments(zgrid, lambda0)
         z0, sigmaz0 = z0[0], sigmaz0[0]
 
+        zmin = zgrid[_np.argmin(phiz)]
+        zgrid -= zmin
+
         alpha = ring.mom_comp
         sigmae0 = ring.espread
         factor = alpha * _c * sigmae0**2
@@ -807,8 +837,8 @@ class LongitudinalEquilibrium:
                 return 1 / intg(z)
 
             for zamp in zamps:
-                zri = z0 + zamp
-                zli = z0 - zamp
+                zri = z0*0 + zamp
+                zli = z0*0 - zamp
                 hamiltonian0i = phiz_interp(zri)
 
                 turn_pts = _root(energy_deviation, x0=zli)
@@ -899,6 +929,38 @@ class LongitudinalEquilibrium:
             out["std_sync_freq"] = fs_std
             return out
 
+    def calc_canonical_transformation(self, res, total_voltage):
+        """."""
+        npts = 100
+        twopi = 2*_np.pi
+        U0 = self.ring.en_lost_rad
+        E0 = self.ring.energy
+        T0 = self.ring.rev_time
+        vtotal = (total_voltage - U0)/E0/T0
+        zgrid = self.zgrid
+
+        zj = []
+        phi = []
+        for _, fs in enumerate(res['sync_freq']):
+            t = _np.linspace(0, 1, npts) * (1/fs)
+            dt = 1/fs/npts
+            z0 = res['amplitude']
+            z, _ = self._solve_eom(dt, z0, npts, zgrid, vtotal)
+            zj.append(z)
+            phi.append(twopi*fs*t)
+        return _np.array(zj), _np.array(phi)
+
+    def _solve_eom(self, dt, z0, npts, zgrid, vtotal):
+        z = [z0, ]
+        p = [0, ]
+        alpha = self.ring.mom_comp
+        for _ in range(npts):
+            dp = _np.interp(z[-1], zgrid, vtotal) * dt
+            p.append(p[-1] + dp)
+            dz = - alpha * _c * p * dt
+            z.append(z[-1] + dz)
+        return _np.array(z), _np.array(p)
+
     def calc_synchrotron_frequency_quadratic_potential(self):
         """."""
         ring = self.ring
@@ -979,6 +1041,7 @@ class LongitudinalEquilibrium:
         nbun_fill=None,
         modecoup_matrix=None,
         fokker_matrix=None,
+        use_fokker=True,
     ):
         """."""
         ring = self.ring
@@ -1004,6 +1067,7 @@ class LongitudinalEquilibrium:
             max_rad=max_rad,
             modecoup_matrix=modecoup_matrix,
             fokker_matrix=fokker_matrix,
+            use_fokker=use_fokker,
         )
 
         # Relative tune-shifts must be multiplied by ws
@@ -1065,13 +1129,14 @@ class LongitudinalEquilibrium:
             dz = self.zgrid[1] - self.zgrid[0]
             diff = _mytrapz(_np.abs(diff), dz)
             idx = _np.argmax(diff)
-            tf = _time.time()
+            tf = _time.time() - t0
             # print(f'Trapz: {tf-tf3:.3f}s')
             if self.print_flag:
-                # print(
-                #     f'Iter.: {k+1:03d}, Dist. Diff.: {diff[idx]:.3e}' +
-                #     f' (bucket {idx:03d}), E.T.: {tf:.3f}s')
-                print(f"Iter.: {k+1:03d}, E.T.: {tf-t0:.3f}s")
+                print(
+                    f"Iter.: {k+1:03d}, Dist. Diff.: {diff[idx]:.3e}"
+                    + f" (bucket {idx:03d}), E.T.: {tf:.3f}s"
+                )
+                # print(f"Iter.: {k+1:03d}, E.T.: {tf-t0:.3f}s")
                 print("-" * 20)
             if diff[idx] < tol:
                 if self.print_flag:
@@ -1086,7 +1151,7 @@ class LongitudinalEquilibrium:
 
     def _ffunc(self, xk):
         """Haissinski operator."""
-        t0 = _time.time()
+        # t0 = _time.time()
         xk = self._reshape_dist(xk)
         total_volt = _np.zeros(xk.shape)
         self.beamload_active = _np.zeros(xk.shape)
