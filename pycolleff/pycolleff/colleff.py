@@ -825,8 +825,17 @@ class Ring:
             modecoup_matrix = self._calc_vlasov(
                 Zl_wp, wp, bunlen, max_azi, max_rad)
         # Calculate the current independent diagonal matrix:
+
+        # # with m=0
         ms = _np.arange(-max_azi, max_azi+1)
+
+        # without m=0
+        # ms = _np.delete(ms, _np.where(ms == 0))
+
         D = _np.einsum('mn,kl->mknl', _np.diag(ms), _np.eye(max_rad+1))
+
+        # without k=0
+        # D = _np.einsum('mn,kl->mknl', _np.diag(ms), _np.eye(max_rad))
         D = self._reshape_coupling_matrix(D)
 
         # We separated the K value from the defition of M so that M
@@ -922,7 +931,19 @@ class Ring:
                         Mmknl = (1j)**(m-n)*_np.dot(Z_wp, Imk*Inl)
                         fill_symmetric_terms(m, k, n, l, Mmknl)
 
+        # # removing all m=0
+        # Mnew = _np.zeros(
+        #     [2*max_azi, max_rad+1, 2*max_azi, max_rad+1], dtype=complex)
+        # Mnew[:max_azi, :, :max_azi, :] = M[:max_azi, :, :max_azi, :]
+        # Mnew[max_azi:, :, max_azi:, :] = M[max_azi+1:, :, max_azi+1:, :]
+        # return cls._reshape_coupling_matrix(M)
+
+        # removing all k=0
+        # Mnew = _np.zeros(
+            # [1+2*max_azi, max_rad, 2*max_azi, max_rad], dtype=complex)
+        # Mnew = M[:, 1:, :, 1:]
         return cls._reshape_coupling_matrix(M)
+        # return cls._reshape_coupling_matrix(Mnew)
 
     def reduced_longitudinal_mode_coupling(
             self, budget=None,  element=None, w=None, Zl=None,
@@ -1427,7 +1448,19 @@ class Ring:
                         tm2 *= -(m+1)/4 * (m+2 + amp2 + 2*k)
                         tm3 *= +(m+1)/2 * _sqrt(k*(amp2 + k))
                         Fml[max_azi+m+2, k] = (tm1 + tm2 + tm3) * 2 * alpe
-        return cls._reshape_coupling_matrix(F)
+
+        # # removing m=0
+        # Fnew = _np.zeros(
+        #     [2*max_azi, max_rad+1, 2*max_azi, max_rad+1], dtype=complex)
+        # Fnew[:max_azi, :, :max_azi, :] = F[:max_azi, :, :max_azi, :]
+        # Fnew[max_azi:, :, max_azi:, :] = F[max_azi+1:, :, max_azi+1:, :]
+
+        # removing k=0
+        Fnew = _np.zeros(
+            [1+2*max_azi, max_rad, 1+2*max_azi, max_rad], dtype=complex)
+        Fnew = F[:, 1:, :, 1:]
+        # return cls._reshape_coupling_matrix(F)
+        return cls._reshape_coupling_matrix(Fnew)
         # return F
 
     @classmethod
