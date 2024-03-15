@@ -699,7 +699,7 @@ class Ring:
     def longitudinal_mode_coupling(
             self, budget=None, element=None, w=None, Zl=None,
             max_azi=10, max_rad=12, cbmode=0, use_fokker=True,
-            modecoup_matrix=None, fokker_matrix=None):
+            modecoup_matrix=None, fokker_matrix=None, delete_m0k0=False):
         """Calculate the longitudinal mode-coupling eigen-values.
 
         The eigen-values returned here are normalized by the synchrotron
@@ -844,6 +844,11 @@ class Ring:
 
         # Please, check eq. 43 of ref. [2]:
         A = D + 1j*K*modecoup_matrix + 1j*fokker_matrix / (sync_tune*w0)
+
+        if delete_m0k0:
+            nr_azi = 2*max_azi + 1
+            idx_m0k0 = max_azi+0 + nr_azi*0
+            A = _np.delete(_np.delete(A, idx_m0k0, axis=0), idx_m0k0, axis=1)
 
         return _np.linalg.eigvals(A), modecoup_matrix, fokker_matrix
 
