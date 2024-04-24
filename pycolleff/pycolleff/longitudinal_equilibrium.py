@@ -1,4 +1,5 @@
 """."""
+
 import time as _time
 
 import numexpr as _ne
@@ -305,11 +306,21 @@ class LongitudinalEquilibrium:
 
         self.ring = ring
         self.impedance_sources = impedance_sources
-        self.max_mode = 10 * self.ring.harm_num
+        self._max_mode = 10 * self.ring.harm_num
         self.min_mode0_ratio = 1e-9
 
         self.feedback_method = self.FeedbackMethod.LeastSquares
-        self.feedback_on = True
+        self.feedback_on = False
+
+        # If feedback_on = True, this will not be used
+        self.main_ref_amp_set = self.ring.gap_voltage
+        self.main_ref_phase_set = self.ring.sync_phase
+
+        # If feedback_on = True, this will be updated
+        self.main_ref_amp_mon = None
+        self.main_ref_phase_mon = None
+
+        self.main_ref_phase_offset = 0.0  # [radian]
 
         self.fillpattern = fillpattern
         self.zgrid = self.create_zgrid()
@@ -548,12 +559,14 @@ class LongitudinalEquilibrium:
             imp = self.impedance_sources[iidx]
             cond = imp.active_passive == ImpedanceSource.ActivePassive.Active
             cond &= apply_filter
-            _zl = imp.get_impedance(w=w)
+            _zl0 = imp.get_impedance(w=w)
             if cond:
                 # closed-loop impedance
-                _zl /= (
-                    1 + imp.loop_ctrl_transfer(w, imp.loop_ctrl_ang_freq) * _zl
-                )
+                transf = imp.loop_ctrl_transfer(w, imp.loop_ctrl_ang_freq)
+                _zl = _zl0/(1 + transf * _zl0)
+            else:
+                # open-loop impedance
+                _zl = _zl0
             total_zl += _zl
         return total_zl
 
@@ -792,7 +805,12 @@ class LongitudinalEquilibrium:
                     + "'Phasor' or 'LeastSquares'"
                 )
         else:
-            _vg = self.ring.get_voltage_waveform(self.zgrid)[None, :]
+            ampg = self.main_ref_amp_set
+            phaseg = self.main_ref_phase_set
+            phaseg += self.main_ref_phase_offset
+            _vg = self.ring.get_voltage_waveform(
+                self.zgrid, gap_voltage=ampg, sync_phase=phaseg
+            )[None, :]
         return _vg
 
     def calc_synchrotron_frequency(
@@ -837,8 +855,8 @@ class LongitudinalEquilibrium:
                 return 1 / intg(z)
 
             for zamp in zamps:
-                zri = z0*0 + zamp
-                zli = z0*0 - zamp
+                zri = z0 * 0 + zamp
+                zli = z0 * 0 - zamp
                 hamiltonian0i = phiz_interp(zri)
 
                 turn_pts = _root(energy_deviation, x0=zli)
@@ -932,32 +950,36 @@ class LongitudinalEquilibrium:
     def calc_canonical_transformation(self, res, total_voltage):
         """."""
         npts = 100
-        twopi = 2*_np.pi
+        twopi = 2 * _PI
         U0 = self.ring.en_lost_rad
         E0 = self.ring.energy
         T0 = self.ring.rev_time
-        vtotal = (total_voltage - U0)/E0/T0
+        vtotal = (total_voltage - U0) / E0 / T0
         zgrid = self.zgrid
 
         zj = []
         phi = []
-        for _, fs in enumerate(res['sync_freq']):
-            t = _np.linspace(0, 1, npts) * (1/fs)
-            dt = 1/fs/npts
-            z0 = res['amplitude']
+        for _, fs in enumerate(res["sync_freq"]):
+            t = _np.linspace(0, 1, npts) * (1 / fs)
+            dt = 1 / fs / npts
+            z0 = res["amplitude"]
             z, _ = self._solve_eom(dt, z0, npts, zgrid, vtotal)
             zj.append(z)
-            phi.append(twopi*fs*t)
+            phi.append(twopi * fs * t)
         return _np.array(zj), _np.array(phi)
 
     def _solve_eom(self, dt, z0, npts, zgrid, vtotal):
-        z = [z0, ]
-        p = [0, ]
+        z = [
+            z0,
+        ]
+        p = [
+            0,
+        ]
         alpha = self.ring.mom_comp
         for _ in range(npts):
             dp = _np.interp(z[-1], zgrid, vtotal) * dt
             p.append(p[-1] + dp)
-            dz = - alpha * _c * p * dt
+            dz = -alpha * _c * p * dt
             z.append(z[-1] + dz)
         return _np.array(z), _np.array(p)
 
@@ -1217,34 +1239,50 @@ class LongitudinalEquilibrium:
         return wake_idx
 
     def _feedback_phasor(self):
-        vgap = self.ring.gap_voltage
+        ampg = self.main_ref_amp_set
+        phaseg = self.main_ref_phase_set
+        phaseg += self.main_ref_phase_offset
         wrf = 2 * _PI * self.ring.rf_freq
         phase = wrf * self.zgrid / _c
         dz = _np.diff(self.zgrid)[0]
-        vref_phasor = vgap * _np.exp(1j * (_PI / 2 - self.ring.sync_phase))
+        vref_phasor = ampg * _np.exp(1j * (_PI / 2 - phaseg))
         vbeamload_phasor = _np.mean(
             _mytrapz(self.beamload_active * _np.exp(1j * phase)[None, :], dz)
         )
         vbeamload_phasor *= 2 / (self.zgrid[-1] - self.zgrid[0])
         vg_phasor = vref_phasor - vbeamload_phasor
         vg = _np.real(vg_phasor * _np.exp(-1j * phase))
+
+        self.main_ref_amp_mon = _np.abs(vg_phasor)
+        self.main_ref_phase_mon = _np.angle(vg_phasor)
         return vg[None, :]
 
     def _feedback_least_squares(self):
-        x0 = [self.ring.gap_voltage, 0]
+        x0 = [self.ring.gap_voltage, self.ring.sync_phase]
         wrf = 2 * _PI * self.ring.rf_freq
         phase = wrf * self.zgrid / _c
         dz = self.zgrid[1] - self.zgrid[0]
 
-        vref = self.ring.get_voltage_waveform(self.zgrid)
+        ampg = self.main_ref_amp_set
+        phaseg = self.main_ref_phase_set
+        phaseg += self.main_ref_phase_offset
+        vref = self.ring.get_voltage_waveform(
+            self.zgrid, gap_voltage=ampg, sync_phase=phaseg
+        )
         res = _least_squares(
             fun=self._feedback_err,
             x0=x0,
             args=(phase, dz, self.beamload_active, vref),
             method="lm",
         )
-        vg = LongitudinalEquilibrium._generator_model(
-            phase, res.x[0], res.x[1]
+
+        ampg = _np.sqrt(res.x[0] ** 2 + res.x[1] ** 2)
+        phaseg = _np.arctan(res.x[1] / res.x[0])
+
+        self.main_ref_amp_mon = ampg
+        self.main_ref_phase_mon = phaseg
+        vg = self.ring.get_voltage_waveform(
+            self.zgrid, gap_voltage=ampg, sync_phase=phaseg
         )
         return vg[None, :]
 
