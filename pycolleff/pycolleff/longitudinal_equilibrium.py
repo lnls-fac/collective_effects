@@ -807,7 +807,7 @@ class LongitudinalEquilibrium:
             phase = self.main_ref_phase
             phase += self.main_ref_phase_offset
             _vg = self.ring.get_voltage_waveform(
-                self.zgrid, gap_voltage=amp, sync_phase=phase
+                self.zgrid, amplitude=amp, phase=phase
             )[None, :]
         return _vg
 
@@ -967,12 +967,8 @@ class LongitudinalEquilibrium:
         return _np.array(zj), _np.array(phi)
 
     def _solve_eom(self, dt, z0, npts, zgrid, vtotal):
-        z = [
-            z0,
-        ]
-        p = [
-            0,
-        ]
+        z = [z0]
+        p = [0]
         alpha = self.ring.mom_comp
         for _ in range(npts):
             dp = _np.interp(z[-1], zgrid, vtotal) * dt
@@ -1264,7 +1260,7 @@ class LongitudinalEquilibrium:
         dz = self.zgrid[1] - self.zgrid[0]
 
         vref = self.ring.get_voltage_waveform(
-            self.zgrid, gap_voltage=ref_amp, sync_phase=ref_phase
+            self.zgrid, amplitude=ref_amp, phase=ref_phase
         )
         res = _least_squares(
             fun=self._feedback_err,
@@ -1273,12 +1269,12 @@ class LongitudinalEquilibrium:
             method="lm",
         )
         gen_amp = _np.sqrt(res.x[0] ** 2 + res.x[1] ** 2)
-        gen_phase = _np.arctan(res.x[1] / res.x[0])
+        gen_phase = _np.arctan2(res.x[1], res.x[0])
 
         self.main_gen_amp_mon = gen_amp
         self.main_gen_phase_mon = gen_phase
         vg = self.ring.get_voltage_waveform(
-            self.zgrid, gap_voltage=gen_amp, sync_phase=gen_phase
+            self.zgrid, amplitude=gen_amp, phase=gen_phase
         )
         return vg[None, :]
 
