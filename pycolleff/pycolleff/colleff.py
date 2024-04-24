@@ -950,8 +950,16 @@ class Ring:
         return cls._reshape_coupling_matrix(M)
 
     def reduced_longitudinal_mode_coupling(
-            self, budget=None,  element=None, w=None, Zl=None,
-            max_azi=10, max_rad=12, cbmode=0, modecoup_matrix=None):
+        self,
+        budget=None,
+        element=None,
+        w=None,
+        Zl=None,
+        max_azi=10,
+        max_rad=12,
+        cbmode=0,
+        modecoup_matrix=None
+    ):
         """Calculate the longitudinal mode-coupling eigen-values.
 
         This implementation uses a symmetry of the mode-coupling matrix to
@@ -1057,7 +1065,7 @@ class Ring:
             modecoup_matrix = self._calc_vlasov_reduced(
                 Zl_wp, wp, bunlen, max_azi, max_rad)
         # Calculate the current independent diagonal matrix:
-        ms = _np.arange(1, max_rad+1)
+        ms = _np.arange(1, max_azi+1)
         D = _np.einsum('mn,kl->mknl', _np.diag(ms*ms), _np.eye(max_rad+1))
         D = self._reshape_coupling_matrix(D)
 
