@@ -155,13 +155,17 @@ class Ring:
         self.en_lost_rad = dic.get('en_lost_rad', self.en_lost_rad)
         self.gap_voltage = dic.get('gap_voltage', self.gap_voltage)
 
-    def get_voltage_waveform(self, zgrid, sync_phase=None):
+    def get_voltage_waveform(
+            self, zgrid, gap_voltage=None, sync_phase=None):
         """."""
         wrf = 2*_np.pi*self.rf_freq
         phase0 = sync_phase or self.sync_phase
         phase = wrf * zgrid / _LSPEED
+        phase0 = sync_phase or self.sync_phase
         phase += phase0
         voltage = self.gap_voltage*_np.sin(phase)
+        amp = gap_voltage or self.gap_voltage
+        voltage = amp*_np.sin(phase)
         return voltage
 
     def budget_summary(self, budget, fillpattern=None):
