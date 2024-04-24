@@ -697,9 +697,20 @@ class Ring:
         return tune_shift
 
     def longitudinal_mode_coupling(
-            self, budget=None, element=None, w=None, Zl=None,
-            max_azi=10, max_rad=12, cbmode=0, use_fokker=True,
-            modecoup_matrix=None, fokker_matrix=None, delete_m0k0=False):
+        self,
+        budget=None,
+        element=None,
+        w=None,
+        Zl=None,
+        max_azi=10,
+        max_rad=12,
+        cbmode=0,
+        use_fokker=True,
+        modecoup_matrix=None,
+        fokker_matrix=None,
+        delete_m0=True,
+        delete_m0k0=True
+    ):
         """Calculate the longitudinal mode-coupling eigen-values.
 
         The eigen-values returned here are normalized by the synchrotron
@@ -782,6 +793,11 @@ class Ring:
             fokker_matrix (numpy.ndarray, (N, N), optional): the fokker planck
                 matrix to be used in calculations. If None, then it will be
                 calculated internally. Defaults to None.
+            delete_m0 (bool, optional): Whether or not to remove mode m=0 from
+                calculations. Defaults to True.
+            delete_m0k0 (bool, optional): Whether or not to remove mode m=0
+                and k=0 from calculations. Only relevant when delete_m0 is
+                False. Defaults to True.
 
         Returns:
             eigenvals (numpy.ndarray, (N, ): normalized eigen-modes of the
@@ -845,7 +861,11 @@ class Ring:
         # Please, check eq. 43 of ref. [2]:
         A = D + 1j*K*modecoup_matrix + 1j*fokker_matrix / (sync_tune*w0)
 
-        if delete_m0k0:
+        if delete_m0:
+            nr_azi = 2*max_azi + 1
+            idx_m0 = max_azi+0 + nr_azi*_np.arange(max_rad+1)
+            A = _np.delete(_np.delete(A, idx_m0, axis=0), idx_m0, axis=1)
+        elif delete_m0k0:
             nr_azi = 2*max_azi + 1
             idx_m0k0 = max_azi+0 + nr_azi*0
             A = _np.delete(_np.delete(A, idx_m0k0, axis=0), idx_m0k0, axis=1)
