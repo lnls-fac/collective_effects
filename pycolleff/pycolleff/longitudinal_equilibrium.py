@@ -746,7 +746,7 @@ class LongitudinalEquilibrium:
         dists = [
             self.distributions,
         ]
-        dists = self._apply_anderson_acceleration(
+        dists, converged = self._apply_anderson_acceleration(
             dists, niter, tol, beta=beta, m=m
         )
 
@@ -756,7 +756,7 @@ class LongitudinalEquilibrium:
         # Flush pre-calculated data
         self._wake_matrix = None
         self._exp_z = None
-        return dists
+        return dists, converged
 
     def _apply_random_convergence(self, dists, niter, tol):
         xold = dists[-1].ravel()
@@ -1117,6 +1117,8 @@ class LongitudinalEquilibrium:
         where += 1
         where %= m
 
+        converged = False
+
         for k in range(niter):
             t0 = _time.time()
             gamma_k = _np.linalg.lstsq(G_k, gnew, rcond=None)[0]
@@ -1155,10 +1157,11 @@ class LongitudinalEquilibrium:
                 # print(f"Iter.: {k+1:03d}, E.T.: {tf-t0:.3f}s")
                 print("-" * 20)
             if diff[idx] < tol:
+                converged = True
                 if self.print_flag:
                     print("distribution ok!")
                 break
-        return dists
+        return dists, converged
 
     def _create_freqs(self):
         w0 = self.ring.rev_ang_freq
