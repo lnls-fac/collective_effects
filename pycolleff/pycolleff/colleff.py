@@ -1057,7 +1057,7 @@ class Ring:
         # There is an approximation here which is only valid for broad-band
         # impedances. I sample the impedance only at the azimuthal mode m=1.
         wp = self._get_sampling_ang_freq(
-            w[0], w[-1], w0, nb, 1, sync_tune[0], [cbmode])
+            w[0], w[-1], w0, nb, 1, sync_tune, [cbmode])
 
         Zl_interp = self._get_interpolated_impedance(wp, w, Zl)
         Zl_wp = Zl_interp / wp
@@ -1087,7 +1087,7 @@ class Ring:
         # Please, check eq. 2.52 of ref. [1]:
         A = D + 1j*K*modecoup_matrix
 
-        return _np.linalg.eigvals(A), modecoup_matrix
+        return _np.sqrt(_np.linalg.eigvals(A)), modecoup_matrix
 
     @classmethod
     def _calc_vlasov_reduced(cls, Z_wp, wp, bunlen, max_azi, max_rad):
