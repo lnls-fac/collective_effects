@@ -1058,6 +1058,7 @@ class LongitudinalEquilibrium:
         modecoup_matrix=None,
         fokker_matrix=None,
         use_fokker=True,
+        reduced=False,
     ):
         """."""
         ring = self.ring
@@ -1071,20 +1072,30 @@ class LongitudinalEquilibrium:
         else:
             Zl = self.get_impedance(w=w, apply_filter=False)
 
-        (
-            eigenfreq,
-            modecoup_matrix,
-            fokker_matrix,
-        ) = ring.longitudinal_mode_coupling(
-            w=w,
-            Zl=Zl,
-            cbmode=cbmode,
-            max_azi=max_azi,
-            max_rad=max_rad,
-            modecoup_matrix=modecoup_matrix,
-            fokker_matrix=fokker_matrix,
-            use_fokker=use_fokker,
-        )
+        if reduced:
+            (eigenfreq, modecoup_matrix) = (
+                ring.reduced_longitudinal_mode_coupling(
+                    w=w,
+                    Zl=Zl,
+                    cbmode=cbmode,
+                    max_azi=max_azi,
+                    max_rad=max_rad,
+                    modecoup_matrix=modecoup_matrix,
+                )
+            )
+        else:
+            (eigenfreq, modecoup_matrix, fokker_matrix) = (
+                ring.longitudinal_mode_coupling(
+                    w=w,
+                    Zl=Zl,
+                    cbmode=cbmode,
+                    max_azi=max_azi,
+                    max_rad=max_rad,
+                    modecoup_matrix=modecoup_matrix,
+                    fokker_matrix=fokker_matrix,
+                    use_fokker=use_fokker,
+                )
+            )
 
         # Relative tune-shifts must be multiplied by ws
         eigenfreq *= ring.sync_tune * ring.rev_ang_freq
