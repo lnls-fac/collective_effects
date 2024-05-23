@@ -3,20 +3,18 @@
 import time as _time
 from functools import partial as _partial
 
-import numpy as _np
-from scipy.special import kve as _kve, ive as _ive, kv as _kv, iv as _iv
-import scipy.integrate as _scyint
-import mpmath as _mpmath
-from mpmath import exp as _exp, cosh as _cosh, sinh as _sinh, sqrt as _sqrt, \
-    besseli as _miv, besselk as _mkv,  fabs as _fabs, mpc as _mpc, \
-    mpf as _mpf, matrix as _matrix, eye as _eye, zeros as _zeros
-
-
 import mathphys as _mp
+import mpmath as _mpmath
+import numpy as _np
+import scipy.integrate as _scyint
+from mpmath import besseli as _miv, besselk as _mkv, cosh as _cosh, \
+    exp as _exp, eye as _eye, fabs as _fabs, matrix as _matrix, mpc as _mpc, \
+    mpf as _mpf, sinh as _sinh, sqrt as _sqrt, zeros as _zeros
+from scipy.special import iv as _iv, ive as _ive, kv as _kv, kve as _kve
 
 _LSPEED = _mp.constants.light_speed
 _ep0 = _mp.constants.vacuum_permitticity
-_Z0 = _mp.constants.vacuum_impedance  #  Z0 = 1/ep0/c = u0*c
+_Z0 = _mp.constants.vacuum_impedance  # Z0 = 1/ep0/c = u0*c
 _E0 = _mp.constants.electron_rest_energy * _mp.units.joule_2_eV
 
 _pos = _np.logspace(-7, 0, 500)
@@ -43,13 +41,13 @@ def get_default_reswall_w(radius=12e-3, energy=3e9):
         (numpy.ndarray, (401, )): angular frequencies [rad/s].
 
     """
-    gamma = energy/_E0
-    beta = _np.sqrt(1 - 1/(gamma*gamma))
-    cut = 10*beta*_LSPEED*gamma/radius
-    return _np.logspace(-1, _np.log10(cut), 401)*2*_np.pi
+    gamma = energy / _E0
+    beta = _np.sqrt(1 - 1 / (gamma * gamma))
+    cut = 10 * beta * _LSPEED * gamma / radius
+    return _np.logspace(-1, _np.log10(cut), 401) * 2 * _np.pi
 
 
-def get_impedance_for_negative_w(Z, w=None, impedance_type='ll'):
+def get_impedance_for_negative_w(Z, w=None, impedance_type="ll"):
     """Get the impedance for negative frequencies from positive one.
 
     Uses the symmetry relations of impedances to get impedance at negative
@@ -65,9 +63,9 @@ def get_impedance_for_negative_w(Z, w=None, impedance_type='ll'):
 
     Args:
         Z (numpy.ndarray, (N, )): Impedance for positive frequencies.
-        w (numpy.ndarray, (N, ), optional): angular frequencies. If given a
+        w (numpy.ndarray, (N, ), optional): angular frequencies. If given, a
             vector containing negative and positive frequencies will also be
-            returned. It is always assumed, without checking that the
+            returned. It is always assumed, without checking, that the
             frequencies are all positive. Defaults to None.
         impedance_type (str, optional): type of impedance. May assume values
             {'ll', 'long', 'trans', 't', 'dx', 'dy', 'qx', 'qy' }.
@@ -83,15 +81,15 @@ def get_impedance_for_negative_w(Z, w=None, impedance_type='ll'):
             ascending order, this vector will maintain this property.
 
     """
-    sig = 1 if impedance_type.startswith('l') else -1
-    Z = _np.r_[sig*_np.flipud(Z.conj()), Z]
+    sig = 1 if impedance_type.startswith("l") else -1
+    Z = _np.r_[sig * _np.flipud(Z.conj()), Z]
     if w is not None:
         w = _np.r_[-_np.flipud(w), w]
         return Z, w
     return Z
 
 
-def yokoya_factors(impedance_type='ll', geometry='flat'):
+def yokoya_factors(impedance_type="ll", geometry="flat"):
     """Return the Yokoya factors for all planes in relation to 'round'.
 
     Refs:
@@ -101,7 +99,7 @@ def yokoya_factors(impedance_type='ll', geometry='flat'):
     Args:
         impedance_type (str, optional): type of geometry. Assume values in
         {'flat', 'square', 'round'}. Defaults to 'flat'.
-        impedance_type (str, optional): type of impedance. Assume values in
+        geometry (str, optional): type of impedance. Assume values in
         {'ll', 'dy', 'dx', 'qy', 'qx'}. Defaults to 'll'.
 
     Raises:
@@ -111,22 +109,24 @@ def yokoya_factors(impedance_type='ll', geometry='flat'):
         float: the Yokoya factor for the selected inputs.
 
     """
-    if geometry.lower().startswith('flat'):
-        base = _np.pi**2/12
-        yok = dict(ll=1, dy=base, dx=base/2, qx=-base/2, qy=base/2)
-    elif geometry.lower().startswith('square'):
+    if geometry.lower().startswith("flat"):
+        base = _np.pi**2 / 12
+        yok = dict(ll=1, dy=base, dx=base / 2, qx=-base / 2, qy=base / 2)
+    elif geometry.lower().startswith("square"):
         base = 0.85  # approximately from Figure 8.
         yok = dict(ll=1, dy=base, dx=base, qx=0, qy=0)
-    elif geometry.lower().startswith('round'):
+    elif geometry.lower().startswith("round"):
         yok = dict(ll=1, dy=1, dx=1, qx=0, qy=0)
     else:
         raise ValueError(
             "geometry not identified. Possible options: "
-            "'flat', 'square', 'round'")
+            "'flat', 'square', 'round'"
+        )
     if impedance_type not in yok:
         raise ValueError(
             "impedance_type not identified. Possible options: "
-            "'ll', 'dy', 'dx', 'qy', 'qx' ")
+            "'ll', 'dy', 'dx', 'qy', 'qx' "
+        )
     return yok[impedance_type]
 
 
@@ -169,15 +169,24 @@ def prepare_inputs_epr_mur(w, epb, mub, ange, angm, sigmadc, tau):
     epr = _np.zeros((len(epb), len(w)), dtype=complex)
     mur = _np.zeros((len(epb), len(w)), dtype=complex)
     for j in range(len(epb)):
-        epr[j] = epb[j]*(1 - 1j*_np.sign(w)*_np.tan(ange[j]))
-        mur[j] = mub[j]*(1 - 1j*_np.sign(w)*_np.tan(angm[j]))
-        epr[j] += sigmadc[j]/(1 + 1j*w*tau[j]) / (1j*w*_ep0)
+        epr[j] = epb[j] * (1 - 1j * _np.sign(w) * _np.tan(ange[j]))
+        mur[j] = mub[j] * (1 - 1j * _np.sign(w) * _np.tan(angm[j]))
+        epr[j] += sigmadc[j] / (1 + 1j * w * tau[j]) / (1j * w * _ep0)
     return epr, mur
 
 
 def multilayer_round_chamber(
-        w, L, E, epr, mur, b, precision=70,  wmax_arb_prec=0.0,
-        arb_prec_incl_long=False, print_progress=True):
+    w,
+    L,
+    E,
+    epr,
+    mur,
+    b,
+    precision=70,
+    wmax_arb_prec=0.0,
+    arb_prec_incl_long=False,
+    print_progress=True,
+):
     """Calculate multilayer resistive wall impedance for round cross-section.
 
     This method implements the calculation of the impedance theory developed
@@ -283,22 +292,31 @@ def multilayer_round_chamber(
 
     if arb_prec_incl_long:
         Zl[regp] = _round_chamber_reg_prec(
-            w[regp], E, epr[:, regp], mur[:, regp], b, m=0)
+            w[regp], E, epr[:, regp], mur[:, regp], b, m=0
+        )
         Zl[arbp] = _round_chamber_arb_prec(
-            w[arbp], E, epr[:, arbp], mur[:, arbp], b, m=0,
-            print_=print_progress)
+            w[arbp],
+            E,
+            epr[:, arbp],
+            mur[:, arbp],
+            b,
+            m=0,
+            print_=print_progress,
+        )
     else:
         Zl = _round_chamber_reg_prec(w, E, epr, mur, b, m=0)
 
     Zv[regp] = _round_chamber_reg_prec(
-        w[regp], E, epr[:, regp], mur[:, regp], b, m=1)
+        w[regp], E, epr[:, regp], mur[:, regp], b, m=1
+    )
     Zv[arbp] = _round_chamber_arb_prec(
-        w[arbp], E, epr[:, arbp], mur[:, arbp], b, m=1, print_=print_progress)
+        w[arbp], E, epr[:, arbp], mur[:, arbp], b, m=1, print_=print_progress
+    )
 
-    gamma = E/_E0
-    beta = _np.sqrt(1 - 1/gamma**2)
-    k = w / (beta*_LSPEED)
-    fac = 1j*k * _Z0 * L / (2*_np.pi * beta*gamma**2)
+    gamma = E / _E0
+    beta = _np.sqrt(1 - 1 / gamma**2)
+    k = w / (beta * _LSPEED)
+    fac = 1j * k * _Z0 * L / (2 * _np.pi * beta * gamma**2)
     Zl *= fac
     Zv *= fac * k / gamma**2 / 2
 
@@ -309,39 +327,42 @@ def multilayer_round_chamber(
 
 
 def _round_chamber_reg_prec(w, E, epr, mur, b, m=0):
-    gamma = E/_E0
-    beta = _np.sqrt(1 - 1/gamma**2)
-    k = w / (beta*_LSPEED)
-    nu = _np.abs(k)*_np.sqrt(1 - beta**2*epr*mur)
+    gamma = E / _E0
+    beta = _np.sqrt(1 - 1 / gamma**2)
+    k = w / (beta * _LSPEED)
+    nu = _np.abs(k) * _np.sqrt(1 - beta**2 * epr * mur)
     return _round_alpha_tm(m, epr, mur, beta, nu, b)
 
 
 def _round_chamber_arb_prec(w, E, epr, mur, b, m=0, print_=True):
-    gamma = _mpf(E/_E0)
-    beta = _sqrt(1 - 1/gamma**2)
+    gamma = _mpf(E / _E0)
+    beta = _sqrt(1 - 1 / gamma**2)
 
     Z = []
     b_ = [_mpc(b_) for b_ in b]
     for i, w_ in enumerate(w):
         t0_ = _time.time()
-        k = w_ / (beta*_LSPEED)
+        k = w_ / (beta * _LSPEED)
         epr_ = [_mpc(x) for x in epr[:, i]]
         mur_ = [_mpc(x) for x in mur[:, i]]
-        nu_ = [_fabs(k)*_sqrt(1-beta**2*e*m) for e, m in zip(epr_, mur_)]
+        nu_ = [
+            _fabs(k) * _sqrt(1 - beta**2 * e * m) for e, m in zip(epr_, mur_)
+        ]
 
         Z_ = _round_alpha_tm_arb_prec(m, epr_, mur_, beta, nu_, b_)
         Z.append(complex(Z_))
         if print_:
             print(
-                f'{i:04d}/{len(w):04d} -> freq = {w_/2/_np.pi:10.2g} '
-                f' (ET: {_time.time()-t0_:.2f} s)')
+                f"{i:04d}/{len(w):04d} -> freq = {w_/2/_np.pi:10.2g} "
+                f" (ET: {_time.time()-t0_:.2f} s)"
+            )
 
     return _np.array(Z)
 
 
 def _round_alpha_tm(m, epr, mur, bet, nu, b):
     for i in range(len(b)):
-        x = nu[i+1] * b[i]
+        x = nu[i + 1] * b[i]
         y = nu[i] * b[i]
         Mt = _np.zeros((4, 4, nu.shape[1]), dtype=complex)
         D = _np.zeros((4, 4, nu.shape[1]), dtype=complex)
@@ -350,13 +371,13 @@ def _round_alpha_tm(m, epr, mur, bet, nu, b):
         kmy = _kve(m, y)
         imx = _ive(m, x)
         imy = _ive(m, y)
-        km1x = _kve(m-1, x)
-        km1y = _kve(m-1, y)
-        im1x = _ive(m-1, x)
-        im1y = _ive(m-1, y)
+        km1x = _kve(m - 1, x)
+        km1y = _kve(m - 1, y)
+        im1x = _ive(m - 1, x)
+        im1y = _ive(m - 1, y)
 
-        if i < len(b)-1:
-            z = nu[i+1] * b[i+1]
+        if i < len(b) - 1:
+            z = nu[i + 1] * b[i + 1]
             if not (z.real < 0).any():
                 ind = z.real < 60
 
@@ -367,41 +388,41 @@ def _round_alpha_tm(m, epr, mur, bet, nu, b):
 
                 D[0, 0] = 1
                 D[2, 2] = 1
-                D[1, 1, ind] = - B*C / (A*E)
+                D[1, 1, ind] = -B * C / (A * E)
                 D[3, 3, ind] = D[1, 1, ind]
-                D[1, 1, ~ind] = - _np.exp(-2*(z[~ind]-x[~ind]))
+                D[1, 1, ~ind] = -_np.exp(-2 * (z[~ind] - x[~ind]))
                 D[3, 3, ~ind] = D[1, 1, ~ind]
             else:
-                print('z.real < 0')
+                print("z.real < 0")
 
-        k_m_x = km1x/kmx + m/x
-        k_m_y = km1y/kmy + m/y
-        i_m_x = im1x/imx - m/x
-        i_m_y = im1y/imy - m/y
+        k_m_x = km1x / kmx + m / x
+        k_m_y = km1y / kmy + m / y
+        i_m_x = im1x / imx - m / x
+        i_m_y = im1y / imy - m / y
 
-        nu2_ep_b = nu[i+1]**2 / epr[i+1] * b[i]
-        ep_nu_1 = epr[i+1] / nu[i+1]
+        nu2_ep_b = nu[i + 1] ** 2 / epr[i + 1] * b[i]
+        ep_nu_1 = epr[i + 1] / nu[i + 1]
         ep_nu = epr[i] / nu[i]
-        Mt[0, 0] = nu2_ep_b*(ep_nu_1*k_m_x + ep_nu*i_m_y)
-        Mt[0, 1] = nu2_ep_b*(ep_nu_1*k_m_x - ep_nu*k_m_y)
-        Mt[1, 0] = -nu2_ep_b*(ep_nu_1*i_m_x - ep_nu*i_m_y)
-        Mt[1, 1] = -nu2_ep_b*(ep_nu_1*i_m_x + ep_nu*k_m_y)
+        Mt[0, 0] = nu2_ep_b * (ep_nu_1 * k_m_x + ep_nu * i_m_y)
+        Mt[0, 1] = nu2_ep_b * (ep_nu_1 * k_m_x - ep_nu * k_m_y)
+        Mt[1, 0] = -nu2_ep_b * (ep_nu_1 * i_m_x - ep_nu * i_m_y)
+        Mt[1, 1] = -nu2_ep_b * (ep_nu_1 * i_m_x + ep_nu * k_m_y)
 
-        nu2_mu_b = nu[i+1]**2 / mur[i+1] * b[i]
-        mu_nu_1 = mur[i+1] / nu[i+1]
+        nu2_mu_b = nu[i + 1] ** 2 / mur[i + 1] * b[i]
+        mu_nu_1 = mur[i + 1] / nu[i + 1]
         mu_nu = mur[i] / nu[i]
-        Mt[2, 2] = nu2_mu_b*(mu_nu_1*k_m_x + mu_nu*i_m_y)
-        Mt[2, 3] = nu2_mu_b*(mu_nu_1*k_m_x - mu_nu*k_m_y)
-        Mt[3, 2] = -nu2_mu_b*(mu_nu_1*i_m_x - mu_nu*i_m_y)
-        Mt[3, 3] = -nu2_mu_b*(mu_nu_1*i_m_x + mu_nu*k_m_y)
+        Mt[2, 2] = nu2_mu_b * (mu_nu_1 * k_m_x + mu_nu * i_m_y)
+        Mt[2, 3] = nu2_mu_b * (mu_nu_1 * k_m_x - mu_nu * k_m_y)
+        Mt[3, 2] = -nu2_mu_b * (mu_nu_1 * i_m_x - mu_nu * i_m_y)
+        Mt[3, 3] = -nu2_mu_b * (mu_nu_1 * i_m_x + mu_nu * k_m_y)
 
-        nur = nu[i+1] / nu[i]
+        nur = nu[i + 1] / nu[i]
         nur *= nur
-        Mt[0, 2] = (nur - 1) * m / (bet*epr[i+1])
+        Mt[0, 2] = (nur - 1) * m / (bet * epr[i + 1])
         Mt[0, 3] = Mt[0, 2]
         Mt[1, 2] = Mt[0, 2]
         Mt[1, 3] = Mt[0, 2]
-        Mt[2, 0] = (nur - 1) * m / (bet*mur[i+1])
+        Mt[2, 0] = (nur - 1) * m / (bet * mur[i + 1])
         Mt[2, 1] = Mt[2, 0]
         Mt[3, 0] = Mt[2, 0]
         Mt[3, 1] = Mt[2, 0]
@@ -410,22 +431,22 @@ def _round_alpha_tm(m, epr, mur, bet, nu, b):
             M = Mt
         else:
             if not i:
-                M = _np.einsum('ijk,jlk->ilk', D, Mt)
-            elif i < len(b)-1:
-                M = _np.einsum('ijk,jlk->ilk', Mt, M)
-                M = _np.einsum('ijk,jlk->ilk', D, M)
+                M = _np.einsum("ijk,jlk->ilk", D, Mt)
+            elif i < len(b) - 1:
+                M = _np.einsum("ijk,jlk->ilk", Mt, M)
+                M = _np.einsum("ijk,jlk->ilk", D, M)
             else:
-                M = _np.einsum('ijk,jlk->ilk', Mt, M)
+                M = _np.einsum("ijk,jlk->ilk", Mt, M)
 
     B = M[0, 1] * M[2, 2] - M[2, 1] * M[0, 2]
     B /= M[0, 0] * M[2, 2] - M[0, 2] * M[2, 0]
-    alphaTM = _kv(m, nu[0]*b[0])/_iv(m, nu[0]*b[0]) * B
+    alphaTM = _kv(m, nu[0] * b[0]) / _iv(m, nu[0] * b[0]) * B
     return alphaTM
 
 
 def _round_alpha_tm_arb_prec(m, epr, mur, bet, nu, b):
     for i in range(len(b)):
-        x = nu[i+1] * b[i]
+        x = nu[i + 1] * b[i]
         y = nu[i] * b[i]
         Mt = _matrix(4, 4)
         D = _eye(4)
@@ -434,67 +455,77 @@ def _round_alpha_tm_arb_prec(m, epr, mur, bet, nu, b):
         kmy = _mkv(m, y)
         imx = _miv(m, x)
         imy = _miv(m, y)
-        km1x = _mkv(m-1, x)
-        km1y = _mkv(m-1, y)
-        im1x = _miv(m-1, x)
-        im1y = _miv(m-1, y)
+        km1x = _mkv(m - 1, x)
+        km1y = _mkv(m - 1, y)
+        im1x = _miv(m - 1, x)
+        im1y = _miv(m - 1, y)
 
-        if i < len(b)-1:
-            z = nu[i+1] * b[i+1]
+        if i < len(b) - 1:
+            z = nu[i + 1] * b[i + 1]
             if not (z.real < 0):
-                D[1, 1] = -_mkv(m, z)*imx / (_miv(m, z)*kmx)
+                D[1, 1] = -_mkv(m, z) * imx / (_miv(m, z) * kmx)
                 D[3, 3] = D[1, 1]
             else:
-                print('z.real < 0')
+                print("z.real < 0")
 
-        k_m_x = km1x/kmx + m/x
-        k_m_y = km1y/kmy + m/y
-        i_m_x = im1x/imx - m/x
-        i_m_y = im1y/imy - m/y
+        k_m_x = km1x / kmx + m / x
+        k_m_y = km1y / kmy + m / y
+        i_m_x = im1x / imx - m / x
+        i_m_y = im1y / imy - m / y
 
-        nu2_ep_b = nu[i+1]**2 / epr[i+1] * b[i]
-        ep_nu_1 = epr[i+1] / nu[i+1]
+        nu2_ep_b = nu[i + 1] ** 2 / epr[i + 1] * b[i]
+        ep_nu_1 = epr[i + 1] / nu[i + 1]
         ep_nu = epr[i] / nu[i]
-        Mt[0, 0] = nu2_ep_b*(ep_nu_1 * k_m_x + ep_nu * i_m_y)
-        Mt[0, 1] = nu2_ep_b*(ep_nu_1 * k_m_x - ep_nu * k_m_y)
-        Mt[1, 0] = -nu2_ep_b*(ep_nu_1 * i_m_x - ep_nu * i_m_y)
-        Mt[1, 1] = -nu2_ep_b*(ep_nu_1 * i_m_x + ep_nu * k_m_y)
+        Mt[0, 0] = nu2_ep_b * (ep_nu_1 * k_m_x + ep_nu * i_m_y)
+        Mt[0, 1] = nu2_ep_b * (ep_nu_1 * k_m_x - ep_nu * k_m_y)
+        Mt[1, 0] = -nu2_ep_b * (ep_nu_1 * i_m_x - ep_nu * i_m_y)
+        Mt[1, 1] = -nu2_ep_b * (ep_nu_1 * i_m_x + ep_nu * k_m_y)
 
-        nu2_mu_b = nu[i+1]**2 / mur[i+1] * b[i]
-        mu_nu_1 = mur[i+1] / nu[i+1]
+        nu2_mu_b = nu[i + 1] ** 2 / mur[i + 1] * b[i]
+        mu_nu_1 = mur[i + 1] / nu[i + 1]
         mu_nu = mur[i] / nu[i]
-        Mt[2, 2] = nu2_mu_b*(mu_nu_1 * k_m_x + mu_nu * i_m_y)
-        Mt[2, 3] = nu2_mu_b*(mu_nu_1 * k_m_x - mu_nu * k_m_y)
-        Mt[3, 2] = -nu2_mu_b*(mu_nu_1 * i_m_x - mu_nu * i_m_y)
-        Mt[3, 3] = -nu2_mu_b*(mu_nu_1 * i_m_x + mu_nu * k_m_y)
+        Mt[2, 2] = nu2_mu_b * (mu_nu_1 * k_m_x + mu_nu * i_m_y)
+        Mt[2, 3] = nu2_mu_b * (mu_nu_1 * k_m_x - mu_nu * k_m_y)
+        Mt[3, 2] = -nu2_mu_b * (mu_nu_1 * i_m_x - mu_nu * i_m_y)
+        Mt[3, 3] = -nu2_mu_b * (mu_nu_1 * i_m_x + mu_nu * k_m_y)
 
-        nur = nu[i+1] / nu[i]
+        nur = nu[i + 1] / nu[i]
         nur *= nur
-        Mt[0, 2] = (nur - 1) * m / (bet*epr[i+1])
+        Mt[0, 2] = (nur - 1) * m / (bet * epr[i + 1])
         Mt[0, 3] = Mt[0, 2]
         Mt[1, 2] = Mt[0, 2]
         Mt[1, 3] = Mt[0, 2]
-        Mt[2, 0] = (nur - 1) * m / (bet*mur[i+1])
+        Mt[2, 0] = (nur - 1) * m / (bet * mur[i + 1])
         Mt[2, 1] = Mt[2, 0]
         Mt[3, 0] = Mt[2, 0]
         Mt[3, 1] = Mt[2, 0]
 
         if not i:
-            M = D*Mt
-        elif i < len(b)-1:
-            M = D*Mt*M
+            M = D * Mt
+        elif i < len(b) - 1:
+            M = D * Mt * M
         else:
-            M = Mt*M
+            M = Mt * M
 
-    B = M[0, 1]*M[2, 2] - M[2, 1]*M[0, 2]
-    B /= M[0, 0]*M[2, 2] - M[0, 2]*M[2, 0]
-    alphaTM = _mkv(m, nu[0]*b[0])/_miv(m, nu[0]*b[0]) * B
+    B = M[0, 1] * M[2, 2] - M[2, 1] * M[0, 2]
+    B /= M[0, 0] * M[2, 2] - M[0, 2] * M[2, 0]
+    alphaTM = _mkv(m, nu[0] * b[0]) / _miv(m, nu[0] * b[0]) * B
     return alphaTM
 
 
 def multilayer_flat_chamber(
-        w, L, E, epr_up, mur_up, b_up, epr_dn=None, mur_dn=None, b_dn=None,
-        precision=70, print_progress=True):
+    w,
+    L,
+    E,
+    epr_up,
+    mur_up,
+    b_up,
+    epr_dn=None,
+    mur_dn=None,
+    b_dn=None,
+    precision=70,
+    print_progress=True,
+):
     """Calculate multilayer resistive wall impedance for flat cross-section.
 
     This method implements the calculation of the impedance theory developed
@@ -610,9 +641,9 @@ def multilayer_flat_chamber(
         symm = True
         epr_dn, mur_dn, b_dn = epr_up, mur_up, -b_up
 
-    gamma = _mpf(E/_E0)
-    beta = _sqrt(1 - 1/gamma**2)
-    k = [wi/(beta*_LSPEED) for wi in w]
+    gamma = _mpf(E / _E0)
+    beta = _sqrt(1 - 1 / gamma**2)
+    k = [wi / (beta * _LSPEED) for wi in w]
 
     bu = [_mpf(x) for x in b_up]
     bd = [_mpf(x) for x in b_dn]
@@ -626,15 +657,21 @@ def multilayer_flat_chamber(
 
     args = epru, muru, bu, eprd, murd, bd
     alpha00, alpha11, alpha02 = _flat_calc_alphas(
-        k, gamma, beta, *args, is_in_t=is_in_t, symm=symm,
-        print_=print_progress)
+        k,
+        gamma,
+        beta,
+        *args,
+        is_in_t=is_in_t,
+        symm=symm,
+        print_=print_progress,
+    )
 
     # Starting here everything is double-precision:
     gamma = E / _E0
-    beta = _np.sqrt(1 - 1/gamma**2)
-    k = w/(beta*_LSPEED)
+    beta = _np.sqrt(1 - 1 / gamma**2)
+    k = w / (beta * _LSPEED)
 
-    fac = 1j*k * _Z0 * L / (2*_np.pi * beta*gamma**2)
+    fac = 1j * k * _Z0 * L / (2 * _np.pi * beta * gamma**2)
     Zll = fac * alpha00
     # This term is the monopolar vertical impedance from eq. 9.24 of ref. [1]:
     # Zmy = fac / gamma * alpha01
@@ -652,7 +689,8 @@ def multilayer_flat_chamber(
 
 
 def _flat_calc_alphas(
-        k, gamma, beta, *args, is_in_t=True, symm=False, print_=True):
+    k, gamma, beta, *args, is_in_t=True, symm=False, print_=True
+):
     epru, muru, bu, eprd, murd, bd = args
 
     supl = _np.inf
@@ -666,21 +704,37 @@ def _flat_calc_alphas(
 
         nuu, nud = [], []
         for eu, mu, ed, md in zip(epru[i], muru[i], eprd[i], murd[i]):
-            nuu.append(_fabs(ki)*_sqrt(1 - beta**2*eu*mu))
-            nud.append(_fabs(ki)*_sqrt(1 - beta**2*ed*md))
+            nuu.append(_fabs(ki) * _sqrt(1 - beta**2 * eu * mu))
+            nud.append(_fabs(ki) * _sqrt(1 - beta**2 * ed * md))
 
         kovgamma = ki / gamma
         kwrgs = dict(
-            is_in_t=is_in_t, symm=symm, kovgamma=kovgamma, beta=beta,
-            epru=epru[i], muru=muru[i], nuu=nuu, bu=bu,
-            eprd=eprd[i], murd=murd[i], nud=nud, bd=bd)
+            is_in_t=is_in_t,
+            symm=symm,
+            kovgamma=kovgamma,
+            beta=beta,
+            epru=epru[i],
+            muru=muru[i],
+            nuu=nuu,
+            bu=bu,
+            eprd=eprd[i],
+            murd=murd[i],
+            nud=nud,
+            bd=bd,
+        )
 
         # The output of this integration is in standard precision:
         alphas, err, info = _scyint.quad_vec(
             _partial(_flat_integrand_arb_prec, **kwrgs),
-            0, supl, epsabs=1e-6, norm='max', epsrel=1e-4, full_output=True,
-            workers=-1)
-        alpha00[i], alpha11[i], alpha02[i] = alphas[::2] + 1j*alphas[1::2]
+            0,
+            supl,
+            epsabs=1e-6,
+            norm="max",
+            epsrel=1e-4,
+            full_output=True,
+            workers=-1,
+        )
+        alpha00[i], alpha11[i], alpha02[i] = alphas[::2] + 1j * alphas[1::2]
         if not print_:
             continue
         print(
@@ -688,18 +742,20 @@ def _flat_calc_alphas(
             f'freq = {float(ki*beta)*_LSPEED/2/_np.pi:8.2g} Hz,   '
             f'converged = {"no " if info.status else "yes":s},   '
             f'n_evals = {info.neval:04d} '
-            f' (ET: {_time.time()-t0_:.2f} s)')
+            f' (ET: {_time.time()-t0_:.2f} s)'
+        )
 
     return alpha00, alpha11, alpha02
 
 
 # NOTE: This function exists only for debuging purposes
 def _debug_flat_calc_integrand(
-        u, w, E, *args, is_in_t=False, symm=False, prec=70):
+    u, w, E, *args, is_in_t=False, symm=False, prec=70
+):
     _mpmath.mp.dps = prec
-    gamma = _mpf(E/_E0)
-    beta = _sqrt(1 - 1/gamma**2)
-    k = w/(beta*_LSPEED)
+    gamma = _mpf(E / _E0)
+    beta = _sqrt(1 - 1 / gamma**2)
+    k = w / (beta * _LSPEED)
     epru, muru, bu, eprd, murd, bd = args
 
     epru = [_mpc(epi) for epi in epru]
@@ -710,31 +766,41 @@ def _debug_flat_calc_integrand(
     bd = [_mpf(bi) for bi in bd]
     beta = _mpf(beta)
 
-    kovgamma = k/gamma
+    kovgamma = k / gamma
     nuu, nud = [], []
     for i, _ in enumerate(epru):
-        nuu.append(_fabs(k)*_sqrt(1 - beta**2*epru[i]*muru[i]))
-        nud.append(_fabs(k)*_sqrt(1 - beta**2*eprd[i]*murd[i]))
+        nuu.append(_fabs(k) * _sqrt(1 - beta**2 * epru[i] * muru[i]))
+        nud.append(_fabs(k) * _sqrt(1 - beta**2 * eprd[i] * murd[i]))
 
     kwrgs = dict(
-        kovgamma=kovgamma, beta=beta, is_in_t=is_in_t, symm=symm,
-        epru=epru, muru=muru, nuu=nuu, bu=bu,
-        eprd=eprd, murd=murd, nud=nud, bd=bd)
+        kovgamma=kovgamma,
+        beta=beta,
+        is_in_t=is_in_t,
+        symm=symm,
+        epru=epru,
+        muru=muru,
+        nuu=nuu,
+        bu=bu,
+        eprd=eprd,
+        murd=murd,
+        nud=nud,
+        bd=bd,
+    )
 
     alpha00 = _np.zeros(u.shape, dtype=complex)
     alpha11 = _np.zeros(u.shape, dtype=complex)
     alpha02 = _np.zeros(u.shape, dtype=complex)
     for i, ui in enumerate(u):
         alphas = _flat_integrand_arb_prec(ui, **kwrgs)
-        alpha00[i] = alphas[0] + 1j*alphas[1]
-        alpha11[i] = alphas[2] + 1j*alphas[3]
-        alpha02[i] = alphas[4] + 1j*alphas[5]
+        alpha00[i] = alphas[0] + 1j * alphas[1]
+        alpha11[i] = alphas[2] + 1j * alphas[3]
+        alpha02[i] = alphas[4] + 1j * alphas[5]
     return alpha00, alpha11, alpha02
 
 
 def _flat_integrand_arb_prec(u, kovgamma=1, is_in_t=False, **kwrgs):
     if is_in_t:
-        t, u = u, (1-u)/u
+        t, u = u, (1 - u) / u
     u = _mpf(u)
     v = kovgamma * _sinh(u)
     xi1, xi2, eta1, eta2 = _flat_eta_xi_funs_arb_prec(v, **kwrgs)
@@ -744,25 +810,32 @@ def _flat_integrand_arb_prec(u, kovgamma=1, is_in_t=False, **kwrgs):
     #   itgmn *= _cosh(m*u)*_cosh(n*u)
 
     itg00 = xi1 + eta1 + xi2 + eta2
-    itg02 = itg00*_cosh(2*u)
+    itg02 = itg00 * _cosh(2 * u)
 
     itg11 = xi1 - eta1 - xi2 + eta2
-    itg11 *= _cosh(u)**2
+    itg11 *= _cosh(u) ** 2
 
     itg00 = complex(itg00)
     itg11 = complex(itg11)
     itg02 = complex(itg02)
-    itgs = _np.array([
-        itg00.real, itg00.imag,
-        itg11.real, itg11.imag,
-        itg02.real, itg02.imag])
+    itgs = _np.array(
+        [
+            itg00.real,
+            itg00.imag,
+            itg11.real,
+            itg11.imag,
+            itg02.real,
+            itg02.imag,
+        ]
+    )
     if is_in_t:
-        itgs /= t*t
+        itgs /= t * t
     return itgs
 
 
 def _flat_eta_xi_funs_arb_prec(
-        v, beta, epru, muru, nuu, bu, eprd, murd, nud, bd, symm=False):
+    v, beta, epru, muru, nuu, bu, eprd, murd, nud, bd, symm=False
+):
     Mps = _flat_calc_matrix_arb_prec(v, beta, epru, muru, nuu, bu)
     if symm:
         Mns = _flat_symmetric_matrix(Mps)
@@ -791,46 +864,46 @@ def _flat_calc_matrix_arb_prec(kx, beta, epr, mur, nu, b):
     for p, b_ in enumerate(b):
         Mt = _matrix(4, 4)
 
-        kyp = _sqrt(kx*kx + nu[p]*nu[p])
-        kyp1 = _sqrt(kx*kx + nu[p+1]*nu[p+1])
+        kyp = _sqrt(kx * kx + nu[p] * nu[p])
+        kyp1 = _sqrt(kx * kx + nu[p + 1] * nu[p + 1])
 
         # This next four lines may raise ZeroDivisionError when precision is
         # not large enough:
-        exp_nn = _exp(-(kyp + kyp1)*b_)
-        exp_pn = _exp((kyp - kyp1)*b_)
-        exp_pp = 1/exp_nn
-        exp_np = 1/exp_pn
+        exp_nn = _exp(-(kyp + kyp1) * b_)
+        exp_pn = _exp((kyp - kyp1) * b_)
+        exp_pp = 1 / exp_nn
+        exp_np = 1 / exp_pn
 
-        nu_ri2 = nu[p+1]/nu[p]
+        nu_ri2 = nu[p + 1] / nu[p]
         nu_ri2 *= nu_ri2
-        ky_r = kyp/kyp1
-        mu_r = mur[p]/mur[p+1]
-        ep_r = epr[p]/epr[p+1]
+        ky_r = kyp / kyp1
+        mu_r = mur[p] / mur[p + 1]
+        ep_r = epr[p] / epr[p + 1]
 
-        pre = ky_r*nu_ri2/2
-        fac = pre*ep_r
-        Mt[0, 0] = (0.5+fac)*exp_pn
-        Mt[0, 1] = (0.5-fac)*exp_nn
-        Mt[1, 0] = (0.5-fac)*exp_pp
-        Mt[1, 1] = (0.5+fac)*exp_np
+        pre = ky_r * nu_ri2 / 2
+        fac = pre * ep_r
+        Mt[0, 0] = (0.5 + fac) * exp_pn
+        Mt[0, 1] = (0.5 - fac) * exp_nn
+        Mt[1, 0] = (0.5 - fac) * exp_pp
+        Mt[1, 1] = (0.5 + fac) * exp_np
 
-        fac = kx*(nu_ri2 - 1)/(2*beta*kyp1*epr[p+1])
-        Mt[0, 2] = -fac*exp_pn
-        Mt[0, 3] = -fac*exp_nn
-        Mt[1, 2] = fac*exp_pp
-        Mt[1, 3] = fac*exp_np
+        fac = kx * (nu_ri2 - 1) / (2 * beta * kyp1 * epr[p + 1])
+        Mt[0, 2] = -fac * exp_pn
+        Mt[0, 3] = -fac * exp_nn
+        Mt[1, 2] = fac * exp_pp
+        Mt[1, 3] = fac * exp_np
 
-        fac = epr[p+1]/mur[p+1]
-        Mt[2, 0] = fac*Mt[0, 2]
-        Mt[2, 1] = fac*Mt[0, 3]
-        Mt[3, 0] = fac*Mt[1, 2]
-        Mt[3, 1] = fac*Mt[1, 3]
+        fac = epr[p + 1] / mur[p + 1]
+        Mt[2, 0] = fac * Mt[0, 2]
+        Mt[2, 1] = fac * Mt[0, 3]
+        Mt[3, 0] = fac * Mt[1, 2]
+        Mt[3, 1] = fac * Mt[1, 3]
 
-        fac = pre*mu_r
-        Mt[2, 2] = (0.5+fac)*exp_pn
-        Mt[2, 3] = (0.5-fac)*exp_nn
-        Mt[3, 2] = (0.5-fac)*exp_pp
-        Mt[3, 3] = (0.5+fac)*exp_np
+        fac = pre * mu_r
+        Mt[2, 2] = (0.5 + fac) * exp_pn
+        Mt[2, 3] = (0.5 - fac) * exp_nn
+        Mt[3, 2] = (0.5 - fac) * exp_pp
+        Mt[3, 3] = (0.5 + fac) * exp_np
 
         Mts.append(Mt)
     return Mts
