@@ -306,6 +306,7 @@ class LongitudinalEquilibrium:
 
         self.ring = ring
         self.impedance_sources = impedance_sources
+        self.fillpattern = fillpattern
         self._max_mode = 10 * self.ring.harm_num
         self.min_mode0_ratio = 1e-9
 
@@ -322,8 +323,15 @@ class LongitudinalEquilibrium:
 
         self.main_ref_phase_offset = 0.0  # [radian]
 
-        self.fillpattern = fillpattern
-        self.zgrid = self.create_zgrid()
+        self.main_ref_phase_offset = 0.0  # [radian]
+
+        # If feedback_on = True, this will not be used
+        self.main_ref_amp = self.ring.gap_voltage
+        self.main_ref_phase = self.ring.sync_phase
+
+        # If feedback_on = True, this will be updated
+        self.main_gen_amp_mon = None
+        self.main_gen_phase_mon = None
 
     @property
     def feedback_method_str(self):
@@ -560,6 +568,7 @@ class LongitudinalEquilibrium:
             cond = imp.active_passive == ImpedanceSource.ActivePassive.Active
             cond &= apply_filter
             _zl0 = imp.get_impedance(w=w)
+            _zl0 = imp.get_impedance(w=w)
             if cond:
                 # closed-loop impedance
                 transf = imp.loop_ctrl_transfer(w, imp.loop_ctrl_ang_freq)
@@ -748,7 +757,7 @@ class LongitudinalEquilibrium:
         dists = [
             self.distributions,
         ]
-        dists = self._apply_anderson_acceleration(
+        dists, converged = self._apply_anderson_acceleration(
             dists, niter, tol, beta=beta, m=m
         )
 
@@ -758,7 +767,7 @@ class LongitudinalEquilibrium:
         # Flush pre-calculated data
         self._wake_matrix = None
         self._exp_z = None
-        return dists
+        return dists, converged
 
     def _apply_random_convergence(self, dists, niter, tol):
         xold = dists[-1].ravel()
@@ -805,11 +814,11 @@ class LongitudinalEquilibrium:
                     + "'Phasor' or 'LeastSquares'"
                 )
         else:
-            ampg = self.main_ref_amp_set
-            phaseg = self.main_ref_phase_set
-            phaseg += self.main_ref_phase_offset
+            amp = self.main_ref_amp
+            phase = self.main_ref_phase
+            phase += self.main_ref_phase_offset
             _vg = self.ring.get_voltage_waveform(
-                self.zgrid, gap_voltage=ampg, sync_phase=phaseg
+                self.zgrid, amplitude=amp, phase=phase
             )[None, :]
         return _vg
 
@@ -955,6 +964,7 @@ class LongitudinalEquilibrium:
         E0 = self.ring.energy
         T0 = self.ring.rev_time
         vtotal = (total_voltage - U0) / E0 / T0
+        vtotal = (total_voltage - U0) / E0 / T0
         zgrid = self.zgrid
 
         zj = []
@@ -969,12 +979,8 @@ class LongitudinalEquilibrium:
         return _np.array(zj), _np.array(phi)
 
     def _solve_eom(self, dt, z0, npts, zgrid, vtotal):
-        z = [
-            z0,
-        ]
-        p = [
-            0,
-        ]
+        z = [z0]
+        p = [0]
         alpha = self.ring.mom_comp
         for _ in range(npts):
             dp = _np.interp(z[-1], zgrid, vtotal) * dt
@@ -1064,6 +1070,7 @@ class LongitudinalEquilibrium:
         modecoup_matrix=None,
         fokker_matrix=None,
         use_fokker=True,
+        reduced=False,
     ):
         """."""
         ring = self.ring
@@ -1077,20 +1084,30 @@ class LongitudinalEquilibrium:
         else:
             Zl = self.get_impedance(w=w, apply_filter=False)
 
-        (
-            eigenfreq,
-            modecoup_matrix,
-            fokker_matrix,
-        ) = ring.longitudinal_mode_coupling(
-            w=w,
-            Zl=Zl,
-            cbmode=cbmode,
-            max_azi=max_azi,
-            max_rad=max_rad,
-            modecoup_matrix=modecoup_matrix,
-            fokker_matrix=fokker_matrix,
-            use_fokker=use_fokker,
-        )
+        if reduced:
+            (eigenfreq, modecoup_matrix) = (
+                ring.reduced_longitudinal_mode_coupling(
+                    w=w,
+                    Zl=Zl,
+                    cbmode=cbmode,
+                    max_azi=max_azi,
+                    max_rad=max_rad,
+                    modecoup_matrix=modecoup_matrix,
+                )
+            )
+        else:
+            (eigenfreq, modecoup_matrix, fokker_matrix) = (
+                ring.longitudinal_mode_coupling(
+                    w=w,
+                    Zl=Zl,
+                    cbmode=cbmode,
+                    max_azi=max_azi,
+                    max_rad=max_rad,
+                    modecoup_matrix=modecoup_matrix,
+                    fokker_matrix=fokker_matrix,
+                    use_fokker=use_fokker,
+                )
+            )
 
         # Relative tune-shifts must be multiplied by ws
         eigenfreq *= ring.sync_tune * ring.rev_ang_freq
@@ -1122,6 +1139,8 @@ class LongitudinalEquilibrium:
         mat[:, where] = gnew
         where += 1
         where %= m
+
+        converged = False
 
         for k in range(niter):
             t0 = _time.time()
@@ -1161,10 +1180,11 @@ class LongitudinalEquilibrium:
                 # print(f"Iter.: {k+1:03d}, E.T.: {tf-t0:.3f}s")
                 print("-" * 20)
             if diff[idx] < tol:
+                converged = True
                 if self.print_flag:
                     print("distribution ok!")
                 break
-        return dists
+        return dists, converged
 
     def _create_freqs(self):
         w0 = self.ring.rev_ang_freq
@@ -1239,35 +1259,34 @@ class LongitudinalEquilibrium:
         return wake_idx
 
     def _feedback_phasor(self):
-        ampg = self.main_ref_amp_set
-        phaseg = self.main_ref_phase_set
-        phaseg += self.main_ref_phase_offset
+        ref_amp = self.main_ref_amp
+        ref_phase = self.main_ref_phase
+        ref_phase += self.main_ref_phase_offset
         wrf = 2 * _PI * self.ring.rf_freq
         phase = wrf * self.zgrid / _c
         dz = _np.diff(self.zgrid)[0]
-        vref_phasor = ampg * _np.exp(1j * (_PI / 2 - phaseg))
+        vref_phasor = ref_amp * _np.exp(1j * (_PI / 2 - ref_phase))
         vbeamload_phasor = _np.mean(
             _mytrapz(self.beamload_active * _np.exp(1j * phase)[None, :], dz)
         )
         vbeamload_phasor *= 2 / (self.zgrid[-1] - self.zgrid[0])
         vg_phasor = vref_phasor - vbeamload_phasor
         vg = _np.real(vg_phasor * _np.exp(-1j * phase))
-
-        self.main_ref_amp_mon = _np.abs(vg_phasor)
-        self.main_ref_phase_mon = _np.angle(vg_phasor)
+        self.main_gen_amp_mon = _np.abs(vg_phasor)
+        self.main_gen_phase_mon = _np.angle(vg_phasor)
         return vg[None, :]
 
     def _feedback_least_squares(self):
-        x0 = [self.ring.gap_voltage, self.ring.sync_phase]
+        ref_amp = self.main_ref_amp
+        ref_phase = self.main_ref_phase
+        ref_phase += self.main_ref_phase_offset
+        x0 = [ref_amp, ref_phase]
         wrf = 2 * _PI * self.ring.rf_freq
         phase = wrf * self.zgrid / _c
         dz = self.zgrid[1] - self.zgrid[0]
 
-        ampg = self.main_ref_amp_set
-        phaseg = self.main_ref_phase_set
-        phaseg += self.main_ref_phase_offset
         vref = self.ring.get_voltage_waveform(
-            self.zgrid, gap_voltage=ampg, sync_phase=phaseg
+            self.zgrid, amplitude=ref_amp, phase=ref_phase
         )
         res = _least_squares(
             fun=self._feedback_err,
@@ -1275,14 +1294,13 @@ class LongitudinalEquilibrium:
             args=(phase, dz, self.beamload_active, vref),
             method="lm",
         )
+        gen_amp = _np.sqrt(res.x[0] ** 2 + res.x[1] ** 2)
+        gen_phase = _np.arctan2(res.x[1], res.x[0])
 
-        ampg = _np.sqrt(res.x[0] ** 2 + res.x[1] ** 2)
-        phaseg = _np.arctan(res.x[1] / res.x[0])
-
-        self.main_ref_amp_mon = ampg
-        self.main_ref_phase_mon = phaseg
+        self.main_gen_amp_mon = gen_amp
+        self.main_gen_phase_mon = gen_phase
         vg = self.ring.get_voltage_waveform(
-            self.zgrid, gap_voltage=ampg, sync_phase=phaseg
+            self.zgrid, amplitude=gen_amp, phase=gen_phase
         )
         return vg[None, :]
 
