@@ -818,7 +818,7 @@ class LongitudinalEquilibrium:
         # _warnings.filterwarnings("error")
 
         lambda0, phiz = self.calc_distributions_from_voltage(total_voltage)
-        zgrid = self.zgrid
+        zgrid = self.zgrid.copy()
         ring = self.ring
         phiz = phiz[0, :]
 
