@@ -310,7 +310,7 @@ class LongitudinalEquilibrium:
         self._max_mode = 10 * self.ring.harm_num
         self.min_mode0_ratio = 1e-9
 
-        self.feedback_method = self.FeedbackMethod.LeastSquares
+        self.feedback_method = self.FeedbackMethod.Phasor
         self.feedback_on = False
 
         self.main_ref_phase_offset = 0.0  # [radian]
@@ -654,8 +654,6 @@ class LongitudinalEquilibrium:
         if dist is None:
             dist = self.distributions
 
-        ps, zl_wps, _ = self.get_harmonics_impedance_and_filling()
-
         did_zero_pad = False
         rf_lamb = self.ring.rf_lamb
         if self.zgrid[0] != -rf_lamb / 2 or self.zgrid[-1] != rf_lamb / 2:
@@ -665,12 +663,15 @@ class LongitudinalEquilibrium:
         # remove last point to do not overlap domains
         fill = self.ring.total_current * self.fillpattern
         dist_beam = (fill[:, None] * dist[:, :-1]).ravel()
-        dist_dft_ = _rfft(dist_beam)
+        dist_dft = _rfft(dist_beam)
 
-        # calculate with DFT
-        dist_dft = _np.zeros(dist_dft_.size, dtype=complex)
-        dist_dft[ps] = dist_dft_[ps]
-        dist_dft[ps] *= zl_wps.conj()
+        # using real dft, take only positive harmonics
+        max_mode = dist_dft.size
+        wps = _np.arange(0, max_mode) * self.ring.rev_ang_freq
+        zl_wps = self.get_impedance(w=wps, apply_filter=True)
+
+        dist_dft *= zl_wps.conj()
+
         _harm_volt = (-self.ring.circum) * _irfft(dist_dft)
         harm_volt = _np.zeros_like(dist, dtype=complex)
         harm_volt[:, :-1] = _harm_volt.reshape((dist.shape[0], -1))
