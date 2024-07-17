@@ -49,7 +49,8 @@ def longitudinal_resonator(Rs, Q, wr, w):
     Q = _np.moveaxis(_np.array(Q, ndmin=ndim, dtype=float), -1, 0)
     wr = _np.moveaxis(_np.array(wr, ndmin=ndim, dtype=float), -1, 0)
     w = _np.array(w, ndmin=ndim)
-    Zl = w*Rs / (w+1j*Q*(wr - w**2/wr))
+    # Zl = w*Rs / (w+1j*Q*(wr - w**2/wr))
+    Zl = Rs/(1 + 1j*Q*(wr/w - w/wr))
 
     Zl = _np.squeeze(Zl.sum(0))
     Zl = _np.array(Zl, ndmin=1)

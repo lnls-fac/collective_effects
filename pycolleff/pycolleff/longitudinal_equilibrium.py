@@ -11,6 +11,10 @@ from scipy.integrate import quad as _quad
 from scipy.interpolate import interp1d as _interp1d
 from scipy.optimize import least_squares as _least_squares, root as _root
 from scipy.special import gamma as _gammafunc
+from scipy.linalg import det as _det
+from multiprocessing import Pool as _Pool
+import os as _os
+from functools import partial as _partial
 
 from . import impedances as _imp
 from .colleff import Ring as _Ring
@@ -323,6 +327,8 @@ class LongitudinalEquilibrium:
         self.main_gen_amp_mon = None
         self.main_gen_phase_mon = None
 
+        self.equilibrium_info = dict()
+
     @property
     def feedback_method_str(self):
         """."""
@@ -526,19 +532,18 @@ class LongitudinalEquilibrium:
 
         # subtract minimum value for all bunches
         pot -= _np.min(pot, axis=1)[:, None]
+        E0 = self.ring.energy
+        C0 = self.ring.circum
+        pot /= E0 * C0
 
-        const = self.ring.espread**2
-        const *= self.ring.mom_comp
-        const *= self.ring.circum
-        # normalize by E0
-        const *= self.ring.energy
-
-        dist = _ne.evaluate("exp(-pot/const)")
+        alpha = self.ring.mom_comp
+        sigmae2 = self.ring.espread**2
+        dist = _ne.evaluate("exp(-pot/(alpha*sigmae2))")
         # distribution must be normalized
         dist /= _mytrapz(dist, dz)[:, None]
         if flag:
             dist = _np.tile(dist, (self.ring.harm_num, 1))
-        return dist, pot / const
+        return dist, pot
 
     def calc_fourier_transform(self, w, dist=None):
         """."""
@@ -817,7 +822,7 @@ class LongitudinalEquilibrium:
         return _vg
 
     def calc_synchrotron_frequency(
-        self, total_voltage=None, method="action", max_amp=5, nrpts=100
+        self, total_voltage=None, method="action", max_amp=3, nrpts=201
     ):
         """Calculate synchrotron frequencies for given total voltage."""
         # _warnings.filterwarnings("error")
@@ -836,11 +841,10 @@ class LongitudinalEquilibrium:
         zgrid -= zmin
 
         alpha = ring.mom_comp
-        sigmae0 = ring.espread
-        factor = alpha * _c * sigmae0**2
+        out = dict()
 
         if method == "action":
-            phiz_interp = _interp1d(zgrid, phiz * factor, kind="cubic")
+            phiz_interp = _interp1d(zgrid, phiz, kind="cubic")
 
             dz = max_amp * sigmaz0 / nrpts
             # avoid zero amplitude
@@ -853,18 +857,18 @@ class LongitudinalEquilibrium:
 
             def intg(z):
                 return _np.sqrt(
-                    (2 / alpha / _c) * _np.abs(hamiltonian0i - phiz_interp(z))
+                    (2 / alpha) * _np.abs(hamiltonian0i - phiz_interp(z))
                 )
 
             def iintg(z):
                 return 1 / intg(z)
 
             for zamp in zamps:
-                zri = z0 * 0 + zamp
-                zli = z0 * 0 - zamp
+                zri = +zamp
+                zli = -zamp
                 hamiltonian0i = phiz_interp(zri)
 
-                turn_pts = _root(energy_deviation, x0=zli)
+                turn_pts = _root(energy_deviation, x0=zli, method="lm")
                 if turn_pts.success:
                     zli = turn_pts.x[0]
                 else:
@@ -872,10 +876,12 @@ class LongitudinalEquilibrium:
                 zli, zri = (zli, zri) if zli <= zri else (zri, zli)
 
                 action, _ = _quad(intg, zli, zri)
+                action /= _PI
                 period, _ = _quad(iintg, zli, zri)
+                period *= 2 / alpha / _c
 
-                actions.append(action / _PI)
-                periods.append(period * 2 / alpha / _c)
+                actions.append(action)
+                periods.append(period)
                 hamiltonian.append(hamiltonian0i)
                 zamps_.append(zamp)
 
@@ -886,7 +892,7 @@ class LongitudinalEquilibrium:
                 _np.array(zamps_),
             )
 
-            freqs_deriv = _np.gradient(hamiltonian, actions) / 2 / _PI
+            freqs_deriv = _c * _np.gradient(hamiltonian, actions) / 2 / _PI
             freqs = 1 / periods
             nan_idx = ~(
                 _np.isnan(actions) | _np.isnan(freqs) | _np.isnan(freqs_deriv)
@@ -904,24 +910,22 @@ class LongitudinalEquilibrium:
                 zamps[filter_idx],
             )
 
-            lambda0_ = _np.exp(-hamiltonian / factor)
-            lambda0_ /= _np.trapz(lambda0_, actions)
+            sigmae2 = ring.espread**2
+            psi0 = _np.exp(-hamiltonian / (alpha * sigmae2))
+            psi0 /= _np.trapz(psi0, actions)
 
-            fs_avg = _np.trapz(freqs * lambda0_, actions)
-            fs_std = _np.trapz(freqs * freqs * lambda0_, actions)
+            fs_avg = _np.trapz(freqs * psi0, actions)
+            fs_std = _np.trapz(freqs * freqs * psi0, actions)
             fs_std = _np.sqrt(fs_std - fs_avg**2)
 
-            out = dict()
             out["sync_freq"] = freqs
             out["sync_freq_numeric_derivative"] = freqs_deriv
             out["avg_sync_freq"] = fs_avg
             out["std_sync_freq"] = fs_std
-            out["action_distribution"] = lambda0_
+            out["action_distribution"] = psi0
             out["action"] = actions
             out["hamiltonian"] = hamiltonian
             out["amplitude"] = zamps
-            return out
-
         elif method == "derivative":
             wrf_c = ring.rf_ang_freq / _c
             factor = _np.sqrt(
@@ -929,60 +933,202 @@ class LongitudinalEquilibrium:
             )
 
             fil = _np.abs(zgrid) < max_amp * sigmaz0
-            zgrid_ = zgrid[fil]
+            zgrid = zgrid[fil]
 
-            dv = -_np.gradient(total_voltage[0, fil], zgrid_)
+            dv = -_np.gradient(total_voltage[0, fil], zgrid)
             remove_neg = dv > 0
-            zgrid_, lambda0_, dv = (
-                zgrid_[remove_neg],
+            zgrid, lambda0, dv = (
+                zgrid[remove_neg],
                 lambda0[0, fil][remove_neg],
                 dv[remove_neg],
             )
 
-            lambda0_ /= _np.trapz(lambda0_, zgrid_)
+            lambda0 /= _np.trapz(lambda0, zgrid)
             freqs = factor * _np.sqrt(dv) * ring.rev_freq
-            fs_avg = _np.trapz(freqs * lambda0_, zgrid_)
+            fs_avg = _np.trapz(freqs * lambda0, zgrid)
             fs_std = _np.sqrt(
-                _np.trapz((freqs - fs_avg) ** 2 * lambda0_, zgrid_)
+                _np.trapz((freqs - fs_avg) ** 2 * lambda0, zgrid)
             )
-
-            out = dict()
             out["sync_freq"] = freqs
             out["avg_sync_freq"] = fs_avg
             out["std_sync_freq"] = fs_std
-            return out
 
-    def calc_canonical_transformation(self, res, total_voltage):
-        """."""
-        npts = 100
-        twopi = 2 * _np.pi
-        U0 = self.ring.en_lost_rad
-        E0 = self.ring.energy
-        T0 = self.ring.rev_time
-        vtotal = (total_voltage - U0) / E0 / T0
-        zgrid = self.zgrid
+        out["zmin"] = zmin
+        out["total_voltage"] = total_voltage
+        out["total_potential"] = phiz
+        out["zgrid"] = zgrid
+        out["zdistribution"] = lambda0
+        self.equilibrium_info = out
 
+    def calc_canonical_transformation(self, total_voltage=None, parallel=True):
+        if total_voltage is None:
+            total_voltage = self.total_voltage
+        ring = self.ring
+        U0 = ring.en_lost_rad
+        E0 = ring.energy
+        L0 = ring.circum
+        alpha = ring.mom_comp
+        vtotal = (total_voltage - U0) / (E0 * L0)
+        if "action" not in self.equilibrium_info:
+            self.calc_synchrotron_frequency(
+                total_voltage=total_voltage,
+                method="action",
+                max_amp=3,
+                nrpts=201,
+            )
+        eqinfo = self.equilibrium_info
+        zgrid = eqinfo["zgrid"].copy()
         zj = []
+        pj = []
         phi = []
-        for _, fs in enumerate(res["sync_freq"]):
-            t = _np.linspace(0, 1, npts) * (1 / fs)
-            dt = 1 / fs / npts
-            z0 = res["amplitude"]
-            z, _ = self._solve_eom(dt, z0, npts, zgrid, vtotal)
-            zj.append(z)
-            phi.append(twopi * fs * t)
-        return _np.array(zj), _np.array(phi)
 
-    def _solve_eom(self, dt, z0, npts, zgrid, vtotal):
-        z = [z0]
-        p = [0]
-        alpha = self.ring.mom_comp
-        for _ in range(npts):
-            dp = _np.interp(z[-1], zgrid, vtotal) * dt
-            p.append(p[-1] + dp)
-            dz = -alpha * _c * p * dt
-            z.append(z[-1] + dz)
-        return _np.array(z), _np.array(p)
+        v_interp = _interp1d(zgrid, vtotal, kind="cubic")
+        ds = L0 / 2
+
+        grid = len(eqinfo["sync_freq"])
+
+        if parallel:
+            # Parallel processing setup
+            num_processes = min(grid, _os.cpu_count())
+            with _Pool(num_processes) as pool:
+                results = pool.map(
+                    _partial(
+                        LongitudinalEquilibrium.solve_motion,
+                        params=(ds, alpha, eqinfo, v_interp),
+                    ),
+                    range(grid),
+                )
+
+            # Collect results
+            for znew, pnew, phinew in results:
+                zj.append(znew)
+                pj.append(pnew)
+                phi.append(phinew)
+        else:
+            for idx in range(grid):
+                results = LongitudinalEquilibrium.solve_motion(
+                    idx, params=(ds, alpha, eqinfo, v_interp)
+                )
+                znew, pnew, phinew = results
+                zj.append(znew)
+                pj.append(pnew)
+                phi.append(phinew)
+        return zj, phi, pj
+
+    @staticmethod
+    def solve_motion(idx, params):
+        ds, alpha, sync_data, v_interp = params
+        z0 = sync_data["amplitude"][idx]
+
+        znew, pnew, _ = LongitudinalEquilibrium._verlet_integrator(
+            z0=z0, p0=0, ds=ds, alpha=alpha, v_interp=v_interp
+        )
+        phinew = _np.linspace(0, 2 * _PI, len(znew))
+        return znew, pnew, phinew
+
+    @staticmethod
+    def _verlet_integrator(z0, p0, ds, alpha, v_interp):
+        """Second-order symplectic integrator using the Verlet method."""
+        z, p = z0, p0
+        positions = [z0]
+        momentums = [p0]
+        angle = 0
+
+        while True:
+            dp_half = v_interp(z) * ds
+            p += 0.5 * dp_half
+            dz = alpha * p * ds
+            z += dz
+            dp_half = v_interp(z) * ds
+            p += 0.5 * dp_half
+
+            vec0 = _np.array([positions[-1], momentums[-1]])
+            vec1 = _np.array([z, p])
+            acos = _np.abs(_np.dot(vec0, vec1))
+            acos /= _np.linalg.norm(vec0)
+            acos /= _np.linalg.norm(vec1)
+            acos = _np.clip(acos, -1, 1)
+            if acos > 1:
+                print(acos)
+                raise ValueError("Problem")
+            angle += _np.arccos(acos)
+            if angle > 2 * _PI:
+                break
+            positions.append(z)
+            momentums.append(p)
+        return positions, momentums
+
+    def matrix_elements(self, Omega, z_ij, ms, ps, cb_mode):
+        eqinfo = self.equilibrium_info
+        jgrid_size = len(eqinfo["action"])
+        ring = self.ring
+        w0 = ring.rev_ang_freq
+        h = ring.harm_num
+
+        def fun_hmp(z, m, omegap):
+            z = _np.array(z)
+            phi = _np.linspace(0, 2 * _PI, z.size)
+            kp = omegap / _c
+            expo = 1j * (m * phi + kp * z)
+            integral = _np.trapz(_np.exp(expo), phi)
+            return integral / (2 * _PI)
+
+        hmps = _np.zeros((ms.size, ps.size, jgrid_size), dtype=complex)
+
+        for idx in range(jgrid_size):
+            for ip, p in enumerate(ps):
+                omegap = (p * h + cb_mode) * w0
+                for im, m in enumerate(ms):
+                    hmps[im, ip, :] = _np.array(func_hmp(z_ij[idx], m, omegap))
+
+        psi_J = eqinfo["action_distribution"]
+        ws_J = 2 * _PI * eqinfo["sync_freq"]
+        J = eqinfo["action"]
+
+        alpha = ring.mom_comp
+        sigmae = ring.espread
+        dpsi_dJ = - ws_J * psi_J / (alpha * sigmae**2 * _c)
+
+        cOmega = Omega[0] + 1j * Omega[1]
+
+        B_mm_pp = _np.zeros(
+            (ms.size, ps.size, ms.size, ps.size),
+            dtype=complex,
+        )
+
+        I0 = ring.total_current
+        E0 = ring.energy
+        T0 = ring.rev_time
+        stren = 2j * _PI * I0 / (E0*T0)
+
+        for im, m in enumerate(ms):
+            for ip, p in enumerate(ps):
+                h_mp = hmps[im, ip]
+                for imm, mm in enumerate(ms):
+                    for ipp, pp in enumerate(ps):
+                        h_mpp = hmps[im, ipp].conj()
+                        intg = h_mp * h_mpp * dpsi_dJ
+                        intg /= (cOmega - m * ws_J)
+                        gmpp = _np.trapz(intg, J)
+                        omegapp = (pp * h * cb_mode) * w0
+                        zpp = self.get_impedance(w=omegapp + cOmega)
+                        zpp *= _c / omegapp
+                        B_mm_pp[im, ip, imm, ipp] = stren * m * zpp * gmpp
+
+        size = ms.size * ps.size
+        B_mm_pp = B_mm_pp.reshape(size, size)
+        B_mm_pp += _np.eye(size)
+        return B_mm_pp, hmps
+
+    def detB(self, Omega, params):
+        z_ij, ms, ps, cb_mode = params
+        B, _ = self.matrix_elements(
+            Omega, z_ij, ms, ps, cb_mode)
+        db = _det(B)
+        print(db)
+        return [db.real, db.imag]
+
+
 
     def calc_synchrotron_frequency_quadratic_potential(self):
         """."""
