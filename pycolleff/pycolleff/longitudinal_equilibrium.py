@@ -310,7 +310,7 @@ class LongitudinalEquilibrium:
         self._max_mode = 10 * self.ring.harm_num
         self.min_mode0_ratio = 1e-9
 
-        self.feedback_method = self.FeedbackMethod.LeastSquares
+        self.feedback_method = self.FeedbackMethod.Phasor
         self.feedback_on = False
 
         self.main_ref_phase_offset = 0.0  # [radian]
@@ -387,6 +387,8 @@ class LongitudinalEquilibrium:
     def fillpattern(self, value):
         if value.size != self.ring.harm_num:
             raise ValueError("Wrong size for fillparttern.")
+        if not _np.isclose(_np.sum(value), 1.0):
+            raise ValueError("sum(fillpattern) must be 1.")
         self._fillpattern = value
         self._wake_matrix = None
 
@@ -489,7 +491,7 @@ class LongitudinalEquilibrium:
         self, peak_harm_volt, harm_rf=3, Rs=0, form_factor=None
     ):
         """."""
-        I0 = _np.sum(self.fillpattern)
+        I0 = self.ring.total_current
         # TODO: This way of including the form factor is temporary. Fix it.
         wr = 2 * _PI * self.ring.rf_freq * harm_rf
         if form_factor is None:
@@ -500,7 +502,7 @@ class LongitudinalEquilibrium:
 
     def calc_harmonic_voltage_for_fixed_detune(self, detune, harm_rf=3, Rs=0):
         """."""
-        I0 = _np.sum(self.fillpattern)
+        I0 = self.ring.total_current
         # TODO: This way of including the form factor is temporary. Fix it.
         wr = 2 * _PI * self.ring.rf_freq * harm_rf
         form_factor = self.calc_fourier_transform(wr)[self.filled_buckets]
@@ -574,7 +576,8 @@ class LongitudinalEquilibrium:
             w = self._create_freqs()
         h = self.ring.harm_num
         zl_wp = self.get_impedance(w=w, apply_filter=True)
-        fill_fft = _fft(self.fillpattern)
+        fill = self.ring.total_current * self.fillpattern
+        fill_fft = _fft(fill)
         fill_fft = _np.tile(fill_fft, (zl_wp.size // h, 1)).ravel()
         zl_fill = _np.abs(zl_wp * fill_fft)
 
@@ -605,7 +608,7 @@ class LongitudinalEquilibrium:
         F0 = _np.abs(form)[0]
         Phi0 = _np.angle(form)[0]
 
-        It = _np.sum(self.fillpattern)
+        It = self.ring.total_current
         ang = wake_source.detune_angle
         Rs = wake_source.shunt_impedance
 
@@ -620,7 +623,7 @@ class LongitudinalEquilibrium:
 
         if dist is None:
             dist = self.distributions
-        fillpattern = self.fillpattern
+        fillpattern = self.ring.total_current * self.fillpattern
         zgrid = self.zgrid
 
         zn_ph = (2j * _PI / h) * _np.arange(h)[None, :]
@@ -651,8 +654,6 @@ class LongitudinalEquilibrium:
         if dist is None:
             dist = self.distributions
 
-        ps, zl_wps, _ = self.get_harmonics_impedance_and_filling()
-
         did_zero_pad = False
         rf_lamb = self.ring.rf_lamb
         if self.zgrid[0] != -rf_lamb / 2 or self.zgrid[-1] != rf_lamb / 2:
@@ -660,13 +661,17 @@ class LongitudinalEquilibrium:
             did_zero_pad = True
 
         # remove last point to do not overlap domains
-        dist_beam = (self.fillpattern[:, None] * dist[:, :-1]).ravel()
-        dist_dft_ = _rfft(dist_beam)
+        fill = self.ring.total_current * self.fillpattern
+        dist_beam = (fill[:, None] * dist[:, :-1]).ravel()
+        dist_dft = _rfft(dist_beam)
 
-        # calculate with DFT
-        dist_dft = _np.zeros(dist_dft_.size, dtype=complex)
-        dist_dft[ps] = dist_dft_[ps]
-        dist_dft[ps] *= zl_wps.conj()
+        # using real dft, take only positive harmonics
+        max_mode = dist_dft.size
+        wps = _np.arange(0, max_mode) * self.ring.rev_ang_freq
+        zl_wps = self.get_impedance(w=wps, apply_filter=True)
+
+        dist_dft *= zl_wps.conj()
+
         _harm_volt = (-self.ring.circum) * _irfft(dist_dft)
         harm_volt = _np.zeros_like(dist, dtype=complex)
         harm_volt[:, :-1] = _harm_volt.reshape((dist.shape[0], -1))
@@ -680,7 +685,7 @@ class LongitudinalEquilibrium:
         """."""
         if dist is None:
             dist = self.distributions
-        fillpattern = self.fillpattern[:, None]
+        fillpattern = self.ring.total_current * self.fillpattern[:, None]
         zgrid = self.zgrid
 
         h = self.ring.harm_num
@@ -812,11 +817,13 @@ class LongitudinalEquilibrium:
         return _vg
 
     def calc_synchrotron_frequency(
-        self, total_voltage, method="action", max_amp=5, nrpts=100
+        self, total_voltage=None, method="action", max_amp=5, nrpts=100
     ):
         """Calculate synchrotron frequencies for given total voltage."""
         # _warnings.filterwarnings("error")
 
+        if total_voltage is None:
+            total_voltage = self.total_voltage
         lambda0, phiz = self.calc_distributions_from_voltage(total_voltage)
         zgrid = self.zgrid.copy()
         ring = self.ring
@@ -1059,6 +1066,8 @@ class LongitudinalEquilibrium:
         fokker_matrix=None,
         use_fokker=True,
         reduced=False,
+        delete_m0=True,
+        delete_m0k0=False,
     ):
         """."""
         ring = self.ring
@@ -1094,6 +1103,8 @@ class LongitudinalEquilibrium:
                     modecoup_matrix=modecoup_matrix,
                     fokker_matrix=fokker_matrix,
                     use_fokker=use_fokker,
+                    delete_m0=delete_m0,
+                    delete_m0k0=delete_m0k0,
                 )
             )
 
