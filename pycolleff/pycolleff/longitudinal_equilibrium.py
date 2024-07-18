@@ -850,46 +850,28 @@ class LongitudinalEquilibrium:
             # avoid zero amplitude
             zamps = _np.arange(1, nrpts) * dz
 
-            actions, periods, hamiltonian, zamps_ = [], [], [], []
+            actions, periods, hamiltonian = [], [], []
 
-            def energy_deviation(z):
-                return hamiltonian0i - phiz_interp(z)
-
-            def intg(z):
-                return _np.sqrt(
-                    (2 / alpha) * _np.abs(hamiltonian0i - phiz_interp(z))
+            num_processes = min(zamps.size, _os.cpu_count())
+            with _Pool(num_processes) as pool:
+                results = pool.map(
+                    _partial(
+                        LongitudinalEquilibrium.solve_action_angle,
+                        params=(phiz_interp, alpha),
+                    ),
+                    zamps,
                 )
 
-            def iintg(z):
-                return 1 / intg(z)
+            # Collect results
+            for act, per, h0 in results:
+                actions.append(act)
+                periods.append(per)
+                hamiltonian.append(h0)
 
-            for zamp in zamps:
-                zri = +zamp
-                zli = -zamp
-                hamiltonian0i = phiz_interp(zri)
-
-                turn_pts = _root(energy_deviation, x0=zli, method="lm")
-                if turn_pts.success:
-                    zli = turn_pts.x[0]
-                else:
-                    raise Exception("Problem in finding turning points.")
-                zli, zri = (zli, zri) if zli <= zri else (zri, zli)
-
-                action, _ = _quad(intg, zli, zri)
-                action /= _PI
-                period, _ = _quad(iintg, zli, zri)
-                period *= 2 / alpha / _c
-
-                actions.append(action)
-                periods.append(period)
-                hamiltonian.append(hamiltonian0i)
-                zamps_.append(zamp)
-
-            actions, periods, hamiltonian, zamps = (
+            actions, periods, hamiltonian = (
                 _np.array(actions),
                 _np.array(periods),
                 _np.array(hamiltonian),
-                _np.array(zamps_),
             )
 
             freqs_deriv = _c * _np.gradient(hamiltonian, actions) / 2 / _PI
@@ -959,6 +941,36 @@ class LongitudinalEquilibrium:
         out["zgrid"] = zgrid
         out["zdistribution"] = lambda0
         self.equilibrium_info = out
+
+    @staticmethod
+    def solve_action_angle(zamp, params):
+        phiz_interp, alpha = params
+
+        def energy_deviation(z):
+            return h0i - phiz_interp(z)
+
+        def intg(z):
+            return _np.sqrt((2 / alpha) * _np.abs(h0i - phiz_interp(z)))
+
+        def iintg(z):
+            return 1 / intg(z)
+
+        zri = +zamp
+        zli = -zamp
+        h0i = phiz_interp(zri)
+
+        turn_pts = _root(energy_deviation, x0=zli, method="lm")
+        if turn_pts.success:
+            zli = turn_pts.x[0]
+        else:
+            raise Exception("Problem in finding turning points.")
+        zli, zri = (zli, zri) if zli <= zri else (zri, zli)
+
+        action, _ = _quad(intg, zli, zri)
+        action /= _PI
+        period, _ = _quad(iintg, zli, zri)
+        period *= 2 / alpha / _c
+        return action, period, h0i
 
     def calc_canonical_transformation(self, total_voltage=None, parallel=True):
         if total_voltage is None:
