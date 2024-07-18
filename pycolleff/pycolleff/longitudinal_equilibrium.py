@@ -1099,7 +1099,7 @@ class LongitudinalEquilibrium:
 
         alpha = ring.mom_comp
         sigmae = ring.espread
-        dpsi_dJ = - ws_J * psi_J / (alpha * sigmae**2 * _c)
+        dpsi_dJ = -ws_J * psi_J / (alpha * sigmae**2 * _c)
 
         cOmega = Omega[0] + 1j * Omega[1]
 
@@ -1111,7 +1111,7 @@ class LongitudinalEquilibrium:
         I0 = ring.total_current
         E0 = ring.energy
         T0 = ring.rev_time
-        stren = 2j * _PI * I0 / (E0*T0)
+        stren = 2j * _PI * I0 / (E0 * T0)
 
         for im, m in enumerate(ms):
             for ip, p in enumerate(ps):
@@ -1120,7 +1120,7 @@ class LongitudinalEquilibrium:
                     for ipp, pp in enumerate(ps):
                         h_mpp = hmps[im, ipp].conj()
                         intg = h_mp * h_mpp * dpsi_dJ
-                        intg /= (cOmega - m * ws_J)
+                        intg /= cOmega - m * ws_J
                         gmpp = _np.trapz(intg, J)
                         omegapp = (pp * h * cb_mode) * w0
                         zpp = self.get_impedance(w=omegapp + cOmega)
@@ -1134,8 +1134,7 @@ class LongitudinalEquilibrium:
 
     def detB(self, Omega, params):
         z_ij, ms, ps, cb_mode = params
-        B, _ = self.matrix_elements(
-            Omega, z_ij, ms, ps, cb_mode)
+        B, _ = self.matrix_elements(Omega, z_ij, ms, ps, cb_mode)
         db = _det(B)
         print(db)
         return [db.real, db.imag]
