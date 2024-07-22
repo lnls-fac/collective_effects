@@ -1077,7 +1077,7 @@ class LongitudinalEquilibrium:
         w0 = ring.rev_ang_freq
         h = ring.harm_num
 
-        def fun_hmp(z, m, omegap):
+        def func_hmp(z, m, omegap):
             z = _np.array(z)
             phi = _np.linspace(0, 2 * _PI, z.size)
             kp = omegap / _c
@@ -1085,13 +1085,14 @@ class LongitudinalEquilibrium:
             integral = _np.trapz(_np.exp(expo), phi)
             return integral / (2 * _PI)
 
-        hmps = _np.zeros((ms.size, ps.size, jgrid_size), dtype=complex)
-
-        for idx in range(jgrid_size):
-            for ip, p in enumerate(ps):
+        hmps = []
+        for m in ms:
+            for p in ps:
                 omegap = (p * h + cb_mode) * w0
-                for im, m in enumerate(ms):
-                    hmps[im, ip, :] = _np.array(func_hmp(z_ij[idx], m, omegap))
+                for idx in range(jgrid_size):
+                    z = z_ij[idx]
+                    hmps.append(func_hmp(z, m, omegap))
+        hmps = _np.array(hmps).reshape((ms.size, ps.size, jgrid_size))
 
         psi_J = eqinfo["action_distribution"]
         ws_J = 2 * _PI * eqinfo["sync_freq"]
@@ -1138,8 +1139,6 @@ class LongitudinalEquilibrium:
         db = _det(B)
         print(db)
         return [db.real, db.imag]
-
-
 
     def calc_synchrotron_frequency_quadratic_potential(self):
         """."""
