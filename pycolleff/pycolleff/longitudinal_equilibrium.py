@@ -844,7 +844,7 @@ class LongitudinalEquilibrium:
         out = dict()
 
         if max_amp is None:
-            max_amp = 3 * sigmaz0
+            max_amp = 4 * sigmaz0
 
         if method == "action":
             phiz_interp = _interp1d(zgrid, phiz, kind="cubic")
@@ -998,7 +998,7 @@ class LongitudinalEquilibrium:
         phi = []
 
         v_interp = _interp1d(zgrid, vtotal, kind="cubic")
-        ds = C0 / 2
+        ds = C0 / 4
 
         grid = len(eqinfo["sync_freq"])
 
@@ -1035,7 +1035,7 @@ class LongitudinalEquilibrium:
         ds, alpha, sync_data, v_interp = params
         z0 = sync_data["amplitude"][idx]
 
-        znew, pnew, _ = LongitudinalEquilibrium._verlet_integrator(
+        znew, pnew = LongitudinalEquilibrium._verlet_integrator(
             z0=z0, p0=0, ds=ds, alpha=alpha, v_interp=v_interp
         )
         phinew = _np.linspace(0, 2 * _PI, len(znew))
@@ -1070,29 +1070,31 @@ class LongitudinalEquilibrium:
             momentums.append(p)
         return positions, momentums
 
-    def matrix_elements(self, Omega, z_ij, ms, ps, cb_mode):
-        eqinfo = self.equilibrium_info
-        jgrid_size = len(eqinfo["action"])
-        ring = self.ring
-        w0 = ring.rev_ang_freq
-        h = ring.harm_num
+    @staticmethod
+    def func_hmp(z, m, omegap):
+        z = _np.array(z)
+        phi = _np.linspace(0, 2 * _PI, z.size)
+        kp = omegap / _c
+        expo = 1j * (m * phi + kp * z)
+        integral = _np.trapz(_np.exp(expo), phi)
+        return integral / (2 * _PI)
 
-        def func_hmp(z, m, omegap):
-            z = _np.array(z)
-            phi = _np.linspace(0, 2 * _PI, z.size)
-            kp = omegap / _c
-            expo = 1j * (m * phi + kp * z)
-            integral = _np.trapz(_np.exp(expo), phi)
-            return integral / (2 * _PI)
-
+    @staticmethod
+    def calc_hmps(z_ij, cb_mode, ms, ps, w0, h):
         hmps = []
         for m in ms:
             for p in ps:
                 omegap = (p * h + cb_mode) * w0
-                for idx in range(jgrid_size):
-                    z = z_ij[idx]
-                    hmps.append(func_hmp(z, m, omegap))
-        hmps = _np.array(hmps).reshape((ms.size, ps.size, jgrid_size))
+                for z in z_ij:
+                    hmps.append(LongitudinalEquilibrium.func_hmp(z, m, omegap))
+        hmps = _np.array(hmps).reshape((ms.size, ps.size, -1))
+        return hmps
+
+    def matrix_elements(self, Omega, hmps, ms, ps, cb_mode):
+        eqinfo = self.equilibrium_info
+        ring = self.ring
+        w0 = ring.rev_ang_freq
+        h = ring.harm_num
 
         psi_J = eqinfo["action_distribution"]
         ws_J = 2 * _PI * eqinfo["sync_freq"]
@@ -1100,45 +1102,59 @@ class LongitudinalEquilibrium:
 
         alpha = ring.mom_comp
         sigmae = ring.espread
-        dpsi_dJ = -ws_J * psi_J / (alpha * sigmae**2 * _c)
+        dpsi_dJ = - ws_J * psi_J / (alpha * sigmae**2 * _c)
 
         cOmega = Omega[0] + 1j * Omega[1]
 
-        B_mm_pp = _np.zeros(
-            (ms.size, ps.size, ms.size, ps.size),
-            dtype=complex,
-        )
-
         I0 = ring.total_current
         E0 = ring.energy
-        T0 = ring.rev_time
-        stren = 2j * _PI * I0 / (E0 * T0)
+        C0 = ring.circum
+        stren = 2j * _PI * I0 * _c**2 / (E0 * C0)
+
+        B_m_pp = []
 
         for im, m in enumerate(ms):
             for ip, p in enumerate(ps):
                 h_mp = hmps[im, ip]
-                for imm, mm in enumerate(ms):
-                    for ipp, pp in enumerate(ps):
-                        h_mpp = hmps[im, ipp].conj()
-                        intg = h_mp * h_mpp * dpsi_dJ
-                        intg /= cOmega - m * ws_J
-                        gmpp = _np.trapz(intg, J)
-                        omegapp = (pp * h * cb_mode) * w0
-                        zpp = self.get_impedance(w=omegapp + cOmega)
-                        zpp *= _c / omegapp
-                        B_mm_pp[im, ip, imm, ipp] = stren * m * zpp * gmpp
+                for ipp, pp in enumerate(ps):
+                    h_mpp = _np.conjugate(hmps[im, ipp])
+                    intg = h_mp * h_mpp * dpsi_dJ
+                    intg /= cOmega - m * ws_J
+                    gmpp = _np.trapz(intg, J)
+                    omegapp = (pp * h + cb_mode) * w0
+                    zpp = self.get_impedance(w=omegapp + cOmega) / omegapp
+                    B_m_pp.append(stren * m * zpp * gmpp)
+
+        B_m_pp = _np.array(B_m_pp).reshape((ms.size, ps.size, ps.size))
+
+        B_mm_pp = _np.zeros(
+            (ms.size, ps.size, ms.size, ps.size), dtype=complex
+        )
+        for im in range(ms.size):
+            for ip in range(ps.size):
+                for ipp in range(ps.size):
+                    B_mm_pp[im, ip, :, ipp] = B_m_pp[im, ip, ipp]
 
         size = ms.size * ps.size
         B_mm_pp = B_mm_pp.reshape(size, size)
         B_mm_pp += _np.eye(size)
-        return B_mm_pp, hmps
+        return B_mm_pp
 
     def detB(self, Omega, params):
-        z_ij, ms, ps, cb_mode = params
-        B, _ = self.matrix_elements(Omega, z_ij, ms, ps, cb_mode)
+        hmps, ms, ps, cb_mode = params
+        B = self.matrix_elements(Omega, hmps, ms, ps, cb_mode)
         db = _det(B)
-        print(db)
         return [db.real, db.imag]
+
+    def solve_dispersion_relation(self, x0, params, method):
+        root = _root(_partial(self.detB, params=params), x0=x0, method=method)
+        if not root.success:
+            print("Did not find root!")
+            return None
+        else:
+            real_freq = root["x"][0] / 2 / _PI
+            growth_rate = root["x"][1]
+            return real_freq, growth_rate
 
     def calc_synchrotron_frequency_quadratic_potential(self):
         """."""
