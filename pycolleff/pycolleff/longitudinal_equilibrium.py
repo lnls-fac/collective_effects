@@ -822,7 +822,7 @@ class LongitudinalEquilibrium:
         return _vg
 
     def calc_synchrotron_frequency(
-        self, total_voltage=None, method="action", max_amp=3, nrpts=201
+        self, total_voltage=None, method="action", max_amp=None, nrpts=201
     ):
         """Calculate synchrotron frequencies for given total voltage."""
         # _warnings.filterwarnings("error")
@@ -843,12 +843,15 @@ class LongitudinalEquilibrium:
         alpha = ring.mom_comp
         out = dict()
 
+        if max_amp is None:
+            max_amp = 3 * sigmaz0
+
         if method == "action":
             phiz_interp = _interp1d(zgrid, phiz, kind="cubic")
 
-            dz = max_amp * sigmaz0 / nrpts
+            dz = max_amp / nrpts
             # avoid zero amplitude
-            zamps = _np.arange(1, nrpts) * dz
+            zamps = _np.arange(5, nrpts) * dz
 
             actions, periods, hamiltonian = [], [], []
 
@@ -894,10 +897,10 @@ class LongitudinalEquilibrium:
 
             sigmae2 = ring.espread**2
             psi0 = _np.exp(-hamiltonian / (alpha * sigmae2))
-            psi0 /= _np.trapz(psi0, actions)
+            psi0 /= 2 * _PI * _np.trapz(psi0, actions)
 
-            fs_avg = _np.trapz(freqs * psi0, actions)
-            fs_std = _np.trapz(freqs * freqs * psi0, actions)
+            fs_avg = 2 * _PI * _np.trapz(freqs * psi0, actions)
+            fs_std = 2 * _PI * _np.trapz(freqs * freqs * psi0, actions)
             fs_std = _np.sqrt(fs_std - fs_avg**2)
 
             out["sync_freq"] = freqs
@@ -914,7 +917,7 @@ class LongitudinalEquilibrium:
                 alpha * ring.harm_num / (2 * _PI * ring.energy) / wrf_c
             )
 
-            fil = _np.abs(zgrid) < max_amp * sigmaz0
+            fil = _np.abs(zgrid) < max_amp
             zgrid = zgrid[fil]
 
             dv = -_np.gradient(total_voltage[0, fil], zgrid)
@@ -978,14 +981,14 @@ class LongitudinalEquilibrium:
         ring = self.ring
         U0 = ring.en_lost_rad
         E0 = ring.energy
-        L0 = ring.circum
+        C0 = ring.circum
         alpha = ring.mom_comp
-        vtotal = (total_voltage - U0) / (E0 * L0)
+        vtotal = (total_voltage - U0) / (E0 * C0)
         if "action" not in self.equilibrium_info:
             self.calc_synchrotron_frequency(
                 total_voltage=total_voltage,
                 method="action",
-                max_amp=3,
+                max_amp=None,
                 nrpts=201,
             )
         eqinfo = self.equilibrium_info
@@ -995,7 +998,7 @@ class LongitudinalEquilibrium:
         phi = []
 
         v_interp = _interp1d(zgrid, vtotal, kind="cubic")
-        ds = L0 / 2
+        ds = C0 / 2
 
         grid = len(eqinfo["sync_freq"])
 
@@ -1060,9 +1063,6 @@ class LongitudinalEquilibrium:
             acos /= _np.linalg.norm(vec0)
             acos /= _np.linalg.norm(vec1)
             acos = _np.clip(acos, -1, 1)
-            if acos > 1:
-                print(acos)
-                raise ValueError("Problem")
             angle += _np.arccos(acos)
             if angle > 2 * _PI:
                 break
@@ -1158,7 +1158,7 @@ class LongitudinalEquilibrium:
         return fs_avg, fs_std
 
     # -------------------- instabilities calculations -------------------------
-    def calc_robinson_growth_rate(
+    def calc_robinson_instability(
         self, w, approx=False, wr=None, Rs=None, Q=None
     ):
         """."""
@@ -1167,8 +1167,6 @@ class LongitudinalEquilibrium:
         E0 = self.ring.energy
         w0 = self.ring.rev_ang_freq
         ws = self.ring.sync_tune * w0
-        wp = w + ws
-        wn = w - ws
         const = I0 * alpha * w0 / (4 * _PI * ws * E0)
         if approx and None not in {wr, Rs, Q}:
             x = w / wr
@@ -1178,10 +1176,26 @@ class LongitudinalEquilibrium:
             growth *= (1 - x**2) * (1 + x**2)
             growth /= x**4 * (1 + Q**2 * (1 / x - x) ** 2) ** 2
         else:
+            wp = w + ws
+            wn = w - ws
             Zlp = self.get_impedance(w=wp, apply_filter=False)
             Zln = self.get_impedance(w=wn, apply_filter=False)
             growth = const * (wp * Zlp.real - wn * Zln.real)
-        return growth
+
+            shift = -const * (wp * Zlp.imag + wn * Zln.imag)
+            # Zl0 = self.get_impedance(w=w, apply_filter=False)
+            # shift = const * (2*w*Zl0.imag - wp*Zlp.imag - wn*Zln.imag)
+
+            # wp = w + ws
+            # wn = w - ws
+            w = _np.array(w)
+            wp = w + ws
+            Zlp = self.get_impedance(w=wp, apply_filter=False)
+            Zl0 = self.get_impedance(w=w, apply_filter=False)
+            growth = const * _np.sum(wp * Zlp.real)
+            # PWD + dynamic
+            shift = const * _np.sum(w * Zl0.imag * 0 - wp * Zlp.imag)
+        return growth, shift + ws
 
     def calc_tuneshifts_cbi(self, w, m=1, nbun_fill=None, radiation=False):
         """."""
