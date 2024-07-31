@@ -7,8 +7,7 @@ import numpy as _np
 from mathphys.constants import light_speed as _c
 from mathphys.functions import get_namedtuple as _get_namedtuple
 from scipy.fft import fft as _fft, irfft as _irfft, rfft as _rfft
-from scipy.integrate import quad as _quad
-from scipy.interpolate import interp1d as _interp1d
+from scipy.integrate import quad as _quad, simpson as _simps
 from scipy.optimize import least_squares as _least_squares, root as _root
 from scipy.special import gamma as _gammafunc
 from scipy.linalg import det as _det
@@ -313,6 +312,7 @@ class LongitudinalEquilibrium:
         self.fillpattern = fillpattern
         self._max_mode = 10 * self.ring.harm_num
         self.min_mode0_ratio = 1e-9
+        self.nr_cpus = None
 
         self.feedback_method = self.FeedbackMethod.Phasor
         self.feedback_on = False
@@ -847,50 +847,46 @@ class LongitudinalEquilibrium:
             max_amp = 4 * sigmaz0
 
         if method == "action":
-            phiz_interp = _interp1d(zgrid, phiz, kind="cubic")
+            # start = _np.log(max_amp/nrpts)
+            # stop = _np.log(max_amp)
+            # zamps = _np.logspace(start, stop, nrpts, base=_np.e)
 
-            dz = max_amp / nrpts
-            # avoid zero amplitude
-            zamps = _np.arange(5, nrpts) * dz
+            start = _np.log10(max_amp / nrpts)
+            stop = _np.log10(max_amp)
+            zamps = _np.logspace(start, stop, nrpts)
 
-            actions, periods, hamiltonian = [], [], []
+            actions, hamiltonian = [], []
 
-            num_processes = min(zamps.size, _os.cpu_count())
+            cpu_use = self._manage_cpu_count()
+            num_processes = min(zamps.size, cpu_use)
             with _Pool(num_processes) as pool:
                 results = pool.map(
                     _partial(
                         LongitudinalEquilibrium.solve_action_angle,
-                        params=(phiz_interp, alpha),
+                        params=(zgrid, phiz, alpha),
                     ),
                     zamps,
                 )
 
             # Collect results
-            for act, per, h0 in results:
+            for act, h0 in results:
                 actions.append(act)
-                periods.append(per)
                 hamiltonian.append(h0)
 
-            actions, periods, hamiltonian = (
+            actions, hamiltonian = (
                 _np.array(actions),
-                _np.array(periods),
                 _np.array(hamiltonian),
             )
 
-            freqs_deriv = _c * _np.gradient(hamiltonian, actions) / 2 / _PI
-            freqs = 1 / periods
+            freqs = _c * _np.gradient(hamiltonian, actions) / 2 / _PI
             nan_idx = ~(
-                _np.isnan(actions) | _np.isnan(freqs) | _np.isnan(freqs_deriv)
+                _np.isnan(actions) | _np.isnan(freqs) | _np.isnan(freqs)
             )
             diverge_idx1 = (_np.abs(freqs) < ring.rev_freq) & (freqs >= 0)
-            diverge_idx2 = (_np.abs(freqs_deriv) < ring.rev_freq) & (
-                freqs_deriv >= 0
-            )
-            filter_idx = nan_idx & diverge_idx1 & diverge_idx2
-            actions, freqs, freqs_deriv, hamiltonian, zamps = (
+            filter_idx = nan_idx & diverge_idx1
+            actions, freqs, hamiltonian, zamps = (
                 actions[filter_idx],
                 freqs[filter_idx],
-                freqs_deriv[filter_idx],
                 hamiltonian[filter_idx],
                 zamps[filter_idx],
             )
@@ -904,7 +900,6 @@ class LongitudinalEquilibrium:
             fs_std = _np.sqrt(fs_std - fs_avg**2)
 
             out["sync_freq"] = freqs
-            out["sync_freq_numeric_derivative"] = freqs_deriv
             out["avg_sync_freq"] = fs_avg
             out["std_sync_freq"] = fs_std
             out["action_distribution"] = psi0
@@ -947,20 +942,19 @@ class LongitudinalEquilibrium:
 
     @staticmethod
     def solve_action_angle(zamp, params):
-        phiz_interp, alpha = params
+        zgrid, phiz, alpha = params
 
         def energy_deviation(z):
-            return h0i - phiz_interp(z)
+            phi = _np.interp(z, zgrid, phiz)
+            return h0i - phi
 
         def intg(z):
-            return _np.sqrt((2 / alpha) * _np.abs(h0i - phiz_interp(z)))
-
-        def iintg(z):
-            return 1 / intg(z)
+            phi = _np.interp(z, zgrid, phiz)
+            return _np.sqrt((2 / alpha) * _np.abs(h0i - phi))
 
         zri = +zamp
         zli = -zamp
-        h0i = phiz_interp(zri)
+        h0i = _np.interp(zri, zgrid, phiz)
 
         turn_pts = _root(energy_deviation, x0=zli, method="lm")
         if turn_pts.success:
@@ -969,13 +963,21 @@ class LongitudinalEquilibrium:
             raise Exception("Problem in finding turning points.")
         zli, zri = (zli, zri) if zli <= zri else (zri, zli)
 
-        action, _ = _quad(intg, zli, zri)
+        action, _ = _quad(intg, zli, zri, points=[zli, zri])
         action /= _PI
-        period, _ = _quad(iintg, zli, zri)
-        period *= 2 / alpha / _c
-        return action, period, h0i
+        return action, h0i
 
-    def calc_canonical_transformation(self, total_voltage=None, parallel=True):
+    def _manage_cpu_count(self):
+        cpu_count = _os.cpu_count()
+        if self.nr_cpus is not None:
+            cpu_use = min(cpu_count, self.nr_cpus)
+        else:
+            cpu_use = cpu_count
+        return cpu_use
+
+    def calc_canonical_transformation(
+        self, total_voltage=None, step_size=None, parallel=True
+    ):
         if total_voltage is None:
             total_voltage = self.total_voltage
         ring = self.ring
@@ -995,54 +997,52 @@ class LongitudinalEquilibrium:
         zgrid = eqinfo["zgrid"].copy()
         zj = []
         pj = []
-        phi = []
 
-        v_interp = _interp1d(zgrid, vtotal, kind="cubic")
-        ds = C0 / 4
+        if step_size is None:
+            step_size = C0 / 10
 
         grid = len(eqinfo["sync_freq"])
 
         if parallel:
             # Parallel processing setup
-            num_processes = min(grid, _os.cpu_count())
+
+            cpu_use = self._manage_cpu_count()
+            num_processes = min(grid, cpu_use)
             with _Pool(num_processes) as pool:
                 results = pool.map(
                     _partial(
                         LongitudinalEquilibrium.solve_motion,
-                        params=(ds, alpha, eqinfo, v_interp),
+                        params=(step_size, alpha, eqinfo, zgrid, vtotal),
                     ),
                     range(grid),
                 )
 
             # Collect results
-            for znew, pnew, phinew in results:
+            for znew, pnew in results:
                 zj.append(znew)
                 pj.append(pnew)
-                phi.append(phinew)
         else:
             for idx in range(grid):
                 results = LongitudinalEquilibrium.solve_motion(
-                    idx, params=(ds, alpha, eqinfo, v_interp)
+                    idx, params=(step_size, alpha, eqinfo, zgrid, vtotal)
                 )
-                znew, pnew, phinew = results
+                znew, pnew = results
                 zj.append(znew)
                 pj.append(pnew)
-                phi.append(phinew)
-        return zj, phi, pj
+        return zj, pj
 
     @staticmethod
     def solve_motion(idx, params):
-        ds, alpha, sync_data, v_interp = params
+        ds, alpha, sync_data, zgrid, vtotal = params
         z0 = sync_data["amplitude"][idx]
 
         znew, pnew = LongitudinalEquilibrium._verlet_integrator(
-            z0=z0, p0=0, ds=ds, alpha=alpha, v_interp=v_interp
+            z0=z0, p0=0, ds=ds, alpha=alpha, zgrid=zgrid, vtotal=vtotal
         )
-        phinew = _np.linspace(0, 2 * _PI, len(znew))
-        return znew, pnew, phinew
+        return znew, pnew
 
     @staticmethod
-    def _verlet_integrator(z0, p0, ds, alpha, v_interp):
+    def _verlet_integrator(z0, p0, ds, alpha, zgrid, vtotal):
         """Second-order symplectic integrator using the Verlet method."""
         z, p = z0, p0
         positions = [z0]
@@ -1050,12 +1050,12 @@ class LongitudinalEquilibrium:
         angle = 0
 
         while True:
-            dp_half = v_interp(z) * ds
-            p += 0.5 * dp_half
+            dp_half = _np.interp(z, zgrid, vtotal) * ds / 2
+            p += dp_half
             dz = alpha * p * ds
             z += dz
-            dp_half = v_interp(z) * ds
-            p += 0.5 * dp_half
+            dp_half = _np.interp(z, zgrid, vtotal) * ds / 2
+            p += dp_half
 
             vec0 = _np.array([positions[-1], momentums[-1]])
             vec1 = _np.array([z, p])
@@ -1102,9 +1102,7 @@ class LongitudinalEquilibrium:
 
         alpha = ring.mom_comp
         sigmae = ring.espread
-        dpsi_dJ = - ws_J * psi_J / (alpha * sigmae**2 * _c)
-
-        cOmega = Omega[0] + 1j * Omega[1]
+        dpsi_dJ = -ws_J * psi_J / (alpha * sigmae**2 * _c)
 
         I0 = ring.total_current
         E0 = ring.energy
@@ -1112,15 +1110,15 @@ class LongitudinalEquilibrium:
         stren = 2j * _PI * I0 * _c**2 / (E0 * C0)
 
         B_m_pp = []
+        cOmega = Omega[0] + 1j * Omega[1]
 
         for im, m in enumerate(ms):
-            for ip, p in enumerate(ps):
+            for ip, _ in enumerate(ps):
                 h_mp = hmps[im, ip]
                 for ipp, pp in enumerate(ps):
-                    h_mpp = _np.conjugate(hmps[im, ipp])
-                    intg = h_mp * h_mpp * dpsi_dJ
-                    intg /= cOmega - m * ws_J
-                    gmpp = _np.trapz(intg, J)
+                    h_mpp = hmps[im, ipp].conj()
+                    intg = h_mp * h_mpp * dpsi_dJ / (cOmega - m * ws_J)
+                    gmpp = _simps(intg, J)
                     omegapp = (pp * h + cb_mode) * w0
                     zpp = self.get_impedance(w=omegapp + cOmega) / omegapp
                     B_m_pp.append(stren * m * zpp * gmpp)
@@ -1146,11 +1144,13 @@ class LongitudinalEquilibrium:
         db = _det(B)
         return [db.real, db.imag]
 
-    def solve_dispersion_relation(self, x0, params, method):
-        root = _root(_partial(self.detB, params=params), x0=x0, method=method)
+    def solve_dispersion_relation(self, x0, params, method, tol=None):
+        root = _root(
+            _partial(self.detB, params=params), x0=x0, method=method, tol=tol
+        )
         if not root.success:
             print("Did not find root!")
-            return None
+            raise Exception("Problem in finding root of determinant.")
         else:
             real_freq = root["x"][0] / 2 / _PI
             growth_rate = root["x"][1]
