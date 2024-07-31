@@ -1107,33 +1107,29 @@ class LongitudinalEquilibrium:
         I0 = ring.total_current
         E0 = ring.energy
         C0 = ring.circum
-        stren = 2j * _PI * I0 * _c**2 / (E0 * C0)
-
-        B_m_pp = []
         cOmega = Omega[0] + 1j * Omega[1]
 
+        nr_ms, nr_ps = ms.size, ps.size
+        B_m_pp = _np.zeros((nr_ms, nr_ps, nr_ps), dtype=complex)
+
+        dpsi_dJ_div = dpsi_dJ / (cOmega - ms[:, None] * ws_J)
+        omegapp = (ps * h + cb_mode) * w0
+        zpp = self.get_impedance(w=omegapp + cOmega) / omegapp
+
         for im, m in enumerate(ms):
-            for ip, _ in enumerate(ps):
+            dpsi = m * dpsi_dJ_div[im]
+            for ip in range(nr_ps):
                 h_mp = hmps[im, ip]
-                for ipp, pp in enumerate(ps):
+                for ipp in range(nr_ps):
                     h_mpp = hmps[im, ipp].conj()
-                    intg = h_mp * h_mpp * dpsi_dJ / (cOmega - m * ws_J)
+                    intg = h_mp * h_mpp * dpsi
                     gmpp = _simps(intg, J)
-                    omegapp = (pp * h + cb_mode) * w0
-                    zpp = self.get_impedance(w=omegapp + cOmega) / omegapp
-                    B_m_pp.append(stren * m * zpp * gmpp)
+                    B_m_pp[im, ip, ipp] = zpp[ipp] * gmpp
 
-        B_m_pp = _np.array(B_m_pp).reshape((ms.size, ps.size, ps.size))
-
-        B_mm_pp = _np.zeros(
-            (ms.size, ps.size, ms.size, ps.size), dtype=complex
-        )
-        for im in range(ms.size):
-            for ip in range(ps.size):
-                for ipp in range(ps.size):
-                    B_mm_pp[im, ip, :, ipp] = B_m_pp[im, ip, ipp]
-
-        size = ms.size * ps.size
+        B_mm_pp = _np.zeros((nr_ms, nr_ps, nr_ms, nr_ps), dtype=complex)
+        stren = 2j * _PI * I0 * _c**2 / (E0 * C0)
+        B_mm_pp[:, :, :, :] = stren * B_m_pp[:, :, _np.newaxis, :]
+        size = nr_ms * nr_ps
         B_mm_pp = B_mm_pp.reshape(size, size)
         B_mm_pp += _np.eye(size)
         return B_mm_pp
@@ -1313,9 +1309,10 @@ class LongitudinalEquilibrium:
 
         m = m or niter
         where = 0
-        G_k = _np.zeros((xnew.size, m), dtype=float)
-        X_k = _np.zeros((xnew.size, m), dtype=float)
-        mat = _np.zeros((xnew.size, m), dtype=float)
+        nr_xnew = xnew.size
+        G_k = _np.zeros((nr_xnew, m), dtype=float)
+        X_k = _np.zeros((nr_xnew, m), dtype=float)
+        mat = _np.zeros((nr_xnew, m), dtype=float)
 
         gold = xnew - xold
         gnew = self._ffunc(xnew) - xnew
