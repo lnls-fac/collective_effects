@@ -893,10 +893,10 @@ class LongitudinalEquilibrium:
 
             sigmae2 = ring.espread**2
             psi0 = _np.exp(-hamiltonian / (alpha * sigmae2))
-            psi0 /= 2 * _PI * _np.trapz(psi0, actions)
+            psi0 /= 2 * _PI * _simps(psi0, actions)
 
-            fs_avg = 2 * _PI * _np.trapz(freqs * psi0, actions)
-            fs_std = 2 * _PI * _np.trapz(freqs * freqs * psi0, actions)
+            fs_avg = 2 * _PI * _simps(freqs * psi0, actions)
+            fs_std = 2 * _PI * _simps(freqs * freqs * psi0, actions)
             fs_std = _np.sqrt(fs_std - fs_avg**2)
 
             out["sync_freq"] = freqs
@@ -923,12 +923,10 @@ class LongitudinalEquilibrium:
                 dv[remove_neg],
             )
 
-            lambda0 /= _np.trapz(lambda0, zgrid)
+            lambda0 /= _simps(lambda0, zgrid)
             freqs = factor * _np.sqrt(dv) * ring.rev_freq
-            fs_avg = _np.trapz(freqs * lambda0, zgrid)
-            fs_std = _np.sqrt(
-                _np.trapz((freqs - fs_avg) ** 2 * lambda0, zgrid)
-            )
+            fs_avg = _simps(freqs * lambda0, zgrid)
+            fs_std = _np.sqrt(_simps((freqs - fs_avg) ** 2 * lambda0, zgrid))
             out["sync_freq"] = freqs
             out["avg_sync_freq"] = fs_avg
             out["std_sync_freq"] = fs_std
@@ -1073,21 +1071,24 @@ class LongitudinalEquilibrium:
     @staticmethod
     def func_hmp(z, m, omegap):
         z = _np.array(z)
-        phi = _np.linspace(0, 2 * _PI, z.size)
+        zsiz = z.size
+
+        phi = _np.linspace(0, 2 * _PI, zsiz)
+        dphi = 2 * _PI / zsiz
         kp = omegap / _c
-        expo = 1j * (m * phi + kp * z)
-        integral = _np.trapz(_np.exp(expo), phi)
+
+        mphi = m[:, None] * phi
+        kpz = kp[:, None] * z
+        phase = 1j * (mphi[:, None, :] + kpz[None, :, :])
+        integral = _mytrapz(_ne.evaluate("exp(phase)"), dphi)
         return integral / (2 * _PI)
 
     @staticmethod
     def calc_hmps(z_ij, cb_mode, ms, ps, w0, h):
-        hmps = []
-        for m in ms:
-            for p in ps:
-                omegap = (p * h + cb_mode) * w0
-                for z in z_ij:
-                    hmps.append(LongitudinalEquilibrium.func_hmp(z, m, omegap))
-        hmps = _np.array(hmps).reshape((ms.size, ps.size, -1))
+        omegaps = (ps * h + cb_mode) * w0
+        hmps = _np.zeros((ms.size, ps.size, len(z_ij)), dtype=complex)
+        for iz, z in enumerate(z_ij):
+            hmps[:, :, iz] = LongitudinalEquilibrium.func_hmp(z, ms, omegaps)
         return hmps
 
     def matrix_elements(self, Omega, hmps, ms, ps, cb_mode):
@@ -1109,10 +1110,9 @@ class LongitudinalEquilibrium:
         C0 = ring.circum
         cOmega = Omega[0] + 1j * Omega[1]
 
-        nr_ms, nr_ps = ms.size, ps.size
-        B_m_pp = _np.zeros((nr_ms, nr_ps, nr_ps), dtype=complex)
-
-        dpsi_dJ_div = dpsi_dJ / (cOmega - ms[:, None] * ws_J)
+        nr_ps = ps.size
+        B_pp = _np.zeros((nr_ps, nr_ps), dtype=complex)
+        mdpsi_dJ_div = ms[:, None] * dpsi_dJ / (cOmega - ms[:, None] * ws_J)
         omegapp = (ps * h + cb_mode) * w0
 
         # only resonators accept complex frequencies
@@ -1121,23 +1121,18 @@ class LongitudinalEquilibrium:
         # # more general impedances
         # zpp = self.get_impedance(w=omegapp + cOmega.real) / omegapp
 
-        for im, m in enumerate(ms):
-            dpsi = m * dpsi_dJ_div[im]
-            for ip in range(nr_ps):
-                h_mp = hmps[im, ip]
-                for ipp in range(nr_ps):
-                    h_mpp = hmps[im, ipp].conj()
-                    intg = h_mp * h_mpp * dpsi
-                    gmpp = _simps(intg, J)
-                    B_m_pp[im, ip, ipp] = zpp[ipp] * gmpp
+        for ip in range(nr_ps):
+            h_mp = hmps[:, ip]
+            for ipp in range(nr_ps):
+                h_mpp = hmps[:, ipp].conj()
+                intg = h_mp * h_mpp * mdpsi_dJ_div
+                g_pp = _simps(intg, J, axis=-1).sum()
+                B_pp[ip, ipp] = zpp[ipp] * g_pp
 
-        B_mm_pp = _np.zeros((nr_ms, nr_ps, nr_ms, nr_ps), dtype=complex)
         stren = 2j * _PI * I0 * _c * _c / (E0 * C0)
-        B_mm_pp[:, :, :, :] = stren * B_m_pp[:, :, _np.newaxis, :]
-        size = nr_ms * nr_ps
-        B_mm_pp = B_mm_pp.reshape(size, size)
-        B_mm_pp += _np.eye(size)
-        return B_mm_pp
+        B_pp *= stren
+        B_pp += _np.eye(nr_ps)
+        return B_pp
 
     def detB(self, Omega, params):
         hmps, ms, ps, cb_mode = params
