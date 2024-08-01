@@ -7,7 +7,7 @@ import numpy as _np
 from mathphys.constants import light_speed as _c
 from mathphys.functions import get_namedtuple as _get_namedtuple
 from scipy.fft import fft as _fft, irfft as _irfft, rfft as _rfft
-from scipy.integrate import quad as _quad, simpson as _simps
+from scipy.integrate import quad as _quad, simps as _simps
 from scipy.optimize import least_squares as _least_squares, root as _root
 from scipy.special import gamma as _gammafunc
 from scipy.linalg import det as _det
@@ -1114,7 +1114,12 @@ class LongitudinalEquilibrium:
 
         dpsi_dJ_div = dpsi_dJ / (cOmega - ms[:, None] * ws_J)
         omegapp = (ps * h + cb_mode) * w0
+
+        # only resonators accept complex frequencies
         zpp = self.get_impedance(w=omegapp + cOmega) / omegapp
+
+        # # more general impedances
+        # zpp = self.get_impedance(w=omegapp + cOmega.real) / omegapp
 
         for im, m in enumerate(ms):
             dpsi = m * dpsi_dJ_div[im]
@@ -1127,7 +1132,7 @@ class LongitudinalEquilibrium:
                     B_m_pp[im, ip, ipp] = zpp[ipp] * gmpp
 
         B_mm_pp = _np.zeros((nr_ms, nr_ps, nr_ms, nr_ps), dtype=complex)
-        stren = 2j * _PI * I0 * _c**2 / (E0 * C0)
+        stren = 2j * _PI * I0 * _c * _c / (E0 * C0)
         B_mm_pp[:, :, :, :] = stren * B_m_pp[:, :, _np.newaxis, :]
         size = nr_ms * nr_ps
         B_mm_pp = B_mm_pp.reshape(size, size)
