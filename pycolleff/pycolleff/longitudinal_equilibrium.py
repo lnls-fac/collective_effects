@@ -516,19 +516,22 @@ class LongitudinalEquilibrium:
         peak_harm_volt = Rs * ib * _np.cos(detune)
         return _np.abs(peak_harm_volt)
 
-    def calc_distributions_from_voltage(self, voltage):
+    def calc_distributions_from_voltage(self, total_voltage=None):
         """."""
+        if total_voltage is None:
+            total_voltage = self.total_voltage
+
         flag = False
-        if len(voltage.shape) < 2:
+        if len(total_voltage.shape) < 2:
             flag = True
-            # voltage must be (h, zgrid) or (1, zgrid)
-            voltage = voltage[None, :]
+            # total_voltage must be (h, zgrid) or (1, zgrid)
+            total_voltage = total_voltage[None, :]
 
         dz = self.zgrid[1] - self.zgrid[0]
 
         # subtract U0
         U0 = self.ring.en_lost_rad
-        pot = -_mytrapz(voltage - U0, dz, cumul=True)
+        pot = -_mytrapz(total_voltage - U0, dz, cumul=True)
 
         # subtract minimum value for all bunches
         pot -= _np.min(pot, axis=1)[:, None]
