@@ -1105,52 +1105,83 @@ class LongitudinalEquilibrium:
             hmps[:, :, iz] = LongitudinalEquilibrium.func_hmp(z, ms, omegaps)
         return hmps
 
-    def matrix_elements(self, Omega, hmps, ms, ps, cb_mode):
+    def matrix_elements(self, Omega, hmps, ms, ps, cb_mode, adsyncfreq=True, effsyncfreq="center"):
         eqinfo = self.equilibrium_info
         ring = self.ring
         w0 = ring.rev_ang_freq
         h = ring.harm_num
+        I0 = ring.total_current
+        E0 = ring.energy
+        C0 = ring.circum
+        alpha = ring.mom_comp
+        sigmae = ring.espread
 
         psi_J = eqinfo["action_distribution"]
         ws_J = 2 * _PI * eqinfo["sync_freq"]
         J = eqinfo["action"]
 
-        alpha = ring.mom_comp
-        sigmae = ring.espread
-        dpsi_dJ = -ws_J * psi_J / (alpha * sigmae**2 * _c)
-
-        I0 = ring.total_current
-        E0 = ring.energy
-        C0 = ring.circum
-        cOmega = Omega[0] + 1j * Omega[1]
-
         nr_ps = ps.size
-        B_pp = _np.zeros((nr_ps, nr_ps), dtype=complex)
-        mdpsi_dJ_div = ms[:, None] * dpsi_dJ / (cOmega - ms[:, None] * ws_J)
-        omegapp = (ps * h + cb_mode) * w0
+        if adsyncfreq:
+            dpsi_dJ = - ws_J * psi_J / (alpha * sigmae**2 * _c)
 
-        # only resonators accept complex frequencies
-        zpp = self.get_impedance(w=omegapp + cOmega) / omegapp
+            cOmega = Omega[0] + 1j * Omega[1]
+            
+            B_pp = _np.zeros((nr_ps, nr_ps), dtype=complex)
+            mdpsi_dJ_div = ms[:, None] * dpsi_dJ
+            mdpsi_dJ_div /= (cOmega - ms[:, None] * ws_J)
+            omegapp = (ps * h + cb_mode) * w0
 
-        # # more general impedances
-        # zpp = self.get_impedance(w=omegapp + cOmega.real) / omegapp
+            # only resonators accept complex frequencies
+            zpp = self.get_impedance(w=omegapp + cOmega) / omegapp
 
-        for ip in range(nr_ps):
-            h_mp = hmps[:, ip]
-            for ipp in range(nr_ps):
-                h_mpp = hmps[:, ipp].conj()
-                intg = h_mp * h_mpp * mdpsi_dJ_div
-                g_pp = _simps(intg, J, axis=-1).sum()
-                B_pp[ip, ipp] = zpp[ipp] * g_pp
+            # # more general impedances
+            # zpp = self.get_impedance(w=omegapp + cOmega.real) / omegapp
 
-        stren = 2j * _PI * I0 * _c * _c / (E0 * C0)
-        B_pp *= stren
-        B_pp += _np.eye(nr_ps)
-        return B_pp
+            for ip in range(nr_ps):
+                h_mp = hmps[:, ip]
+                for ipp in range(nr_ps):
+                    h_mpp = hmps[:, ipp].conj()
+                    gmpp = _simps(h_mp * h_mpp * mdpsi_dJ_div, J, axis=-1)
+                    B_pp[ip, ipp] = zpp[ipp] * gmpp.sum()
+
+            stren = 2j * _PI * I0 * _c * _c / (E0 * C0)
+            B_pp *= stren
+            B_pp += _np.eye(nr_ps)
+            return B_pp
+        else:
+            nr_ms = ms.size
+
+            if effsyncfreq == "center":
+                ws_J = ws_J[0]
+            elif effsyncfreq == "avg":
+                ws_J = 2 * _PI * eqinfo["avg_sync_freq"]
+            elif effsyncfreq == "min":
+                ws_J = ws_J.min()
+
+            B_m_pp = _np.zeros((nr_ms, nr_ps, nr_ps), dtype=complex)
+            for im, m in enumerate(ms):
+                mws = m * ws_J
+                for ip in range(nr_ps):
+                    h_mp = hmps[im, ip]
+                    for ipp, pp in enumerate(ps):
+                        h_mpp = hmps[im, ipp].conj()
+                        gmpp = _simps(h_mp * h_mpp * psi_J, J)
+                        omegapp = (pp * h + cb_mode) * w0
+                        zpp = self.get_impedance(w=omegapp + mws) / omegapp
+                        B_m_pp[im, ip, ipp] = mws * zpp * gmpp
+
+            B_mm_pp = _np.zeros((nr_ms, nr_ps, nr_ms, nr_ps), dtype=complex)
+
+            stren = 2j * _PI * I0 * _c / (E0 * C0) / (alpha * sigmae**2)
+            B_mm_pp[:, :, :, :] = stren * B_m_pp[:, :, None, :]
+            size = nr_ms * nr_ps
+            B_mm_pp = B_mm_pp.reshape(size, size)
+            D = _np.kron(_np.diag(ms * ws_J), _np.eye(nr_ps))
+            return D + B_mm_pp
 
     def detB(self, Omega, params):
         hmps, ms, ps, cb_mode = params
-        B = self.matrix_elements(Omega, hmps, ms, ps, cb_mode)
+        B = self.matrix_elements(Omega, hmps, ms, ps, cb_mode, adsyncfreq=True)
         db = _det(B)
         return [db.real, db.imag]
 
@@ -1165,6 +1196,20 @@ class LongitudinalEquilibrium:
             real_freq = root["x"][0] / 2 / _PI
             growth_rate = root["x"][1]
             return real_freq, growth_rate
+
+    def solve_eigenmodes(self, params):
+        hmps, ms, ps, cb_mode, effsyncfreq = params
+        Omega = None
+        B = self.matrix_elements(
+            Omega,
+            hmps,
+            ms,
+            ps,
+            cb_mode,
+            adsyncfreq=False,
+            effsyncfreq=effsyncfreq)
+        eigvals, eigvecs = _np.linalg.eig(B)
+        return eigvals, eigvecs
 
     def calc_synchrotron_frequency_quadratic_potential(self):
         """."""
