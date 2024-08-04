@@ -14,6 +14,7 @@ from scipy.linalg import det as _det
 from multiprocessing import Pool as _Pool
 import os as _os
 from functools import partial as _partial
+from scipy.interpolate import splrep as _splrep, splev as _splev
 
 from . import impedances as _imp
 from .colleff import Ring as _Ring
@@ -881,7 +882,17 @@ class LongitudinalEquilibrium:
                 _np.array(hamiltonian),
             )
 
-            freqs = _c * _np.gradient(hamiltonian, actions) / 2 / _PI
+            initial = int(actions.size * 3/4)
+            H0_J = _splrep(actions[:initial], hamiltonian[:initial], k=5, s=5)
+            hamiltonian[:initial] = _splev(actions[:initial], H0_J)
+            freqs_initial = _splev(actions[:initial], H0_J, der=1)
+
+            H0_J = _splrep(actions[initial:], hamiltonian[initial:], k=5, s=0)
+            hamiltonian[initial:] = _splev(actions[initial:], H0_J)
+            freqs_final = _splev(actions[initial:], H0_J, der=1)
+            freqs = _np.r_[freqs_initial, freqs_final]
+            freqs *= _c / 2 / _PI
+
             nan_idx = ~(
                 _np.isnan(actions) | _np.isnan(freqs) | _np.isnan(freqs)
             )
