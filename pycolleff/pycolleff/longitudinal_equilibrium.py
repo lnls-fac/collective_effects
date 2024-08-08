@@ -852,7 +852,7 @@ class LongitudinalEquilibrium:
         out = dict()
 
         if max_amp is None:
-            max_amp = 4 * sigmaz0
+            max_amp = 3 * sigmaz0
 
         if method == "action":
             # start = _np.log(max_amp/nrpts)
@@ -890,15 +890,17 @@ class LongitudinalEquilibrium:
                 _np.array(hamiltonian),
             )
 
-            initial = int(actions.size * 3 / 4)
-            H0_J = _splrep(actions[:initial], hamiltonian[:initial], k=5, s=5)
-            hamiltonian[:initial] = _splev(actions[:initial], H0_J)
-            freqs_initial = _splev(actions[:initial], H0_J, der=1)
+            # initial = int(actions.size * 3 / 4)
+            # H0_J = _splrep(actions[:initial], hamiltonian[:initial], k=5, s=5)
+            # hamiltonian[:initial] = _splev(actions[:initial], H0_J)
+            # freqs_initial = _splev(actions[:initial], H0_J, der=1)
 
-            H0_J = _splrep(actions[initial:], hamiltonian[initial:], k=5, s=0)
-            hamiltonian[initial:] = _splev(actions[initial:], H0_J)
-            freqs_final = _splev(actions[initial:], H0_J, der=1)
-            freqs = _np.r_[freqs_initial, freqs_final]
+            # H0_J = _splrep(actions[initial:], hamiltonian[initial:], k=5, s=0)
+            # hamiltonian[initial:] = _splev(actions[initial:], H0_J)
+            # freqs_final = _splev(actions[initial:], H0_J, der=1)
+            # freqs = _np.r_[freqs_initial, freqs_final]
+
+            freqs = _np.gradient(hamiltonian, actions)
             freqs *= _c / 2 / _PI
 
             nan_idx = ~(
@@ -991,7 +993,7 @@ class LongitudinalEquilibrium:
         self, total_voltage=None, step_size=None, parallel=True
     ):
         if total_voltage is None:
-            total_voltage = self.total_voltage
+            total_voltage = self.total_voltage[0]
         ring = self.ring
         U0 = ring.en_lost_rad
         E0 = ring.energy
@@ -1311,7 +1313,7 @@ class LongitudinalEquilibrium:
             D_mm_pp = _np.kron(_np.diag(ms * ws0), _np.eye(nr_ps))
             return D_mm_pp + B_mm_pp
 
-    def oide_yokoya_matrix(self, hmps, ms, ps, cb_mode):
+    def oide_yokoya_matrix(self, hmps, ms, ps, cb_mode, action_limits=None):
         eqinfo = self.equilibrium_info
         ring = self.ring
         w0 = ring.rev_ang_freq
@@ -1322,13 +1324,18 @@ class LongitudinalEquilibrium:
         alpha = ring.mom_comp
         sigmae = ring.espread
 
+        J = eqinfo["action"]
         psi_J = eqinfo["action_distribution"]
         ws_J = 2 * _PI * eqinfo["sync_freq"]
-        J = eqinfo["action"]
+        if action_limits is not None:
+            idx_ini = _np.searchsorted(J, action_limits[0])
+            idx_end = _np.searchsorted(J, action_limits[1]) + 1
+            J = J[idx_ini:idx_end]
+            psi_J = psi_J[idx_ini:idx_end]
+            ws_J = ws_J[idx_ini:idx_end]
+            hmps = hmps[:, :, idx_ini:idx_end]
 
         nr_ms = ms.size
-        omegapp = (ps * h + cb_mode) * w0
-        zpp = self.get_impedance(w=omegapp) / omegapp
 
         avg_J = (J[:-1] + J[1:]) / 2
         dJ = J[1:] - J[:-1]
@@ -1346,8 +1353,10 @@ class LongitudinalEquilibrium:
             h_mn = h_mid[im]
             for imm in range(nr_ms):
                 h_mmnn = h_mid[imm]
+                omegapp = (ps * h + cb_mode) * w0
+                zpp = self.get_impedance(w=omegapp[:, None] + mw_Jn[None, :]) / omegapp[:, None]
                 g_mm_nn = psi_J_mid[:, None] * (
-                    h_mmnn * h_mn.conj() * zpp[:, None]
+                    h_mmnn * h_mn.conj() * zpp
                 ).sum(axis=0)
                 B_mm_nn[im, :, imm, :] = mw_Jn[:, None] * g_mm_nn * dif
 
@@ -1397,8 +1406,8 @@ class LongitudinalEquilibrium:
         eigvals, eigvecs = _np.linalg.eig(bmat)
         return eigvals, eigvecs
 
-    def solve_oide_yokoya(self, hmps, ms, ps, cb_mode):
-        oymat = self.oide_yokoya_matrix(hmps, ms, ps, cb_mode)
+    def solve_oide_yokoya(self, hmps, ms, ps, cb_mode, action_limits):
+        oymat = self.oide_yokoya_matrix(hmps, ms, ps, cb_mode, action_limits)
         eigvals, eigvecs = _np.linalg.eig(oymat)
         return eigvals, eigvecs
 
