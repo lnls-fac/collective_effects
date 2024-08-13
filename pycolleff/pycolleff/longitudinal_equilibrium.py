@@ -20,6 +20,9 @@ from scipy.interpolate import (
     interp1d as _interp1d,
 )
 
+from scipy.optimize import fsolve as _fsolve
+# import pywt as _pywt
+
 from . import impedances as _imp
 from .colleff import Ring as _Ring
 
@@ -830,7 +833,12 @@ class LongitudinalEquilibrium:
         return _vg
 
     def calc_synchrotron_frequency(
-        self, total_voltage=None, method="action", max_amp=None, nrpts=201
+        self,
+        total_voltage=None,
+        method="action",
+        min_amp=None,
+        max_amp=None,
+        nrpts=201,
     ):
         """Calculate synchrotron frequencies for given total voltage."""
         # _warnings.filterwarnings("error")
@@ -854,12 +862,15 @@ class LongitudinalEquilibrium:
         if max_amp is None:
             max_amp = 3 * sigmaz0
 
+        if min_amp is None:
+            min_amp = sigmaz0 / 10
+
         if method == "action":
             # start = _np.log(max_amp/nrpts)
             # stop = _np.log(max_amp)
             # zamps = _np.logspace(start, stop, nrpts, base=_np.e)
 
-            start = _np.log10(max_amp / nrpts)
+            start = _np.log10(min_amp)
             stop = _np.log10(max_amp)
             zamps = _np.logspace(start, stop, nrpts)
 
@@ -900,8 +911,19 @@ class LongitudinalEquilibrium:
             # freqs_final = _splev(actions[initial:], H0_J, der=1)
             # freqs = _np.r_[freqs_initial, freqs_final]
 
-            freqs = _np.gradient(hamiltonian, actions)
+            H0_J = _splrep(actions, hamiltonian, k=5, s=0)
+            freqs = _splev(actions, H0_J, der=1)
+
+            # freqs = _np.gradient(hamiltonian, actions)
             freqs *= _c / 2 / _PI
+
+            # type_wave = 'sym5'
+            # coefs = _pywt.wavedec(freqs, type_wave, mode='constant', axis=0)
+
+            # num_modes = 2
+            # for i in range(num_modes, len(coefs)):
+            #     coefs[i] *= 0
+            # freqs = _pywt.waverec(coefs, type_wave, mode='constant', axis=0)
 
             nan_idx = ~(
                 _np.isnan(actions) | _np.isnan(freqs) | _np.isnan(freqs)
@@ -1013,7 +1035,7 @@ class LongitudinalEquilibrium:
         pj = []
 
         if step_size is None:
-            step_size = C0 / 10
+            step_size = C0 / 2
 
         grid = len(eqinfo["sync_freq"])
 
@@ -1249,30 +1271,58 @@ class LongitudinalEquilibrium:
 
         nr_ps = ps.size
         if adsyncfreq:
-            dpsi_dJ = -ws_J * psi_J / (alpha * sigmae**2 * _c)
+            dpsi_dJ = - ws_J * psi_J / (alpha * sigmae**2 * _c)
 
             c_omega = big_omega[0] + 1j * big_omega[1]
 
-            B_pp = _np.zeros((nr_ps, nr_ps), dtype=complex)
-            mdpsi_dJ_div = (
-                ms[:, None] * dpsi_dJ / (c_omega - ms[:, None] * ws_J)
-            )
+            B_pp = _np.zeros((nr_ps, nr_ps), dtype=_np.complex128)
+            # mdpsi_dJ_div = (
+            #     ms[:, None] * dpsi_dJ / (c_omega - ms[:, None] * ws_J)
+            # )
+
+            m2wJ2 = (ms[:, None] * ws_J)**2
+            m2wJ = (ms[:, None]**2 * ws_J)
+            mdpsi_dJ_div = 2 * m2wJ * dpsi_dJ / (c_omega**2 - m2wJ2)
             omegapp = (ps * h + cb_mode) * w0
 
+            idx_close = _np.zeros_like(ws_J)
+            # if ws_J.min() < c_omega.real < ws_J.max():
+            #     # print('here')
+            #     # print(c_omega.imag)
+            #     if _np.abs(c_omega.imag) < 1e-5:
+            #         idx_close = _np.isclose(c_omega.real, ws_J, rtol=1e-5)
+            #         print(_np.sum(idx_close))
+
             # only resonators accept complex frequencies
-            # zpp = self.get_impedance(w=omegapp + c_omega) / omegapp
+            # omegapp = omegapp + c_omega
+            # zpp = self.get_impedance(w=omegapp) / omegapp
+
+            zpp = self.get_impedance(w=omegapp + c_omega) / omegapp
 
             # # more general impedances
-            zpp = self.get_impedance(w=omegapp + c_omega.real) / omegapp
+            # zpp = self.get_impedance(w=omegapp + c_omega.real) / omegapp
+
+            dpsi_dJ_ws = dpsi_dJ / ws_J
 
             for ip in range(nr_ps):
                 h_mp = hmps[:, ip]
                 for ipp in range(nr_ps):
                     h_mpp = hmps[:, ipp].conj()
-                    gmpp = _simps(h_mp * h_mpp * mdpsi_dJ_div, J, axis=-1)
-                    B_pp[ip, ipp] = zpp[ipp] * gmpp.sum()
+                    if _np.sum(idx_close):
+                        rgpp = (h_mp * h_mpp * dpsi_dJ_ws[None, :])[:, idx_close]
+                        rgpp = rgpp.sum(axis=-1)
+                        gpp = 2 * _np.sign(c_omega.imag) * _PI * rgpp
+                        if _np.sum(~idx_close):
+                            itg = h_mp * h_mpp * mdpsi_dJ_div
+                            igpp = _simps(itg[:, ~idx_close], J[~idx_close], axis=-1)
+                            gpp += 1j * igpp
+                        gpp = gpp.sum()
+                    else:
+                        gmpp = _simps(h_mp * h_mpp * mdpsi_dJ_div, J, axis=-1)
+                        gpp = 1j * gmpp.sum()
+                    B_pp[ip, ipp] = zpp[ipp] * gpp
 
-            stren = 2j * _PI * I0 * _c * _c / (E0 * C0)
+            stren = 2 * _PI * I0 * _c * _c / (E0 * C0)
             B_pp *= stren
             I_pp = _np.eye(nr_ps)
             return I_pp + B_pp
@@ -1313,7 +1363,9 @@ class LongitudinalEquilibrium:
             D_mm_pp = _np.kron(_np.diag(ms * ws0), _np.eye(nr_ps))
             return D_mm_pp + B_mm_pp
 
-    def oide_yokoya_matrix(self, hmps, ms, ps, cb_mode, action_limits=None):
+    def oide_yokoya_matrix(
+        self, hmps, ms, ps, cb_mode, action_limits=None, cOmega=None
+    ):
         eqinfo = self.equilibrium_info
         ring = self.ring
         w0 = ring.rev_ang_freq
@@ -1354,10 +1406,19 @@ class LongitudinalEquilibrium:
             for imm in range(nr_ms):
                 h_mmnn = h_mid[imm]
                 omegapp = (ps * h + cb_mode) * w0
-                zpp = self.get_impedance(w=omegapp[:, None] + mw_Jn[None, :]) / omegapp[:, None]
-                g_mm_nn = psi_J_mid[:, None] * (
-                    h_mmnn * h_mn.conj() * zpp
-                ).sum(axis=0)
+                if cOmega is None:
+                    zpp = (
+                        self.get_impedance(w=omegapp[:, None] + mw_Jn[None, :])
+                        / omegapp[:, None]
+                    )
+                    g_mm_nn = psi_J_mid[:, None] * (
+                        h_mmnn * h_mn.conj() * zpp
+                    ).sum(axis=0)
+                else:
+                    zpp = self.get_impedance(w=omegapp + cOmega) / omegapp
+                    g_mm_nn = psi_J_mid[:, None] * (
+                        h_mmnn * h_mn.conj() * zpp[:, None]
+                    ).sum(axis=0)
                 B_mm_nn[im, :, imm, :] = mw_Jn[:, None] * g_mm_nn * dif
 
         stren = 2j * _PI * I0 * _c / (E0 * C0) / (alpha * sigmae**2)
@@ -1392,6 +1453,15 @@ class LongitudinalEquilibrium:
             growth_rate = root["x"][1]
             return real_freq, growth_rate
 
+        # root = _fsolve(
+        #     _partial(self._determinant, params=params),
+        #     x0=x0,
+        # )
+
+        # real_freq = root[0] / 2 / _PI
+        # growth_rate = root[1]
+        # return real_freq, growth_rate
+
     def solve_eigenmodes(self, hmps, ms, ps, cb_mode, effsyncfreq):
         big_omega = None
         bmat = self.instability_matrix_elements(
@@ -1406,8 +1476,10 @@ class LongitudinalEquilibrium:
         eigvals, eigvecs = _np.linalg.eig(bmat)
         return eigvals, eigvecs
 
-    def solve_oide_yokoya(self, hmps, ms, ps, cb_mode, action_limits):
-        oymat = self.oide_yokoya_matrix(hmps, ms, ps, cb_mode, action_limits)
+    def solve_oide_yokoya(self, hmps, ms, ps, cb_mode, action_limits, cOmega):
+        oymat = self.oide_yokoya_matrix(
+            hmps, ms, ps, cb_mode, action_limits, cOmega
+        )
         eigvals, eigvecs = _np.linalg.eig(oymat)
         return eigvals, eigvecs
 
