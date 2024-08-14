@@ -11,22 +11,14 @@ from scipy.integrate import quad as _quad, simps as _simps
 from scipy.optimize import least_squares as _least_squares, root as _root
 from scipy.special import gamma as _gammafunc
 from scipy.linalg import det as _det
-from multiprocessing import Pool as _Pool
-import os as _os
+import multiprocessing as _mp
 from functools import partial as _partial
-from scipy.interpolate import (
-    splrep as _splrep,
-    splev as _splev,
-    interp1d as _interp1d,
-)
-
-from scipy.optimize import fsolve as _fsolve
-# import pywt as _pywt
-
+from scipy.interpolate import interp1d as _interp1d
 from . import impedances as _imp
 from .colleff import Ring as _Ring
 
 _PI = _np.pi
+_2PI = 2 * _PI
 
 
 def _mytrapz(y, dx, cumul=False):
@@ -158,12 +150,12 @@ class ImpedanceSource:
     @property
     def loop_ctrl_ang_freq(self):
         """."""
-        return 2 * _PI * self._loop_ctrl_freq
+        return _2PI * self._loop_ctrl_freq
 
     @loop_ctrl_ang_freq.setter
     def loop_ctrl_ang_freq(self, value):
         """."""
-        self._loop_ctrl_freq = value / 2 / _PI
+        self._loop_ctrl_freq = value / _2PI
 
     @property
     def loop_ctrl_transfer(self):
@@ -194,7 +186,7 @@ class ImpedanceSource:
     @property
     def detune_freq(self):
         """."""
-        return self.detune_w / 2 / _PI
+        return self.detune_w / _2PI
 
     @property
     def alpha(self):
@@ -507,7 +499,7 @@ class LongitudinalEquilibrium:
         """."""
         I0 = self.ring.total_current
         # TODO: This way of including the form factor is temporary. Fix it.
-        wr = 2 * _PI * self.ring.rf_freq * harm_rf
+        wr = _2PI * self.ring.rf_freq * harm_rf
         if form_factor is None:
             form_factor = self.calc_fourier_transform(wr)[self.filled_buckets]
         ib = 2 * I0 * _np.abs(form_factor).mean()
@@ -518,7 +510,7 @@ class LongitudinalEquilibrium:
         """."""
         I0 = self.ring.total_current
         # TODO: This way of including the form factor is temporary. Fix it.
-        wr = 2 * _PI * self.ring.rf_freq * harm_rf
+        wr = _2PI * self.ring.rf_freq * harm_rf
         form_factor = self.calc_fourier_transform(wr)[self.filled_buckets]
         ib = 2 * I0 * _np.abs(form_factor).mean()
         peak_harm_volt = Rs * ib * _np.cos(detune)
@@ -642,7 +634,7 @@ class LongitudinalEquilibrium:
         fillpattern = self.ring.total_current * self.fillpattern
         zgrid = self.zgrid
 
-        zn_ph = (2j * _PI / h) * _np.arange(h)[None, :]
+        zn_ph = (1j * _2PI / h) * _np.arange(h)[None, :]
         z_ph = (1j * w0 / _c) * zgrid[None, :]
 
         ps, zl_wps, _ = self.get_harmonics_impedance_and_filling()
@@ -878,11 +870,11 @@ class LongitudinalEquilibrium:
             # stop = max_amp
             # zamps = _np.linspace(start, stop, nrpts)
 
-            actions, hamiltonian = [], []
+            actions, freqs, hamiltonian = [], [], []
 
             cpu_use = self._manage_cpu_count()
             num_processes = min(zamps.size, cpu_use)
-            with _Pool(num_processes) as pool:
+            with _mp.Pool(num_processes) as pool:
                 results = pool.map(
                     _partial(
                         LongitudinalEquilibrium.solve_action_angle,
@@ -896,34 +888,10 @@ class LongitudinalEquilibrium:
                 actions.append(act)
                 hamiltonian.append(h0)
 
-            actions, hamiltonian = (
-                _np.array(actions),
-                _np.array(hamiltonian),
-            )
+            actions, hamiltonian = (_np.array(actions), _np.array(hamiltonian))
 
-            # initial = int(actions.size * 3 / 4)
-            # H0_J = _splrep(actions[:initial], hamiltonian[:initial], k=5, s=5)
-            # hamiltonian[:initial] = _splev(actions[:initial], H0_J)
-            # freqs_initial = _splev(actions[:initial], H0_J, der=1)
-
-            # H0_J = _splrep(actions[initial:], hamiltonian[initial:], k=5, s=0)
-            # hamiltonian[initial:] = _splev(actions[initial:], H0_J)
-            # freqs_final = _splev(actions[initial:], H0_J, der=1)
-            # freqs = _np.r_[freqs_initial, freqs_final]
-
-            H0_J = _splrep(actions, hamiltonian, k=5, s=0)
-            freqs = _splev(actions, H0_J, der=1)
-
-            # freqs = _np.gradient(hamiltonian, actions)
-            freqs *= _c / 2 / _PI
-
-            # type_wave = 'sym5'
-            # coefs = _pywt.wavedec(freqs, type_wave, mode='constant', axis=0)
-
-            # num_modes = 2
-            # for i in range(num_modes, len(coefs)):
-            #     coefs[i] *= 0
-            # freqs = _pywt.waverec(coefs, type_wave, mode='constant', axis=0)
+            freqs = _np.gradient(hamiltonian, actions)
+            freqs *= _c / _2PI
 
             nan_idx = ~(
                 _np.isnan(actions) | _np.isnan(freqs) | _np.isnan(freqs)
@@ -939,10 +907,10 @@ class LongitudinalEquilibrium:
 
             sigmae2 = ring.espread**2
             psi0 = _np.exp(-hamiltonian / (alpha * sigmae2))
-            psi0 /= 2 * _PI * _simps(psi0, actions)
+            psi0 /= _2PI * _simps(psi0, actions)
 
-            fs_avg = 2 * _PI * _simps(freqs * psi0, actions)
-            fs_std = 2 * _PI * _simps(freqs * freqs * psi0, actions)
+            fs_avg = _2PI * _simps(freqs * psi0, actions)
+            fs_std = _2PI * _simps(freqs * freqs * psi0, actions)
             fs_std = _np.sqrt(fs_std - fs_avg**2)
 
             out["sync_freq"] = freqs
@@ -955,7 +923,7 @@ class LongitudinalEquilibrium:
         elif method == "derivative":
             wrf_c = ring.rf_ang_freq / _c
             factor = _np.sqrt(
-                alpha * ring.harm_num / (2 * _PI * ring.energy) / wrf_c
+                alpha * ring.harm_num / (_2PI * ring.energy) / wrf_c
             )
 
             fil = _np.abs(zgrid) < max_amp
@@ -996,16 +964,6 @@ class LongitudinalEquilibrium:
             phi = _np.interp(z, zgrid, phiz)
             return _np.sqrt((2 / alpha) * (h0i - phi))
 
-        def iintg(z):
-            phi = _np.interp(z, zgrid, phiz)
-            diff = h0i - phi
-            return _np.sqrt(diff) / diff / _np.sqrt((2 / alpha))
-
-        def iint_border(z):
-            const = _np.sqrt(2 / alpha)
-            new_h0i = h0i - b
-            return -_np.sqrt(new_h0i - z) / const / a
-
         zri = +zamp
         zli = -zamp
         h0i = _np.interp(zri, zgrid, phiz)
@@ -1019,41 +977,6 @@ class LongitudinalEquilibrium:
 
         action, _ = _quad(intg, zli, zri, points=[zli, zri])
         action /= _PI
-
-        # scale = 0.6
-        # zlsafe = scale * zli
-        # zrsafe = scale * zri
-        # period_mid, _ = _quad(iintg, zlsafe, zrsafe)
-
-        # const = 1 / _np.sqrt(2 / alpha)
-
-        # idx1 = _np.searchsorted(zgrid, zli)
-        # idx2 = _np.searchsorted(zgrid, zlsafe)
-        # if idx1 == idx2:
-        #     idx2 = idx1 + 1
-        # poly_phiz = _np.polyfit(zgrid[idx1:idx2], phiz[idx1:idx2], deg=1)
-        # a, b = poly_phiz[0], poly_phiz[1]
-        # new_h0i = h0i - b
-        # period_left, _ = _quad(
-        #     iint_border, a*zli, a*zlsafe, weight="cauchy", wvar=new_h0i
-        # )
-        # period_left *= const
-
-        # idx1 = _np.searchsorted(zgrid, zrsafe)
-        # idx2 = _np.searchsorted(zgrid, zri)
-        # if idx1 == idx2:
-        #     idx2 = idx1 + 1
-        # poly_phiz = _np.polyfit(zgrid[idx1:idx2], phiz[idx1:idx2], deg=1)
-        # a, b = poly_phiz[0], poly_phiz[1]
-        # new_h0i = h0i - b
-        # period_right, _ = _quad(
-        #     iint_border, a*zrsafe, a*zri, weight="cauchy", wvar=new_h0i
-        # )
-        # period_right *= const
-        # period = period_left + period_mid + period_right
-
-        # period, _ = _quad(iintg, zli, zri)
-        # period *= 2 / alpha / _c
         return action, h0i
 
     def calc_canonical_transformation(
@@ -1080,7 +1003,7 @@ class LongitudinalEquilibrium:
         pj = []
 
         if step_size is None:
-            step_size = C0 / 2
+            step_size = C0 / 10
 
         grid = len(eqinfo["sync_freq"])
 
@@ -1089,7 +1012,7 @@ class LongitudinalEquilibrium:
 
             cpu_use = self._manage_cpu_count()
             num_processes = min(grid, cpu_use)
-            with _Pool(num_processes) as pool:
+            with _mp.Pool(num_processes) as pool:
                 results = pool.map(
                     _partial(
                         LongitudinalEquilibrium.solve_motion,
@@ -1117,7 +1040,11 @@ class LongitudinalEquilibrium:
         ds, alpha, sync_data, zgrid, vtotal = params
         z0 = sync_data["amplitude"][idx]
 
-        znew, pnew = LongitudinalEquilibrium._verlet_integrator(
+        # itg = LongitudinalEquilibrium._verlet_integrator
+        # itg = LongitudinalEquilibrium._forest_ruth_integrator
+        itg = LongitudinalEquilibrium._position_extended_forest_ruth_integrator
+
+        znew, pnew = itg(
             z0=z0, p0=0, ds=ds, alpha=alpha, zgrid=zgrid, vtotal=vtotal
         )
         return znew, pnew
@@ -1127,7 +1054,7 @@ class LongitudinalEquilibrium:
         ring = self.ring
         nus0 = ring.mom_comp * ring.harm_num
         nus0 *= -ring.gap_voltage * _np.cos(ring.sync_phase)
-        nus0 /= 2 * _PI * ring.energy
+        nus0 /= _2PI * ring.energy
         nus0 = _np.sqrt(nus0)
         return nus0 * ring.rev_freq
 
@@ -1270,17 +1197,17 @@ class LongitudinalEquilibrium:
     @staticmethod
     def func_hmp(z, m, omegap):
         z = _np.array(z)
-        zsiz = z.size
+        zsize = z.size
 
-        phi = _np.linspace(0, 2 * _PI, zsiz)
-        dphi = 2 * _PI / zsiz
+        phi = _np.linspace(0, _2PI, zsize)
+        dphi = _2PI / zsize
         kp = omegap / _c
 
         mphi = m[:, None] * phi
         kpz = kp[:, None] * z
         phase = 1j * (mphi[:, None, :] + kpz[None, :, :])
         integral = _mytrapz(_ne.evaluate("exp(phase)"), dphi)
-        return integral / (2 * _PI)
+        return integral / _2PI
 
     @staticmethod
     def calc_hmps(z_ij, cb_mode, ms, ps, w0, h):
@@ -1290,7 +1217,7 @@ class LongitudinalEquilibrium:
             hmps[:, :, iz] = LongitudinalEquilibrium.func_hmp(z, ms, omegaps)
         return hmps
 
-    def instability_matrix_elements(
+    def lebedev_matrix(
         self,
         big_omega,
         hmps,
@@ -1299,6 +1226,7 @@ class LongitudinalEquilibrium:
         cb_mode,
         adsyncfreq=True,
         effsyncfreq="center",
+        reduced=False,
     ):
         eqinfo = self.equilibrium_info
         ring = self.ring
@@ -1308,26 +1236,31 @@ class LongitudinalEquilibrium:
         E0 = ring.energy
         C0 = ring.circum
         alpha = ring.mom_comp
-        sigmae = ring.espread
+        sigmae2 = ring.espread**2
 
         psi_J = eqinfo["action_distribution"]
-        ws_J = 2 * _PI * eqinfo["sync_freq"]
+        ws_J = _2PI * eqinfo["sync_freq"]
         J = eqinfo["action"]
 
         nr_ps = ps.size
         if adsyncfreq:
-            dpsi_dJ = - ws_J * psi_J / (alpha * sigmae**2 * _c)
+            dpsi_dJ = -ws_J * psi_J / (alpha * sigmae2 * _c)
 
             c_omega = big_omega[0] + 1j * big_omega[1]
 
-            B_pp = _np.zeros((nr_ps, nr_ps), dtype=_np.complex128)
-            # mdpsi_dJ_div = (
-            #     ms[:, None] * dpsi_dJ / (c_omega - ms[:, None] * ws_J)
-            # )
+            B_pp = _np.zeros((nr_ps, nr_ps), dtype=complex)
 
-            m2wJ2 = (ms[:, None] * ws_J)**2
-            m2wJ = (ms[:, None]**2 * ws_J)
-            mdpsi_dJ_div = 2 * m2wJ * dpsi_dJ / (c_omega**2 - m2wJ2)
+            if reduced:
+                if _np.any(ms < 0):
+                    raise ValueError("reduced=True but m < 0 identified")
+                m2wJ2 = (ms[:, None] * ws_J) ** 2
+                m2wJ = ms[:, None] ** 2 * ws_J
+                mdpsi_dJ_div = 2 * m2wJ * dpsi_dJ / (c_omega * c_omega - m2wJ2)
+            else:
+                mdpsi_dJ_div = (
+                    ms[:, None] * dpsi_dJ / (c_omega - ms[:, None] * ws_J)
+                )
+
             omegapp = (ps * h + cb_mode) * w0
 
             idx_close = _np.zeros_like(ws_J)
@@ -1339,13 +1272,14 @@ class LongitudinalEquilibrium:
             #         print(_np.sum(idx_close))
 
             # only resonators accept complex frequencies
-            # omegapp = omegapp + c_omega
-            # zpp = self.get_impedance(w=omegapp) / omegapp
 
             zpp = self.get_impedance(w=omegapp + c_omega) / omegapp
 
-            # # more general impedances
+            # more general impedances
             # zpp = self.get_impedance(w=omegapp + c_omega.real) / omegapp
+
+            # wavg = _2PI * eqinfo["avg_sync_freq"]
+            # zpp = self.get_impedance(w=omegapp + wavg) / omegapp
 
             dpsi_dJ_ws = dpsi_dJ / ws_J
 
@@ -1354,20 +1288,21 @@ class LongitudinalEquilibrium:
                 for ipp in range(nr_ps):
                     h_mpp = hmps[:, ipp].conj()
                     if _np.sum(idx_close):
-                        rgpp = (h_mp * h_mpp * dpsi_dJ_ws[None, :])[:, idx_close]
+                        rgpp = (h_mp * h_mpp * dpsi_dJ_ws[None, :])[
+                            :, idx_close
+                        ]
                         rgpp = rgpp.sum(axis=-1)
                         gpp = 2 * _np.sign(c_omega.imag) * _PI * rgpp
                         if _np.sum(~idx_close):
-                            itg = h_mp * h_mpp * mdpsi_dJ_div
-                            igpp = _simps(itg[:, ~idx_close], J[~idx_close], axis=-1)
+                            itg = (h_mp * h_mpp * mdpsi_dJ_div).sum(axis=0)
+                            igpp = _simps(itg[:, ~idx_close], J[~idx_close])
                             gpp += 1j * igpp
-                        gpp = gpp.sum()
                     else:
-                        gmpp = _simps(h_mp * h_mpp * mdpsi_dJ_div, J, axis=-1)
-                        gpp = 1j * gmpp.sum()
+                        itg = (h_mp * h_mpp * mdpsi_dJ_div).sum(axis=0)
+                        gpp = 1j * _simps(itg, J)
                     B_pp[ip, ipp] = zpp[ipp] * gpp
 
-            stren = 2 * _PI * I0 * _c * _c / (E0 * C0)
+            stren = _2PI * I0 * _c * _c / (E0 * C0)
             B_pp *= stren
             I_pp = _np.eye(nr_ps)
             return I_pp + B_pp
@@ -1376,40 +1311,44 @@ class LongitudinalEquilibrium:
 
             if isinstance(effsyncfreq, str):
                 if effsyncfreq == "center":
-                    ws0 = ws_J[0]
+                    eff_ws = ws_J[0]
                 elif effsyncfreq == "avg":
-                    ws0 = 2 * _PI * eqinfo["avg_sync_freq"]
+                    eff_ws = _2PI * eqinfo["avg_sync_freq"]
                 elif effsyncfreq == "min":
-                    ws0 = ws_J.min()
+                    eff_ws = ws_J.min()
                 else:
                     raise ValueError(
                         "effsyncfreq must be 'center', 'avg' or 'min'"
                     )
             elif isinstance(effsyncfreq, float):
-                ws0 = 2 * _PI * effsyncfreq
+                eff_ws = _2PI * effsyncfreq
 
             B_m_pp = _np.zeros((nr_ms, nr_ps, nr_ps), dtype=complex)
             for im, m in enumerate(ms):
-                mws = m * ws0
+                mws = m * eff_ws
                 for ip in range(nr_ps):
                     h_mp = hmps[im, ip]
                     for ipp, pp in enumerate(ps):
                         h_mpp = hmps[im, ipp].conj()
                         gmpp = _simps(h_mp * h_mpp * psi_J, J)
                         omegapp = (pp * h + cb_mode) * w0
-                        zpp = self.get_impedance(w=omegapp + mws) / omegapp
-                        B_m_pp[im, ip, ipp] = mws * zpp * gmpp
+                        if big_omega is None:
+                            zpp = self.get_impedance(w=omegapp + mws)
+                        else:
+                            c_omega = big_omega[0] + 1j * big_omega[1]
+                            zpp = self.get_impedance(w=omegapp + c_omega)
+                        B_m_pp[im, ip, ipp] = 1j * mws * (zpp / omegapp) * gmpp
 
             B_mm_pp = _np.zeros((nr_ms, nr_ps, nr_ms, nr_ps), dtype=complex)
-            stren = 2j * _PI * I0 * _c / (E0 * C0) / (alpha * sigmae**2)
+            stren = _2PI * I0 * _c / (E0 * C0) / (alpha * sigmae2)
             B_mm_pp[:, :, :, :] = stren * B_m_pp[:, :, None, :]
             size = nr_ms * nr_ps
             B_mm_pp = B_mm_pp.reshape(size, size)
-            D_mm_pp = _np.kron(_np.diag(ms * ws0), _np.eye(nr_ps))
+            D_mm_pp = _np.kron(_np.diag(ms * eff_ws), _np.eye(nr_ps))
             return D_mm_pp + B_mm_pp
 
     def oide_yokoya_matrix(
-        self, hmps, ms, ps, cb_mode, action_limits=None, cOmega=None
+        self, hmps, ms, ps, cb_mode, action_limits=None, big_omega=None
     ):
         eqinfo = self.equilibrium_info
         ring = self.ring
@@ -1423,7 +1362,7 @@ class LongitudinalEquilibrium:
 
         J = eqinfo["action"]
         psi_J = eqinfo["action_distribution"]
-        ws_J = 2 * _PI * eqinfo["sync_freq"]
+        ws_J = _2PI * eqinfo["sync_freq"]
         if action_limits is not None:
             idx_ini = _np.searchsorted(J, action_limits[0])
             idx_end = _np.searchsorted(J, action_limits[1]) + 1
@@ -1436,7 +1375,7 @@ class LongitudinalEquilibrium:
 
         avg_J = (J[:-1] + J[1:]) / 2
         dJ = J[1:] - J[:-1]
-        dif = _np.sqrt(dJ[:, None] * dJ[None, :])
+        sqrtdJ = _np.sqrt(dJ[:, None] * dJ[None, :])
         # dif = dJ[:, None]
         ws_J_mid = _np.interp(avg_J, J, ws_J)
         psi_J_mid = _np.interp(avg_J, J, psi_J)
@@ -1451,7 +1390,7 @@ class LongitudinalEquilibrium:
             for imm in range(nr_ms):
                 h_mmnn = h_mid[imm]
                 omegapp = (ps * h + cb_mode) * w0
-                if cOmega is None:
+                if big_omega is None:
                     zpp = (
                         self.get_impedance(w=omegapp[:, None] + mw_Jn[None, :])
                         / omegapp[:, None]
@@ -1460,13 +1399,13 @@ class LongitudinalEquilibrium:
                         h_mmnn * h_mn.conj() * zpp
                     ).sum(axis=0)
                 else:
-                    zpp = self.get_impedance(w=omegapp + cOmega) / omegapp
+                    zpp = self.get_impedance(w=omegapp + big_omega) / omegapp
                     g_mm_nn = psi_J_mid[:, None] * (
                         h_mmnn * h_mn.conj() * zpp[:, None]
                     ).sum(axis=0)
-                B_mm_nn[im, :, imm, :] = mw_Jn[:, None] * g_mm_nn * dif
+                B_mm_nn[im, :, imm, :] = 1j * mw_Jn[:, None] * g_mm_nn * sqrtdJ
 
-        stren = 2j * _PI * I0 * _c / (E0 * C0) / (alpha * sigmae**2)
+        stren = _2PI * I0 * _c / (E0 * C0) / (alpha * sigmae**2)
         size = nr_ms * nr_J
         B_mm_nn = stren * B_mm_nn.reshape(size, size)
         D_mm_nn = _np.kron(_np.diag(ms), _np.diag(ws_J_mid))
@@ -1474,15 +1413,13 @@ class LongitudinalEquilibrium:
 
     def _determinant(self, big_omega, params):
         hmps, ms, ps, cb_mode = params
-        bmat = self.instability_matrix_elements(
+        bmat = self.lebedev_matrix(
             big_omega, hmps, ms, ps, cb_mode, adsyncfreq=True
         )
         db = _det(bmat)
         return [db.real, db.imag]
 
-    def solve_dispersion_relation(
-        self, x0, hmps, ms, ps, cb_mode, method, tol=None
-    ):
+    def solve_lebedev(self, x0, hmps, ms, ps, cb_mode, method, tol=None):
         params = (hmps, ms, ps, cb_mode)
         root = _root(
             _partial(self._determinant, params=params),
@@ -1494,22 +1431,14 @@ class LongitudinalEquilibrium:
             print("Did not find root!")
             raise Exception("Problem in finding root of determinant.")
         else:
-            real_freq = root["x"][0] / 2 / _PI
+            real_freq = root["x"][0] / _2PI
             growth_rate = root["x"][1]
             return real_freq, growth_rate
 
-        # root = _fsolve(
-        #     _partial(self._determinant, params=params),
-        #     x0=x0,
-        # )
-
-        # real_freq = root[0] / 2 / _PI
-        # growth_rate = root[1]
-        # return real_freq, growth_rate
-
-    def solve_eigenmodes(self, hmps, ms, ps, cb_mode, effsyncfreq):
-        big_omega = None
-        bmat = self.instability_matrix_elements(
+    def solve_lebedev_constant_frequency(
+        self, hmps, ms, ps, cb_mode, effsyncfreq, big_omega=None
+    ):
+        bmat = self.lebedev_matrix(
             big_omega,
             hmps,
             ms,
@@ -1521,9 +1450,11 @@ class LongitudinalEquilibrium:
         eigvals, eigvecs = _np.linalg.eig(bmat)
         return eigvals, eigvecs
 
-    def solve_oide_yokoya(self, hmps, ms, ps, cb_mode, action_limits, cOmega):
+    def solve_oide_yokoya(
+        self, hmps, ms, ps, cb_mode, action_limits, big_omega
+    ):
         oymat = self.oide_yokoya_matrix(
-            hmps, ms, ps, cb_mode, action_limits, cOmega
+            hmps, ms, ps, cb_mode, action_limits, big_omega
         )
         eigvals, eigvecs = _np.linalg.eig(oymat)
         return eigvals, eigvecs
@@ -1675,7 +1606,7 @@ class LongitudinalEquilibrium:
         ref_amp = self.main_ref_amp
         ref_phase = self.main_ref_phase
         ref_phase += self.main_ref_phase_offset
-        wrf = 2 * _PI * self.ring.rf_freq
+        wrf = _2PI * self.ring.rf_freq
         phase = wrf * self.zgrid / _c
         dz = _np.diff(self.zgrid)[0]
         vref_phasor = ref_amp * _np.exp(1j * (_PI / 2 - ref_phase))
@@ -1694,7 +1625,7 @@ class LongitudinalEquilibrium:
         ref_phase = self.main_ref_phase
         ref_phase += self.main_ref_phase_offset
         x0 = [ref_amp, ref_phase]
-        wrf = 2 * _PI * self.ring.rf_freq
+        wrf = _2PI * self.ring.rf_freq
         phase = wrf * self.zgrid / _c
         dz = self.zgrid[1] - self.zgrid[0]
 
@@ -1747,7 +1678,7 @@ class LongitudinalEquilibrium:
         return dist.reshape((self.ring.harm_num, self.zgrid.size))
 
     def _manage_cpu_count(self):
-        cpu_count = _os.cpu_count()
+        cpu_count = _mp.cpu_count()
         if self.nr_cpus is not None:
             cpu_use = min(cpu_count, self.nr_cpus)
         else:
@@ -1756,29 +1687,116 @@ class LongitudinalEquilibrium:
 
     @staticmethod
     def _verlet_integrator(z0, p0, ds, alpha, zgrid, vtotal):
-        """Second-order symplectic integrator using the Verlet method."""
+        """2nd-order symplectic integrator using the Verlet method."""
         z, p = z0, p0
         positions = [z0]
         momentums = [p0]
         angle = 0
 
+        elapsed = 0
         while True:
-            dp_half = _np.interp(z, zgrid, vtotal) * ds / 2
-            p += dp_half
-            dz = alpha * p * ds
-            z += dz
-            dp_half = _np.interp(z, zgrid, vtotal) * ds / 2
-            p += dp_half
+            p += _np.interp(z, zgrid, vtotal) * ds / 2
+            z += alpha * p * ds
+            p += _np.interp(z, zgrid, vtotal) * ds / 2
 
-            vec0 = _np.array([positions[-1], momentums[-1]])
-            vec1 = _np.array([z, p])
-            acos = _np.abs(_np.dot(vec0, vec1))
-            acos /= _np.linalg.norm(vec0)
-            acos /= _np.linalg.norm(vec1)
-            acos = _np.clip(acos, -1, 1)
-            angle += _np.arccos(acos)
-            if angle > 2 * _PI:
+            if LongitudinalEquilibrium._check_closed_orbit(
+                positions, momentums, z, p, angle
+            ):
                 break
-            positions.append(z)
-            momentums.append(p)
+            elapsed += 1
+            if elapsed > 1e6:
+                raise Exception("More than 1e6 steps in integrator.")
         return positions, momentums
+
+    @staticmethod
+    def _forest_ruth_integrator(z0, p0, ds, alpha, zgrid, vtotal):
+        """4th-order symplectic integrator using the Forest-Ruth method."""
+        z, p = z0, p0
+        positions = [z0]
+        momentums = [p0]
+        angle = 0
+        theta = 1 / (2 - 2 ** (1 / 3))
+
+        elapsed = 0
+        while True:
+            # step 1
+            z += alpha * p * theta * ds / 2
+            p += _np.interp(z, zgrid, vtotal) * theta * ds
+
+            # step 2
+            z += alpha * p * (1 - theta) * ds / 2
+            p += _np.interp(z, zgrid, vtotal) * (1 - 2 * theta) * ds
+
+            # step 3
+            z += alpha * p * (1 - theta) * ds / 2
+            p += _np.interp(z, zgrid, vtotal) * theta * ds
+
+            # step 4
+            z += alpha * p * theta * ds / 2
+
+            if LongitudinalEquilibrium._check_closed_orbit(
+                positions, momentums, z, p, angle
+            ):
+                break
+            elapsed += 1
+            if elapsed > 1e6:
+                raise Exception("More than 1e6 steps in integrator.")
+        return positions, momentums
+
+    @staticmethod
+    def _position_extended_forest_ruth_integrator(
+        z0, p0, ds, alpha, zgrid, vtotal
+    ):
+        """Position Extended Forest-Ruth Like method."""
+        z, p = z0, p0
+        positions = [z0]
+        momentums = [p0]
+        angle = 0
+        xi = +0.1786178958448091
+        lamb = -0.212341831062605
+        chi = -0.0662645826698184
+
+        elapsed = 0
+        while True:
+            # step 1
+            z += alpha * p * xi * ds
+            p += _np.interp(z, zgrid, vtotal) * (1 - 2 * lamb) * ds / 2
+
+            # step 2
+            z += alpha * p * chi * ds
+            p += _np.interp(z, zgrid, vtotal) * lamb * ds
+
+            # step 3
+            z += alpha * p * (1 - 2 * (chi + xi)) * ds
+            p += _np.interp(z, zgrid, vtotal) * lamb * ds
+
+            # step 4
+            z += alpha * p * chi * ds / 2
+            p += _np.interp(z, zgrid, vtotal) * (1 - 2 * lamb) * ds / 2
+
+            # step 5
+            z += alpha * p * xi * ds
+
+            if LongitudinalEquilibrium._check_closed_orbit(
+                positions, momentums, z, p, angle
+            ):
+                break
+            elapsed += 1
+            if elapsed > 1e6:
+                raise Exception("More than 1e6 steps in integrator.")
+        return positions, momentums
+
+    @staticmethod
+    def _check_closed_orbit(positions, momentums, z, p, angle):
+        vec0 = _np.array([positions[-1], momentums[-1]])
+        vec1 = _np.array([z, p])
+        acos = _np.abs(_np.dot(vec0, vec1))
+        acos /= _np.linalg.norm(vec0)
+        acos /= _np.linalg.norm(vec1)
+        acos = _np.clip(acos, -1, 1)
+        angle += _np.arccos(acos)
+        if angle > _2PI:
+            return True
+        positions.append(z)
+        momentums.append(p)
+        return False
