@@ -994,7 +994,17 @@ class LongitudinalEquilibrium:
 
         def intg(z):
             phi = _np.interp(z, zgrid, phiz)
-            return _np.sqrt((2 / alpha) * _np.abs(h0i - phi))
+            return _np.sqrt((2 / alpha) * (h0i - phi))
+
+        def iintg(z):
+            phi = _np.interp(z, zgrid, phiz)
+            diff = h0i - phi
+            return _np.sqrt(diff) / diff / _np.sqrt((2 / alpha))
+
+        def iint_border(z):
+            const = _np.sqrt(2 / alpha)
+            new_h0i = h0i - b
+            return -_np.sqrt(new_h0i - z) / const / a
 
         zri = +zamp
         zli = -zamp
@@ -1009,6 +1019,41 @@ class LongitudinalEquilibrium:
 
         action, _ = _quad(intg, zli, zri, points=[zli, zri])
         action /= _PI
+
+        # scale = 0.6
+        # zlsafe = scale * zli
+        # zrsafe = scale * zri
+        # period_mid, _ = _quad(iintg, zlsafe, zrsafe)
+
+        # const = 1 / _np.sqrt(2 / alpha)
+
+        # idx1 = _np.searchsorted(zgrid, zli)
+        # idx2 = _np.searchsorted(zgrid, zlsafe)
+        # if idx1 == idx2:
+        #     idx2 = idx1 + 1
+        # poly_phiz = _np.polyfit(zgrid[idx1:idx2], phiz[idx1:idx2], deg=1)
+        # a, b = poly_phiz[0], poly_phiz[1]
+        # new_h0i = h0i - b
+        # period_left, _ = _quad(
+        #     iint_border, a*zli, a*zlsafe, weight="cauchy", wvar=new_h0i
+        # )
+        # period_left *= const
+
+        # idx1 = _np.searchsorted(zgrid, zrsafe)
+        # idx2 = _np.searchsorted(zgrid, zri)
+        # if idx1 == idx2:
+        #     idx2 = idx1 + 1
+        # poly_phiz = _np.polyfit(zgrid[idx1:idx2], phiz[idx1:idx2], deg=1)
+        # a, b = poly_phiz[0], poly_phiz[1]
+        # new_h0i = h0i - b
+        # period_right, _ = _quad(
+        #     iint_border, a*zrsafe, a*zri, weight="cauchy", wvar=new_h0i
+        # )
+        # period_right *= const
+        # period = period_left + period_mid + period_right
+
+        # period, _ = _quad(iintg, zli, zri)
+        # period *= 2 / alpha / _c
         return action, h0i
 
     def calc_canonical_transformation(
