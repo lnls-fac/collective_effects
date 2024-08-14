@@ -1224,9 +1224,9 @@ class LongitudinalEquilibrium:
         ms,
         ps,
         cb_mode,
-        adsyncfreq=True,
-        effsyncfreq="center",
         reduced=False,
+        adsyncfreq=True,
+        effsyncfreq="center"
     ):
         eqinfo = self.equilibrium_info
         ring = self.ring
@@ -1412,15 +1412,23 @@ class LongitudinalEquilibrium:
         return D_mm_nn + B_mm_nn
 
     def _determinant(self, big_omega, params):
-        hmps, ms, ps, cb_mode = params
+        hmps, ms, ps, cb_mode, reduced = params
         bmat = self.lebedev_matrix(
-            big_omega, hmps, ms, ps, cb_mode, adsyncfreq=True
+            big_omega,
+            hmps,
+            ms,
+            ps,
+            cb_mode,
+            reduced,
+            adsyncfreq=True,
         )
         db = _det(bmat)
         return [db.real, db.imag]
 
-    def solve_lebedev(self, x0, hmps, ms, ps, cb_mode, method, tol=None):
-        params = (hmps, ms, ps, cb_mode)
+    def solve_lebedev(
+        self, x0, hmps, ms, ps, cb_mode, method, tol=None, reduced=False
+    ):
+        params = (hmps, ms, ps, cb_mode, reduced)
         root = _root(
             _partial(self._determinant, params=params),
             x0=x0,
