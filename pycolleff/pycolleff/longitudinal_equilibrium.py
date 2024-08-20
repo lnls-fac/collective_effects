@@ -836,7 +836,7 @@ class LongitudinalEquilibrium:
         # _warnings.filterwarnings("error")
 
         if total_voltage is None:
-            total_voltage = self.total_voltage
+            total_voltage = self.total_voltage[0]
         lambda0, phiz = self.calc_distributions_from_voltage(total_voltage)
         zgrid = self.zgrid.copy()
         ring = self.ring
@@ -1226,7 +1226,7 @@ class LongitudinalEquilibrium:
         cb_mode,
         reduced=False,
         adsyncfreq=True,
-        effsyncfreq="center"
+        effsyncfreq="center",
     ):
         eqinfo = self.equilibrium_info
         ring = self.ring
@@ -1700,17 +1700,22 @@ class LongitudinalEquilibrium:
         positions = [z0]
         momentums = [p0]
         angle = 0
-
         elapsed = 0
         while True:
             p += _np.interp(z, zgrid, vtotal) * ds / 2
             z += alpha * p * ds
             p += _np.interp(z, zgrid, vtotal) * ds / 2
 
-            if LongitudinalEquilibrium._check_closed_orbit(
-                positions, momentums, z, p, angle
-            ):
+            dangle = LongitudinalEquilibrium._calc_dangle(
+                positions[-1], momentums[-1], z, p
+            )
+
+            angle += dangle
+            if angle > _2PI:
                 break
+
+            positions.append(z)
+            momentums.append(p)
             elapsed += 1
             if elapsed > 1e6:
                 raise Exception("More than 1e6 steps in integrator.")
@@ -1742,10 +1747,16 @@ class LongitudinalEquilibrium:
             # step 4
             z += alpha * p * theta * ds / 2
 
-            if LongitudinalEquilibrium._check_closed_orbit(
-                positions, momentums, z, p, angle
-            ):
+            dangle = LongitudinalEquilibrium._calc_dangle(
+                positions[-1], momentums[-1], z, p
+            )
+
+            angle += dangle
+            if angle > _2PI:
                 break
+
+            positions.append(z)
+            momentums.append(p)
             elapsed += 1
             if elapsed > 1e6:
                 raise Exception("More than 1e6 steps in integrator.")
@@ -1785,26 +1796,28 @@ class LongitudinalEquilibrium:
             # step 5
             z += alpha * p * xi * ds
 
-            if LongitudinalEquilibrium._check_closed_orbit(
-                positions, momentums, z, p, angle
-            ):
+            dangle = LongitudinalEquilibrium._calc_dangle(
+                positions[-1], momentums[-1], z, p
+            )
+
+            angle += dangle
+            if angle > _2PI:
                 break
+
+            positions.append(z)
+            momentums.append(p)
+
             elapsed += 1
             if elapsed > 1e6:
                 raise Exception("More than 1e6 steps in integrator.")
         return positions, momentums
 
     @staticmethod
-    def _check_closed_orbit(positions, momentums, z, p, angle):
-        vec0 = _np.array([positions[-1], momentums[-1]])
+    def _calc_dangle(z0, p0, z, p):
+        vec0 = _np.array([z0, p0])
+        vec0 /= _np.linalg.norm(vec0)
         vec1 = _np.array([z, p])
+        vec1 /= _np.linalg.norm(vec1)
         acos = _np.abs(_np.dot(vec0, vec1))
-        acos /= _np.linalg.norm(vec0)
-        acos /= _np.linalg.norm(vec1)
         acos = _np.clip(acos, -1, 1)
-        angle += _np.arccos(acos)
-        if angle > _2PI:
-            return True
-        positions.append(z)
-        momentums.append(p)
-        return False
+        return _np.arccos(acos)
