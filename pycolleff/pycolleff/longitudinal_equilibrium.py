@@ -771,29 +771,6 @@ class LongitudinalEquilibrium:
         self._exp_z = None
         return dists, converged
 
-    def _apply_random_convergence(self, dists, niter, tol):
-        xold = dists[-1].ravel()
-        for k in range(niter):
-            xnew = self._ffunc(xold)
-            dists.append(xnew)
-            diff = self._reshape_dist(xnew - xold)
-            dz = self.zgrid[1] - self.zgrid[0]
-            diff = _mytrapz(_np.abs(diff), dz)
-            idx = _np.argmax(diff)
-            if self.print_flag:
-                print(
-                    f"Iter.: {k+1:03d}, Dist. Diff.: {diff[idx]:.3e}"
-                    + f" (bucket {idx:03d})"
-                )
-                print("-" * 20)
-            if diff[idx] < tol:
-                if self.print_flag:
-                    print("distribution ok!")
-                break
-            r = _np.random.randn() / 2
-            xold = (1 - r) * xnew + r * xold
-        return dists
-
     def get_generator_voltage(self):
         """."""
         if self.feedback_on:
@@ -877,7 +854,7 @@ class LongitudinalEquilibrium:
             with _mp.Pool(num_processes) as pool:
                 results = pool.map(
                     _partial(
-                        LongitudinalEquilibrium.solve_action_angle,
+                        LongitudinalEquilibrium.calc_action_variable,
                         params=(zgrid, phiz, alpha),
                     ),
                     zamps,
@@ -952,33 +929,6 @@ class LongitudinalEquilibrium:
         out["zdistribution"] = lambda0
         self.equilibrium_info = out
 
-    @staticmethod
-    def solve_action_angle(zamp, params):
-        zgrid, phiz, alpha = params
-
-        def energy_deviation(z):
-            phi = _np.interp(z, zgrid, phiz)
-            return h0i - phi
-
-        def intg(z):
-            phi = _np.interp(z, zgrid, phiz)
-            return _np.sqrt((2 / alpha) * (h0i - phi))
-
-        zri = +zamp
-        zli = -zamp
-        h0i = _np.interp(zri, zgrid, phiz)
-
-        turn_pts = _root(energy_deviation, x0=zli, method="lm")
-        if turn_pts.success:
-            zli = turn_pts.x[0]
-        else:
-            raise Exception("Problem in finding turning points.")
-        zli, zri = (zli, zri) if zli <= zri else (zri, zli)
-
-        action, _ = _quad(intg, zli, zri, points=[zli, zri])
-        action /= _PI
-        return action, h0i
-
     def calc_canonical_transformation(
         self, total_voltage=None, step_size=None, parallel=True
     ):
@@ -1015,7 +965,7 @@ class LongitudinalEquilibrium:
             with _mp.Pool(num_processes) as pool:
                 results = pool.map(
                     _partial(
-                        LongitudinalEquilibrium.solve_motion,
+                        LongitudinalEquilibrium.solve_longitudinal_motion,
                         params=(step_size, alpha, eqinfo, zgrid, vtotal),
                     ),
                     range(grid),
@@ -1027,27 +977,13 @@ class LongitudinalEquilibrium:
                 pj.append(pnew)
         else:
             for idx in range(grid):
-                results = LongitudinalEquilibrium.solve_motion(
+                results = LongitudinalEquilibrium.solve_longitudinal_motion(
                     idx, params=(step_size, alpha, eqinfo, zgrid, vtotal)
                 )
                 znew, pnew = results
                 zj.append(znew)
                 pj.append(pnew)
         return zj, pj
-
-    @staticmethod
-    def solve_motion(idx, params):
-        ds, alpha, sync_data, zgrid, vtotal = params
-        z0 = sync_data["amplitude"][idx]
-
-        # itg = LongitudinalEquilibrium._verlet_integrator
-        # itg = LongitudinalEquilibrium._forest_ruth_integrator
-        itg = LongitudinalEquilibrium._position_extended_forest_ruth_integrator
-
-        znew, pnew = itg(
-            z0=z0, p0=0, ds=ds, alpha=alpha, zgrid=zgrid, vtotal=vtotal
-        )
-        return znew, pnew
 
     def calc_synchrotron_frequency_quadratic_potential(self):
         """."""
@@ -1090,21 +1026,9 @@ class LongitudinalEquilibrium:
             Zlp = self.get_impedance(w=wp, apply_filter=False)
             Zln = self.get_impedance(w=wn, apply_filter=False)
             growth = const * (wp * Zlp.real - wn * Zln.real)
-
+            # dynamic, PWD shift neglected
             shift = -const * (wp * Zlp.imag + wn * Zln.imag)
-            # Zl0 = self.get_impedance(w=w, apply_filter=False)
-            # shift = const * (2*w*Zl0.imag - wp*Zlp.imag - wn*Zln.imag)
-
-            # wp = w + ws
-            # wn = w - ws
-            w = _np.array(w)
-            wp = w + ws
-            Zlp = self.get_impedance(w=wp, apply_filter=False)
-            Zl0 = self.get_impedance(w=w, apply_filter=False)
-            growth = const * _np.sum(wp * Zlp.real)
-            # PWD + dynamic
-            shift = const * _np.sum(w * Zl0.imag * 0 - wp * Zlp.imag)
-        return growth, shift + ws
+        return shift + 1j * growth
 
     def calc_tuneshifts_cbi(self, w, m=1, nbun_fill=None, radiation=False):
         """."""
@@ -1195,7 +1119,52 @@ class LongitudinalEquilibrium:
         return eigenfreq, modecoup_matrix, fokker_matrix
 
     @staticmethod
-    def func_hmp(z, m, omegap):
+    def calc_action_variable(zamp, params):
+        """."""
+        zgrid, phiz, alpha = params
+
+        def energy_deviation(z):
+            phi = _np.interp(z, zgrid, phiz)
+            return h0i - phi
+
+        def intg(z):
+            phi = _np.interp(z, zgrid, phiz)
+            return _np.sqrt((2 / alpha) * (h0i - phi))
+
+        zri = +zamp
+        zli = -zamp
+        h0i = _np.interp(zri, zgrid, phiz)
+
+        turn_pts = _root(energy_deviation, x0=zli, method="lm")
+        if turn_pts.success:
+            zli = turn_pts.x[0]
+        else:
+            raise Exception("Problem in finding turning points.")
+        zli, zri = (zli, zri) if zli <= zri else (zri, zli)
+
+        action, _ = _quad(intg, zli, zri, points=[zli, zri])
+        action /= _PI
+        return action, h0i
+
+    @staticmethod
+    def solve_longitudinal_motion(idx, params):
+        """."""
+        ds, alpha, sync_data, zgrid, vtotal = params
+        z0 = sync_data["amplitude"][idx]
+
+        # hard-coded integrator options
+        # itg = LongitudinalEquilibrium._verlet_integrator
+        # itg = LongitudinalEquilibrium._forest_ruth_integrator
+        itg = LongitudinalEquilibrium._position_extended_forest_ruth_integrator
+
+        znew, pnew = itg(
+            z0=z0, p0=0, ds=ds, alpha=alpha, zgrid=zgrid, vtotal=vtotal
+        )
+        return znew, pnew
+
+    @staticmethod
+    def hmp(z, m, omegap):
+        """."""
         z = _np.array(z)
         zsize = z.size
 
@@ -1211,10 +1180,11 @@ class LongitudinalEquilibrium:
 
     @staticmethod
     def calc_hmps(z_ij, cb_mode, ms, ps, w0, h):
+        """."""
         omegaps = (ps * h + cb_mode) * w0
         hmps = _np.zeros((ms.size, ps.size, len(z_ij)), dtype=complex)
         for iz, z in enumerate(z_ij):
-            hmps[:, :, iz] = LongitudinalEquilibrium.func_hmp(z, ms, omegaps)
+            hmps[:, :, iz] = LongitudinalEquilibrium.hmp(z, ms, omegaps)
         return hmps
 
     def lebedev_matrix(
@@ -1228,6 +1198,7 @@ class LongitudinalEquilibrium:
         adsyncfreq=True,
         effsyncfreq="center",
     ):
+        """."""
         eqinfo = self.equilibrium_info
         ring = self.ring
         w0 = ring.rev_ang_freq
@@ -1350,6 +1321,7 @@ class LongitudinalEquilibrium:
     def oide_yokoya_matrix(
         self, hmps, ms, ps, cb_mode, action_limits=None, big_omega=None
     ):
+        """."""
         eqinfo = self.equilibrium_info
         ring = self.ring
         w0 = ring.rev_ang_freq
@@ -1411,7 +1383,7 @@ class LongitudinalEquilibrium:
         D_mm_nn = _np.kron(_np.diag(ms), _np.diag(ws_J_mid))
         return D_mm_nn + B_mm_nn
 
-    def _determinant(self, big_omega, params):
+    def _lebedev_determinant(self, big_omega, params):
         hmps, ms, ps, cb_mode, reduced = params
         bmat = self.lebedev_matrix(
             big_omega,
@@ -1428,9 +1400,10 @@ class LongitudinalEquilibrium:
     def solve_lebedev(
         self, x0, hmps, ms, ps, cb_mode, method, tol=None, reduced=False
     ):
+        """."""
         params = (hmps, ms, ps, cb_mode, reduced)
         root = _root(
-            _partial(self._determinant, params=params),
+            _partial(self._lebedev_determinant, params=params),
             x0=x0,
             method=method,
             tol=tol,
@@ -1446,6 +1419,7 @@ class LongitudinalEquilibrium:
     def solve_lebedev_constant_frequency(
         self, hmps, ms, ps, cb_mode, effsyncfreq, big_omega=None
     ):
+        """."""
         bmat = self.lebedev_matrix(
             big_omega,
             hmps,
@@ -1459,8 +1433,9 @@ class LongitudinalEquilibrium:
         return eigvals, eigvecs
 
     def solve_oide_yokoya(
-        self, hmps, ms, ps, cb_mode, action_limits, big_omega
+        self, hmps, ms, ps, cb_mode, action_limits=None, big_omega=None
     ):
+        """."""
         oymat = self.oide_yokoya_matrix(
             hmps, ms, ps, cb_mode, action_limits, big_omega
         )
@@ -1468,13 +1443,59 @@ class LongitudinalEquilibrium:
         return eigvals, eigvecs
 
     # -------------------- auxiliary methods ----------------------------------
+    def _manage_cpu_count(self):
+        cpu_count = _mp.cpu_count()
+        if self.nr_cpus is not None:
+            cpu_use = min(cpu_count, self.nr_cpus)
+        else:
+            cpu_use = cpu_count
+        return cpu_use
+
+    def _create_freqs(self):
+        w0 = self.ring.rev_ang_freq
+        p = _np.arange(0, self.max_mode)
+        return p * w0
+
+    def _reshape_dist(self, dist):
+        return dist.reshape((self.ring.harm_num, self.zgrid.size))
+
+    def _get_impedance_types_idx(self):
+        """."""
+        imp_idx = []
+        for idx, imp in enumerate(self.impedance_sources):
+            if "impedance" in imp.calc_method_str.lower():
+                imp_idx.append(idx)
+        return imp_idx
+
+    def _get_wake_types_idx(self):
+        """."""
+        wake_idx = []
+        for idx, imp in enumerate(self.impedance_sources):
+            if "wake" in imp.calc_method_str.lower():
+                wake_idx.append(idx)
+        return wake_idx
+
+    def _do_zero_padding(self, dist):
+        rf_lamb = self.ring.rf_lamb
+        dz = _np.diff(self.zgrid)[0]
+        # zero-padding
+        nr_pts = int(rf_lamb / dz) + 1
+        if not nr_pts % 2:
+            nr_pts -= 1
+        zgrid_full = _np.linspace(-1, 1, nr_pts) * rf_lamb / 2
+        dist_new = _np.zeros((dist.shape[0], nr_pts))
+        idx_ini = _np.searchsorted(zgrid_full, self.zgrid[0])
+        dist_new[:, idx_ini : idx_ini + self.zgrid.size] = dist
+        dist = dist_new
+        return dist, idx_ini
+
     def _apply_anderson_acceleration(self, dists, niter, tol, m=None, beta=1):
         """."""
         if beta < 0:
             raise Exception("relaxation parameter beta must be positive.")
 
         xold = dists[-1].ravel()
-        xnew = self._ffunc(xold)
+        xnew = self._haissinski_operator(xold)
         dists.append(xnew)
 
         m = m or niter
@@ -1485,7 +1506,7 @@ class LongitudinalEquilibrium:
         mat = _np.zeros((nr_xnew, m), dtype=float)
 
         gold = xnew - xold
-        gnew = self._ffunc(xnew) - xnew
+        gnew = self._haissinski_operator(xnew) - xnew
         G_k[:, where] = gnew - gold
         X_k[:, where] = gold
         mat[:, where] = gnew
@@ -1510,7 +1531,7 @@ class LongitudinalEquilibrium:
             gold = gnew
             # tf2 = _time.time()
             # print(f'MatrixMul: {tf2-tf1:.3f}s')
-            gnew = self._ffunc(xnew) - xnew
+            gnew = self._haissinski_operator(xnew) - xnew
             # tf3 = _time.time()
             G_k[:, where] = gnew - gold
             X_k[:, where] = xnew - xold
@@ -1538,12 +1559,32 @@ class LongitudinalEquilibrium:
                 break
         return dists, converged
 
-    def _create_freqs(self):
-        w0 = self.ring.rev_ang_freq
-        p = _np.arange(0, self.max_mode)
-        return p * w0
+    def _apply_random_convergence(self, dists, niter, tol):
+        xold = dists[-1].ravel()
+        converged = False
+        for k in range(niter):
+            xnew = self._haissinski_operator(xold)
+            dists.append(xnew)
+            diff = self._reshape_dist(xnew - xold)
+            dz = self.zgrid[1] - self.zgrid[0]
+            diff = _mytrapz(_np.abs(diff), dz)
+            idx = _np.argmax(diff)
+            if self.print_flag:
+                print(
+                    f"Iter.: {k+1:03d}, Dist. Diff.: {diff[idx]:.3e}"
+                    + f" (bucket {idx:03d})"
+                )
+                print("-" * 20)
+            if diff[idx] < tol:
+                converged = True
+                if self.print_flag:
+                    print("distribution ok!")
+                break
+            r = _np.random.randn() / 2
+            xold = (1 - r) * xnew + r * xold
+        return dists, converged
 
-    def _ffunc(self, xk):
+    def _haissinski_operator(self, xk):
         """Haissinski operator."""
         # t0 = _time.time()
         xk = self._reshape_dist(xk)
@@ -1594,22 +1635,6 @@ class LongitudinalEquilibrium:
         # print(f'CalcDist: {tf3-tf2:.3f}s')
         return fxk.ravel()
 
-    def _get_impedance_types_idx(self):
-        """."""
-        imp_idx = []
-        for idx, imp in enumerate(self.impedance_sources):
-            if "impedance" in imp.calc_method_str.lower():
-                imp_idx.append(idx)
-        return imp_idx
-
-    def _get_wake_types_idx(self):
-        """."""
-        wake_idx = []
-        for idx, imp in enumerate(self.impedance_sources):
-            if "wake" in imp.calc_method_str.lower():
-                wake_idx.append(idx)
-        return wake_idx
-
     def _feedback_phasor(self):
         ref_amp = self.main_ref_amp
         ref_phase = self.main_ref_phase
@@ -1656,20 +1681,6 @@ class LongitudinalEquilibrium:
         )
         return vg[None, :]
 
-    def _do_zero_padding(self, dist):
-        rf_lamb = self.ring.rf_lamb
-        dz = _np.diff(self.zgrid)[0]
-        # zero-padding
-        nr_pts = int(rf_lamb / dz) + 1
-        if not nr_pts % 2:
-            nr_pts -= 1
-        zgrid_full = _np.linspace(-1, 1, nr_pts) * rf_lamb / 2
-        dist_new = _np.zeros((dist.shape[0], nr_pts))
-        idx_ini = _np.searchsorted(zgrid_full, self.zgrid[0])
-        dist_new[:, idx_ini : idx_ini + self.zgrid.size] = dist
-        dist = dist_new
-        return dist, idx_ini
-
     @staticmethod
     def _feedback_err(x, *args):
         phase, dz, vbeamload, vref = args
@@ -1681,17 +1692,6 @@ class LongitudinalEquilibrium:
     @staticmethod
     def _generator_model(phase, a, b):
         return a * _np.sin(phase) + b * _np.cos(phase)
-
-    def _reshape_dist(self, dist):
-        return dist.reshape((self.ring.harm_num, self.zgrid.size))
-
-    def _manage_cpu_count(self):
-        cpu_count = _mp.cpu_count()
-        if self.nr_cpus is not None:
-            cpu_use = min(cpu_count, self.nr_cpus)
-        else:
-            cpu_use = cpu_count
-        return cpu_use
 
     @staticmethod
     def _verlet_integrator(z0, p0, ds, alpha, zgrid, vtotal):
