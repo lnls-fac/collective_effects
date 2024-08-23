@@ -288,7 +288,21 @@ class ImpedanceSource:
 
 
 class LongitudinalEquilibrium:
-    """."""
+    """Self-consistent longitudinal equilibrium calculations.
+
+    For equilibrium see [1].
+    For instabilities see [2] and [3].
+
+    [1] M. B. Alves and F. H. de Sá, "Equilibrium of longitudinal bunch
+    distributions in electron storage rings with arbitrary impedance sources
+    and generic filling patterns", Phys. Rev. Accel. Beams 26, 094402 (2023)
+    [2] M. Venturini, "Passive higher-harmonic rf cavities with general
+    settings and multibunch instabilities in electron storage rings"
+    Phys. Rev. Accel. Beams 21, 114404 (2018)
+    [3] I. Karpov, T. Argyropoulos, and E. Shaposhnikova, "Thresholds for loss
+    of Landau damping in longitudinal plane"
+    Phys. Rev. Accel. Beams 24, 11002 (2021)
+    """
 
     FeedbackMethod = _get_namedtuple(
         "FeedbackMethod", ["Phasor", "LeastSquares"]
@@ -932,6 +946,7 @@ class LongitudinalEquilibrium:
     def calc_canonical_transformation(
         self, total_voltage=None, step_size=None, parallel=True
     ):
+        """See Appendix C from Ref. [2]."""
         if total_voltage is None:
             total_voltage = self.total_voltage[0]
         ring = self.ring
@@ -1120,7 +1135,7 @@ class LongitudinalEquilibrium:
 
     @staticmethod
     def calc_action_variable(zamp, params):
-        """."""
+        """See Appendix C from Ref. [2]."""
         zgrid, phiz, alpha = params
 
         def energy_deviation(z):
@@ -1148,7 +1163,7 @@ class LongitudinalEquilibrium:
 
     @staticmethod
     def solve_longitudinal_motion(idx, params):
-        """."""
+        """See Appendix C from Ref. [2]."""
         ds, alpha, sync_data, zgrid, vtotal = params
         z0 = sync_data["amplitude"][idx]
 
@@ -1164,7 +1179,7 @@ class LongitudinalEquilibrium:
 
     @staticmethod
     def hmp(z, m, omegap):
-        """."""
+        """Eq. (16) from Ref. [2]."""
         z = _np.array(z)
         zsize = z.size
 
@@ -1198,7 +1213,11 @@ class LongitudinalEquilibrium:
         adsyncfreq=True,
         effsyncfreq="center",
     ):
-        """."""
+        """Lebedev matrix to find root of determinant.
+
+        Applying sum over m in Eq. (18) of Ref. [2] results in
+        Eq. (33) and (34) of Ref. [3].
+        """
         eqinfo = self.equilibrium_info
         ring = self.ring
         w0 = ring.rev_ang_freq
@@ -1318,10 +1337,59 @@ class LongitudinalEquilibrium:
             D_mm_pp = _np.kron(_np.diag(ms * eff_ws), _np.eye(nr_ps))
             return D_mm_pp + B_mm_pp
 
+    def _lebedev_determinant(self, big_omega, params):
+        hmps, ms, ps, cb_mode, reduced = params
+        bmat = self.lebedev_matrix(
+            big_omega,
+            hmps,
+            ms,
+            ps,
+            cb_mode,
+            reduced,
+            adsyncfreq=True,
+        )
+        db = _det(bmat)
+        return [db.real, db.imag]
+
+    def solve_lebedev(
+        self, x0, hmps, ms, ps, cb_mode, method, tol=None, reduced=False
+    ):
+        """Eq. (36) of Ref. [3]."""
+        params = (hmps, ms, ps, cb_mode, reduced)
+        root = _root(
+            _partial(self._lebedev_determinant, params=params),
+            x0=x0,
+            method=method,
+            tol=tol,
+        )
+        if not root.success:
+            print("Did not find root!")
+            raise Exception("Problem in finding root of determinant.")
+        else:
+            real_freq = root["x"][0] / _2PI
+            growth_rate = root["x"][1]
+            return real_freq, growth_rate
+
+    def solve_lebedev_constant_frequency(
+        self, hmps, ms, ps, cb_mode, effsyncfreq, big_omega=None
+    ):
+        """."""
+        bmat = self.lebedev_matrix(
+            big_omega,
+            hmps,
+            ms,
+            ps,
+            cb_mode,
+            adsyncfreq=False,
+            effsyncfreq=effsyncfreq,
+        )
+        eigvals, eigvecs = _np.linalg.eig(bmat)
+        return eigvals, eigvecs
+
     def oide_yokoya_matrix(
         self, hmps, ms, ps, cb_mode, action_limits=None, big_omega=None
     ):
-        """."""
+        """Similar to Eq. (43) of Ref. [3]."""
         eqinfo = self.equilibrium_info
         ring = self.ring
         w0 = ring.rev_ang_freq
@@ -1383,59 +1451,10 @@ class LongitudinalEquilibrium:
         D_mm_nn = _np.kron(_np.diag(ms), _np.diag(ws_J_mid))
         return D_mm_nn + B_mm_nn
 
-    def _lebedev_determinant(self, big_omega, params):
-        hmps, ms, ps, cb_mode, reduced = params
-        bmat = self.lebedev_matrix(
-            big_omega,
-            hmps,
-            ms,
-            ps,
-            cb_mode,
-            reduced,
-            adsyncfreq=True,
-        )
-        db = _det(bmat)
-        return [db.real, db.imag]
-
-    def solve_lebedev(
-        self, x0, hmps, ms, ps, cb_mode, method, tol=None, reduced=False
-    ):
-        """."""
-        params = (hmps, ms, ps, cb_mode, reduced)
-        root = _root(
-            _partial(self._lebedev_determinant, params=params),
-            x0=x0,
-            method=method,
-            tol=tol,
-        )
-        if not root.success:
-            print("Did not find root!")
-            raise Exception("Problem in finding root of determinant.")
-        else:
-            real_freq = root["x"][0] / _2PI
-            growth_rate = root["x"][1]
-            return real_freq, growth_rate
-
-    def solve_lebedev_constant_frequency(
-        self, hmps, ms, ps, cb_mode, effsyncfreq, big_omega=None
-    ):
-        """."""
-        bmat = self.lebedev_matrix(
-            big_omega,
-            hmps,
-            ms,
-            ps,
-            cb_mode,
-            adsyncfreq=False,
-            effsyncfreq=effsyncfreq,
-        )
-        eigvals, eigvecs = _np.linalg.eig(bmat)
-        return eigvals, eigvecs
-
     def solve_oide_yokoya(
         self, hmps, ms, ps, cb_mode, action_limits=None, big_omega=None
     ):
-        """."""
+        """Similar to Eq. (42) of Ref. [3]."""
         oymat = self.oide_yokoya_matrix(
             hmps, ms, ps, cb_mode, action_limits, big_omega
         )
