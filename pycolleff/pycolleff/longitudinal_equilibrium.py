@@ -1020,6 +1020,50 @@ class LongitudinalEquilibrium:
         fs_std = _np.sqrt((_PI - 2 ** (3 / 2))) / 2 ** (3 / 4) * fs_avg
         return fs_avg, fs_std
 
+    @staticmethod
+    def calc_action_variable(zamp, params):
+        """See Appendix C from Ref. [2]."""
+        zgrid, phiz, alpha = params
+
+        def energy_deviation(z):
+            phi = _np.interp(z, zgrid, phiz)
+            return h0i - phi
+
+        def intg(z):
+            phi = _np.interp(z, zgrid, phiz)
+            return _np.sqrt((2 / alpha) * (h0i - phi))
+
+        zri = +zamp
+        zli = -zamp
+        h0i = _np.interp(zri, zgrid, phiz)
+
+        turn_pts = _root(energy_deviation, x0=zli, method="lm")
+        if turn_pts.success:
+            zli = turn_pts.x[0]
+        else:
+            raise Exception("Problem in finding turning points.")
+        zli, zri = (zli, zri) if zli <= zri else (zri, zli)
+
+        action, _ = _quad(intg, zli, zri, points=[zli, zri])
+        action /= _PI
+        return action, h0i
+
+    @staticmethod
+    def solve_longitudinal_motion(idx, params):
+        """See Appendix C from Ref. [2]."""
+        ds, alpha, sync_data, zgrid, vtotal = params
+        z0 = sync_data["amplitude"][idx]
+
+        # hard-coded integrator options
+        # itg = LongitudinalEquilibrium._verlet_integrator
+        # itg = LongitudinalEquilibrium._forest_ruth_integrator
+        itg = LongitudinalEquilibrium._position_extended_forest_ruth_integrator
+
+        znew, pnew = itg(
+            z0=z0, p0=0, ds=ds, alpha=alpha, zgrid=zgrid, vtotal=vtotal
+        )
+        return znew, pnew
+
     # -------------------- instabilities calculations -------------------------
     def calc_robinson_instability(
         self, w, approx=False, wr=None, Rs=None, Q=None
@@ -1135,50 +1179,6 @@ class LongitudinalEquilibrium:
         ring.num_bun = num_bun
         ring.dampte = dampte
         return eigenfreq, modecoup_matrix, fokker_matrix
-
-    @staticmethod
-    def calc_action_variable(zamp, params):
-        """See Appendix C from Ref. [2]."""
-        zgrid, phiz, alpha = params
-
-        def energy_deviation(z):
-            phi = _np.interp(z, zgrid, phiz)
-            return h0i - phi
-
-        def intg(z):
-            phi = _np.interp(z, zgrid, phiz)
-            return _np.sqrt((2 / alpha) * (h0i - phi))
-
-        zri = +zamp
-        zli = -zamp
-        h0i = _np.interp(zri, zgrid, phiz)
-
-        turn_pts = _root(energy_deviation, x0=zli, method="lm")
-        if turn_pts.success:
-            zli = turn_pts.x[0]
-        else:
-            raise Exception("Problem in finding turning points.")
-        zli, zri = (zli, zri) if zli <= zri else (zri, zli)
-
-        action, _ = _quad(intg, zli, zri, points=[zli, zri])
-        action /= _PI
-        return action, h0i
-
-    @staticmethod
-    def solve_longitudinal_motion(idx, params):
-        """See Appendix C from Ref. [2]."""
-        ds, alpha, sync_data, zgrid, vtotal = params
-        z0 = sync_data["amplitude"][idx]
-
-        # hard-coded integrator options
-        # itg = LongitudinalEquilibrium._verlet_integrator
-        # itg = LongitudinalEquilibrium._forest_ruth_integrator
-        itg = LongitudinalEquilibrium._position_extended_forest_ruth_integrator
-
-        znew, pnew = itg(
-            z0=z0, p0=0, ds=ds, alpha=alpha, zgrid=zgrid, vtotal=vtotal
-        )
-        return znew, pnew
 
     @staticmethod
     def hmp(z, m, omegap):
