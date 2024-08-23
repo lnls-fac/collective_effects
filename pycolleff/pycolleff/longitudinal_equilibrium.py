@@ -823,7 +823,10 @@ class LongitudinalEquilibrium:
         max_amp=None,
         nrpts=201,
     ):
-        """Calculate synchrotron frequencies for given total voltage."""
+        """Calculate synchrotron frequencies for given total voltage.
+
+        TODO: Understand noisy results for low amplitudes.
+        """
         # _warnings.filterwarnings("error")
 
         if total_voltage is None:
@@ -1389,7 +1392,10 @@ class LongitudinalEquilibrium:
     def oide_yokoya_matrix(
         self, hmps, ms, ps, cb_mode, action_limits=None, big_omega=None
     ):
-        """Similar to Eq. (43) of Ref. [3]."""
+        """Similar to Eq. (43) of Ref. [3].
+
+        TODO: Understand original decomposition Cm*cos + Sm*sin.
+        """
         eqinfo = self.equilibrium_info
         ring = self.ring
         w0 = ring.rev_ang_freq
