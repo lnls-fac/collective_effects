@@ -290,8 +290,9 @@ class ImpedanceSource:
 class LongitudinalEquilibrium:
     """Self-consistent longitudinal equilibrium calculations.
 
-    For equilibrium see [1].
-    For instabilities see [2] and [3].
+    For equilibrium, see [1].
+    For instabilities, see [2] and [3].
+    For integrators, see [4].
 
     [1] M. B. Alves and F. H. de Sá, "Equilibrium of longitudinal bunch
     distributions in electron storage rings with arbitrary impedance sources
@@ -302,6 +303,9 @@ class LongitudinalEquilibrium:
     [3] I. Karpov, T. Argyropoulos, and E. Shaposhnikova, "Thresholds for loss
     of Landau damping in longitudinal plane"
     Phys. Rev. Accel. Beams 24, 11002 (2021)
+    [4] P. Young, The leapfrog method and other "symplectic" algorithms for
+    integrating Newton’s laws of motion.
+    https://young.physics.ucsc.edu/115/leapfrog.pdf
     """
 
     FeedbackMethod = _get_namedtuple(
@@ -1050,7 +1054,10 @@ class LongitudinalEquilibrium:
 
     @staticmethod
     def solve_longitudinal_motion(idx, params):
-        """See Appendix C from Ref. [2]."""
+        """See Appendix C from Ref. [2].
+
+        Implementation of integrators based on Ref. [4].
+        """
         ds, alpha, sync_data, zgrid, vtotal = params
         z0 = sync_data["amplitude"][idx]
 
@@ -1720,7 +1727,10 @@ class LongitudinalEquilibrium:
 
     @staticmethod
     def _verlet_integrator(z0, p0, ds, alpha, zgrid, vtotal):
-        """2nd-order symplectic integrator using the Verlet method."""
+        """2nd-order symplectic integrator using the Verlet method.
+
+        Ref. [4]. Section III. Equations (10).
+        """
         z, p = z0, p0
         positions = [z0]
         momentums = [p0]
@@ -1748,7 +1758,10 @@ class LongitudinalEquilibrium:
 
     @staticmethod
     def _forest_ruth_integrator(z0, p0, ds, alpha, zgrid, vtotal):
-        """4th-order symplectic integrator using the Forest-Ruth method."""
+        """4th-order symplectic integrator using the Forest-Ruth method.
+
+        Ref. [4]. Section VII. Equations (36) and (37).
+        """
         z, p = z0, p0
         positions = [z0]
         momentums = [p0]
@@ -1791,7 +1804,10 @@ class LongitudinalEquilibrium:
     def _position_extended_forest_ruth_integrator(
         z0, p0, ds, alpha, zgrid, vtotal
     ):
-        """Position Extended Forest-Ruth Like method."""
+        """Position Extended Forest-Ruth Like method.
+
+        Ref. [4]. Section VII. Equations (38) and (39).
+        """
         z, p = z0, p0
         positions = [z0]
         momentums = [p0]
