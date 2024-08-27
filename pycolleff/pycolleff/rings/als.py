@@ -6,10 +6,10 @@ from ..colleff import Ring as _Ring
 from ..longitudinal_equilibrium import ImpedanceSource as _ImpSource
 
 
-def create_ring(instability=True):
+def create_ring(unstable_params=True):
     """Create ALS-U collective effects model ring.
 
-    Based on data provided in [1, 2].
+    Based on data provided in [1-3].
 
     Returns:
         ring (pycolleff.colleff.Ring): main parameters for collective effects
@@ -24,10 +24,15 @@ def create_ring(instability=True):
     the presence of multiple resonator wakefields. Physical Review
     Accelerators and Beams, 24 (2), 1–27.
     https://doi.org/10.1103/PhysRevAccelBeams.24.024401
+
+    [3] M. Venturini, "Passive higher-harmonic rf cavities with general
+    settings and multibunch instabilities in electron storage rings"
+    Phys. Rev. Accel. Beams 21, 114404 (2018)
     """
     ring = _Ring()
     ring.version = "ALS-U"
-    if instability:
+    if unstable_params:
+        # From Ref. [3]
         ring.energy = 2e9  # energy [eV]
         ring.total_current = 500e-3  # total current [A]
         ring.mom_comp = 2.11e-4  # momentum compaction factor
@@ -63,10 +68,10 @@ def create_ring(instability=True):
 
 
 def create_harmonic_cavity():
-    """Harmonic cavities parameters provided in [1]."""
+    """Harmonic cavities parameters provided in [1, 3]."""
     cav = _ImpSource()
 
-    # Two ALS HHCs
+    # Two ALS HHCs from Ref. [3]
     cav.shunt_impedance = 3.4e6
     cav.Q = 21_000
     cav.harm_rf = 3
@@ -97,7 +102,7 @@ def create_harmonic_cavity():
 
 def create_main_cavity():
     """."""
-    # Main cavities parameters provided in [2]
+    # Main cavities parameters provided in Ref. [2]
 
     # cav = _ImpSource()
     # cav.shunt_impedance = 0.8259e6
