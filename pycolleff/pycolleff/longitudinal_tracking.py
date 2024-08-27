@@ -27,7 +27,7 @@ class Ring:
         self._cav_vgap = 0.0  # [V]
         self.cav_pos = _np.linspace(-1/2, 1/2, 1000)
         self.cav_pos *= self.rf_lamb
-        self.cav_volt_norm = _np.zeros(self.cav_pos.shape)
+        self._cav_volt_norm = _np.zeros(self.cav_pos.shape)
 
         self.cav_vgap = 3e6  # [V]
 
@@ -98,6 +98,15 @@ class Ring:
     def cav_vgap_norm(self):
         """."""
         return self.cav_vgap/self.energy
+
+    @property
+    def cav_volt_norm(self):
+        """."""
+        return self._cav_volt_norm
+
+    @cav_volt_norm.setter
+    def cav_volt_norm(self, value):
+        self._cav_volt_norm = value
 
     @property
     def rf_lamb(self):
