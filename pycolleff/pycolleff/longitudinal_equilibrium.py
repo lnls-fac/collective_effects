@@ -1888,10 +1888,7 @@ class LongitudinalEquilibrium:
 
     @staticmethod
     def _calc_dangle(z0, p0, z, p):
-        vec0 = _np.array([z0, p0])
-        vec0 /= _np.linalg.norm(vec0)
-        vec1 = _np.array([z, p])
-        vec1 /= _np.linalg.norm(vec1)
-        acos = _np.abs(_np.dot(vec0, vec1))
+        acos = z0*z + p0*p
+        acos /= np.sqrt((z0 * z0 + p0 * p0) * (z*z + p*p))
         acos = _np.clip(acos, -1, 1)
         return _np.arccos(acos)
