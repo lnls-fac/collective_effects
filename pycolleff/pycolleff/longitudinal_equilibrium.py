@@ -1232,120 +1232,153 @@ class LongitudinalEquilibrium:
         ring = self.ring
         w0 = ring.rev_ang_freq
         h = ring.harm_num
-        I0 = ring.total_current
-        E0 = ring.energy
-        C0 = ring.circum
-        alpha = ring.mom_comp
-        sigmae2 = ring.espread**2
 
         psi_J = eqinfo["action_distribution"]
         ws_J = _2PI * eqinfo["sync_freq"]
         J = eqinfo["action"]
 
-        nr_ps = ps.size
+        omegap = (ps * h + cb_mode) * w0
+        c_omega = big_omega[0] + 1j * big_omega[1]
         if adsyncfreq:
-            dpsi_dJ = -ws_J * psi_J / (alpha * sigmae2 * _c)
+            B_pp = self._fill_lebedev_matrix_adsyncfreq(
+                J,
+                psi_J,
+                ws_J,
+                c_omega,
+                omegap,
+                ps,
+                ms,
+                hmps,
+                self.get_impedance,
+                reduced,
+            )
+            return B_pp
 
-            c_omega = big_omega[0] + 1j * big_omega[1]
+        # calculation with effective synchrotron frequency
+        eff_ws = LongitudinalEquilibrium._get_effective_syncfreq(
+            effsyncfreq, ws_J, eqinfo
+        )
+        B_mm_pp = self._fill_lebedev_matrix_constsyncfreq(
+            J, psi_J, eff_ws, c_omega, omegap, ps, ms, hmps, self.get_impedance
+        )
+        return B_mm_pp
 
-            B_pp = _np.zeros((nr_ps, nr_ps), dtype=complex)
+    def _fill_lebedev_matrix_adsyncfreq(
+        self, J, psi_J, ws_J, c_omega, omegap, ps, ms, hmps, impedance, reduced
+    ):
+        nr_ps = ps.size
+        B_pp = _np.zeros((nr_ps, nr_ps), dtype=complex)
 
-            if reduced:
-                if _np.any(ms < 0):
-                    raise ValueError("reduced=True but m < 0 identified")
-                m2wJ2 = (ms[:, None] * ws_J) ** 2
-                m2wJ = ms[:, None] ** 2 * ws_J
-                mdpsi_dJ_div = 2 * m2wJ * dpsi_dJ / (c_omega * c_omega - m2wJ2)
-            else:
-                mdpsi_dJ_div = (
-                    ms[:, None] * dpsi_dJ / (c_omega - ms[:, None] * ws_J)
-                )
+        alpha = self.ring.mom_comp
+        sigmae2 = self.ring.espread**2
+        dpsi_dJ = -ws_J * psi_J / (alpha * sigmae2 * _c)
 
-            omegapp = (ps * h + cb_mode) * w0
+        # only analytic impedances accept complex frequencies
+        zpp = impedance(w=omegap + c_omega) / omegap
 
-            idx_close = _np.zeros_like(ws_J)
-            # if ws_J.min() < c_omega.real < ws_J.max():
-            #     # print('here')
-            #     # print(c_omega.imag)
-            #     if _np.abs(c_omega.imag) < 1e-5:
-            #         idx_close = _np.isclose(c_omega.real, ws_J, rtol=1e-5)
-            #         print(_np.sum(idx_close))
+        # more general impedances
+        # zpp = impedance(w=omegap + c_omega.real) / omegap
 
-            # only resonators accept complex frequencies
+        # wavg = _2PI * eqinfo["avg_sync_freq"]
+        # zpp = impedance(w=omegap + wavg) / omegap
 
-            zpp = self.get_impedance(w=omegapp + c_omega) / omegapp
-
-            # more general impedances
-            # zpp = self.get_impedance(w=omegapp + c_omega.real) / omegapp
-
-            # wavg = _2PI * eqinfo["avg_sync_freq"]
-            # zpp = self.get_impedance(w=omegapp + wavg) / omegapp
-
-            dpsi_dJ_ws = dpsi_dJ / ws_J
-
-            for ip in range(nr_ps):
-                h_mp = hmps[:, ip]
-                for ipp in range(nr_ps):
-                    h_mpp = hmps[:, ipp].conj()
-                    if _np.sum(idx_close):
-                        rgpp = (h_mp * h_mpp * dpsi_dJ_ws[None, :])[
-                            :, idx_close
-                        ]
-                        rgpp = rgpp.sum(axis=-1)
-                        gpp = 2 * _np.sign(c_omega.imag) * _PI * rgpp
-                        if _np.sum(~idx_close):
-                            itg = (h_mp * h_mpp * mdpsi_dJ_div).sum(axis=0)
-                            igpp = _simps(itg[:, ~idx_close], J[~idx_close])
-                            gpp += 1j * igpp
-                    else:
-                        itg = (h_mp * h_mpp * mdpsi_dJ_div).sum(axis=0)
-                        gpp = 1j * _simps(itg, J)
-                    B_pp[ip, ipp] = zpp[ipp] * gpp
-
-            stren = _2PI * I0 * _c * _c / (E0 * C0)
-            B_pp *= stren
-            I_pp = _np.eye(nr_ps)
-            return I_pp + B_pp
+        if reduced:
+            if _np.any(ms < 0):
+                raise ValueError("reduced=True but m < 0 identified")
+            m2wJ2 = (ms[:, None] * ws_J) ** 2
+            m2wJ = ms[:, None] ** 2 * ws_J
+            mdpsi_dJ_div = 2 * m2wJ * dpsi_dJ / (c_omega * c_omega - m2wJ2)
         else:
-            nr_ms = ms.size
+            mdpsi_dJ_div = (
+                ms[:, None] * dpsi_dJ / (c_omega - ms[:, None] * ws_J)
+            )
 
-            if isinstance(effsyncfreq, str):
-                if effsyncfreq == "center":
-                    eff_ws = ws_J[0]
-                elif effsyncfreq == "avg":
-                    eff_ws = _2PI * eqinfo["avg_sync_freq"]
-                elif effsyncfreq == "min":
-                    eff_ws = ws_J.min()
+        idx_close = _np.zeros_like(ws_J)
+        # if ws_J.min() < c_omega.real < ws_J.max():
+        #     # print('here')
+        #     # print(c_omega.imag)
+        #     if _np.abs(c_omega.imag) < 1e-5:
+        #         idx_close = _np.isclose(c_omega.real, ws_J, rtol=1e-5)
+        #         print(_np.sum(idx_close))
+
+        dpsi_dJ_ws = dpsi_dJ / ws_J
+
+        for ip in range(nr_ps):
+            h_mp = hmps[:, ip]
+            for ipp in range(nr_ps):
+                h_mpp = hmps[:, ipp].conj()
+                if _np.sum(idx_close):
+                    rgpp = h_mp * h_mpp * dpsi_dJ_ws[None, :]
+                    rgpp = rgpp[:, idx_close].sum(axis=-1)
+                    gpp = _2PI * _np.sign(c_omega.imag) * rgpp
+                    if _np.sum(~idx_close):
+                        itg = (h_mp * h_mpp * mdpsi_dJ_div).sum(axis=0)
+                        igpp = _simps(itg[:, ~idx_close], J[~idx_close])
+                        gpp += 1j * igpp
                 else:
-                    raise ValueError(
-                        "effsyncfreq must be 'center', 'avg' or 'min'"
-                    )
-            elif isinstance(effsyncfreq, float):
-                eff_ws = _2PI * effsyncfreq
+                    itg = (h_mp * h_mpp * mdpsi_dJ_div).sum(axis=0)
+                    gpp = 1j * _simps(itg, J)
+                B_pp[ip, ipp] = zpp[ipp] * gpp
 
-            B_m_pp = _np.zeros((nr_ms, nr_ps, nr_ps), dtype=complex)
-            for im, m in enumerate(ms):
-                mws = m * eff_ws
-                for ip in range(nr_ps):
-                    h_mp = hmps[im, ip]
-                    for ipp, pp in enumerate(ps):
-                        h_mpp = hmps[im, ipp].conj()
-                        gmpp = _simps(h_mp * h_mpp * psi_J, J)
-                        omegapp = (pp * h + cb_mode) * w0
-                        if big_omega is None:
-                            zpp = self.get_impedance(w=omegapp + mws)
-                        else:
-                            c_omega = big_omega[0] + 1j * big_omega[1]
-                            zpp = self.get_impedance(w=omegapp + c_omega)
-                        B_m_pp[im, ip, ipp] = 1j * mws * (zpp / omegapp) * gmpp
+        I0 = self.ring.total_current
+        E0 = self.ring.energy
+        C0 = self.ring.circum
+        stren = _2PI * I0 * _c * _c / (E0 * C0)
+        B_pp *= stren
+        I_pp = _np.eye(nr_ps)
+        return I_pp + B_pp
 
-            B_mm_pp = _np.zeros((nr_ms, nr_ps, nr_ms, nr_ps), dtype=complex)
-            stren = _2PI * I0 * _c / (E0 * C0) / (alpha * sigmae2)
-            B_mm_pp[:, :, :, :] = stren * B_m_pp[:, :, None, :]
-            size = nr_ms * nr_ps
-            B_mm_pp = B_mm_pp.reshape(size, size)
-            D_mm_pp = _np.kron(_np.diag(ms * eff_ws), _np.eye(nr_ps))
-            return D_mm_pp + B_mm_pp
+    def _fill_lebedev_matrix_constsyncfreq(
+        self, J, psi_J, eff_ws, c_omega, omegap, ms, hmps, impedance
+    ):
+        nr_ms = ms.size
+        nr_ps = omegap.size
+
+        B_m_pp = _np.zeros((nr_ms, nr_ps, nr_ps), dtype=complex)
+        for im, m in enumerate(ms):
+            mws = m * eff_ws
+            for ip in range(nr_ps):
+                h_mp = hmps[im, ip]
+                for ipp in range(nr_ps):
+                    h_mpp = hmps[im, ipp].conj()
+                    gmpp = _simps(h_mp * h_mpp * psi_J, J)
+                    omegapp = omegap[ipp]
+                    if c_omega is None:
+                        zpp = impedance(w=omegapp + mws)
+                    else:
+                        zpp = impedance(w=omegapp + c_omega)
+                    B_m_pp[im, ip, ipp] = 1j * mws * (zpp / omegapp) * gmpp
+
+        I0 = self.ring.total_current
+        E0 = self.ring.energy
+        C0 = self.ring.circum
+        alpha = self.ring.mom_comp
+        sigmae2 = self.ring.espread**2
+
+        B_mm_pp = _np.zeros((nr_ms, nr_ps, nr_ms, nr_ps), dtype=complex)
+        stren = _2PI * I0 * _c / (E0 * C0) / (alpha * sigmae2)
+        B_mm_pp[:, :, :, :] = stren * B_m_pp[:, :, None, :]
+        size = nr_ms * nr_ps
+        B_mm_pp = B_mm_pp.reshape(size, size)
+        D_mm_pp = _np.kron(_np.diag(ms * eff_ws), _np.eye(nr_ps))
+        return D_mm_pp + B_mm_pp
+
+    @staticmethod
+    def _get_effective_sync_freq(effsyncfreq, ws_J, eqinfo):
+        if isinstance(effsyncfreq, str):
+            if effsyncfreq == "center":
+                eff_ws = ws_J[0]
+            elif effsyncfreq == "avg":
+                eff_ws = _2PI * eqinfo["avg_sync_freq"]
+            elif effsyncfreq == "min":
+                eff_ws = ws_J.min()
+            else:
+                raise ValueError(
+                    "effsyncfreq must be 'center', 'avg' or 'min'"
+                )
+        elif isinstance(effsyncfreq, float):
+            eff_ws = _2PI * effsyncfreq
+        return eff_ws
 
     def _lebedev_determinant(self, big_omega, params):
         hmps, ms, ps, cb_mode, reduced = params
