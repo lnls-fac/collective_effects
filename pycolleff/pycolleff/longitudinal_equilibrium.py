@@ -793,6 +793,12 @@ class LongitudinalEquilibrium:
     ):
         """."""
         self.print_flag = print_flag
+        if self.identical_bunches:
+            if not _np.allclose(self.fillpattern, self.fillpattern[0]):
+                raise Exception(
+                    "identical_bunches=True but "
+                    "fillpattern is nonuniform."
+                )
         dists = [
             self.distributions,
         ]
@@ -1909,7 +1915,7 @@ class LongitudinalEquilibrium:
 
     @staticmethod
     def _calc_dangle(z0, p0, z, p):
-        acos = z0*z + p0*p
-        acos /= _np.sqrt((z0 * z0 + p0 * p0) * (z*z + p*p))
+        acos = z0 * z + p0 * p
+        acos /= _np.sqrt((z0 * z0 + p0 * p0) * (z * z + p * p))
         acos = _np.clip(acos, -1, 1)
         return _np.arccos(acos)
