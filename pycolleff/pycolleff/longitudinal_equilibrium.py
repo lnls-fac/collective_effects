@@ -436,7 +436,8 @@ class LongitudinalEquilibrium:
             raise ValueError("Distributions must have 2 dimensions.")
         elif value.shape[0] not in (1, self.ring.harm_num):
             raise ValueError(
-                "First dimension must be equal 1 or ring.harm_num.")
+                "First dimension must be equal 1 or ring.harm_num."
+            )
         elif value.shape[1] != self._zgrid.size:
             raise ValueError("Second dimension must be equal zgrid.size.")
         self._dist = value
@@ -653,9 +654,12 @@ class LongitudinalEquilibrium:
 
         if dist is None:
             dist = self.distributions
-        fillpattern = self.ring.total_current * self.fillpattern
+        if self.identical_bunches:
+            fillpattern = _np.array([self.ring.total_current])
+            h = 1
+        else:
+            fillpattern = self.ring.total_current * self.fillpattern
         zgrid = self.zgrid
-
         zn_ph = (1j * _2PI / h) * _np.arange(h)[None, :]
         z_ph = (1j * w0 / _c) * zgrid[None, :]
 
@@ -690,27 +694,24 @@ class LongitudinalEquilibrium:
             dist, idx_ini = self._do_zero_padding(dist)
             did_zero_pad = True
 
-        # remove last point to do not overlap domains
         fill = self.ring.total_current * self.fillpattern
-        if not self.identical_bunches:
-            dist_beam = (fill[:, None] * dist[:, :-1]).ravel()
-        else:
-            ib = self.ring.total_current/self.ring.harm_num
-            dist_beam = ib * dist[:, :-1].ravel()
+        if self.identical_bunches:
+            fill = _np.array([self.ring.total_current / self.ring.harm_num])
+        # remove last point in z to do not overlap domains
+        dist_beam = (fill[:, None] * dist[:, :-1]).ravel()
         dist_dft = _rfft(dist_beam)
 
         # using real dft, take only positive harmonics
         max_mode = dist_dft.size
-        wbase = self.ring.rev_ang_freq
+        wps = self._create_freqs(max_mode)
         if self.identical_bunches:
-            wbase *= self.ring.harm_num
-        wps = _np.arange(0, max_mode) * wbase
+            wps *= self.ring.harm_num
         zl_wps = self.get_impedance(w=wps, apply_filter=True)
 
         dist_dft *= zl_wps.conj()
 
         _harm_volt = (-self.ring.circum) * _irfft(dist_dft)
-        _harm_volt = _harm_volt.reshape((-1, dist.shape[1]-1))
+        _harm_volt = _harm_volt.reshape((-1, dist.shape[1] - 1))
         harm_volt = _np.zeros_like(dist, dtype=complex)
         harm_volt[:, :-1] = _harm_volt
         harm_volt[:-1, -1] = harm_volt[1:, 0]
@@ -723,12 +724,18 @@ class LongitudinalEquilibrium:
         """."""
         if dist is None:
             dist = self.distributions
-        fillpattern = self.ring.total_current * self.fillpattern[:, None]
-        zgrid = self.zgrid
 
         h = self.ring.harm_num
         circum = self.ring.circum
         rev_time = self.ring.rev_time
+        if self.identical_bunches:
+            fillpattern = _np.array([self.ring.total_current / h])[:, None]
+            circum /= h
+            h = 1
+        else:
+            fillpattern = self.ring.total_current * self.fillpattern[:, None]
+
+        zgrid = self.zgrid
 
         alpha = wake_source.alpha
         beta = wake_source.beta
@@ -1528,9 +1535,11 @@ class LongitudinalEquilibrium:
             cpu_use = cpu_count
         return cpu_use
 
-    def _create_freqs(self):
+    def _create_freqs(self, max_mode=None):
         w0 = self.ring.rev_ang_freq
-        p = _np.arange(0, self.max_mode)
+        if max_mode is None:
+            max_mode = self.max_mode
+        p = _np.arange(0, max_mode)
         return p * w0
 
     def _reshape_dist(self, dist):
@@ -1901,6 +1910,6 @@ class LongitudinalEquilibrium:
     @staticmethod
     def _calc_dangle(z0, p0, z, p):
         acos = z0*z + p0*p
-        acos /= np.sqrt((z0 * z0 + p0 * p0) * (z*z + p*p))
+        acos /= _np.sqrt((z0 * z0 + p0 * p0) * (z*z + p*p))
         acos = _np.clip(acos, -1, 1)
         return _np.arccos(acos)
