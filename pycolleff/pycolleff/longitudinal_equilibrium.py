@@ -346,6 +346,7 @@ class LongitudinalEquilibrium:
         self.main_gen_phase_mon = None
 
         self.equilibrium_info = dict()
+        self.identical_bunches = False
 
     @property
     def feedback_method_str(self):
@@ -425,14 +426,17 @@ class LongitudinalEquilibrium:
     @property
     def distributions(self):
         """."""
+        if self.identical_bunches:
+            return self._dist[:1, :]
         return self._dist
 
     @distributions.setter
     def distributions(self, value):
         if value.ndim != 2:
             raise ValueError("Distributions must have 2 dimensions.")
-        elif value.shape[0] != self.ring.harm_num:
-            raise ValueError("First dimension must be equal ring.harm_num.")
+        elif value.shape[0] not in (1, self.ring.harm_num):
+            raise ValueError(
+                "First dimension must be equal 1 or ring.harm_num.")
         elif value.shape[1] != self._zgrid.size:
             raise ValueError("Second dimension must be equal zgrid.size.")
         self._dist = value
@@ -688,19 +692,27 @@ class LongitudinalEquilibrium:
 
         # remove last point to do not overlap domains
         fill = self.ring.total_current * self.fillpattern
-        dist_beam = (fill[:, None] * dist[:, :-1]).ravel()
+        if not self.identical_bunches:
+            dist_beam = (fill[:, None] * dist[:, :-1]).ravel()
+        else:
+            ib = self.ring.total_current/self.ring.harm_num
+            dist_beam = ib * dist[:, :-1].ravel()
         dist_dft = _rfft(dist_beam)
 
         # using real dft, take only positive harmonics
         max_mode = dist_dft.size
-        wps = _np.arange(0, max_mode) * self.ring.rev_ang_freq
+        wbase = self.ring.rev_ang_freq
+        if self.identical_bunches:
+            wbase *= self.ring.harm_num
+        wps = _np.arange(0, max_mode) * wbase
         zl_wps = self.get_impedance(w=wps, apply_filter=True)
 
         dist_dft *= zl_wps.conj()
 
         _harm_volt = (-self.ring.circum) * _irfft(dist_dft)
+        _harm_volt = _harm_volt.reshape((-1, dist.shape[1]-1))
         harm_volt = _np.zeros_like(dist, dtype=complex)
-        harm_volt[:, :-1] = _harm_volt.reshape((dist.shape[0], -1))
+        harm_volt[:, :-1] = _harm_volt
         harm_volt[:-1, -1] = harm_volt[1:, 0]
         harm_volt[-1, -1] = harm_volt[0, 0]
         if did_zero_pad:
@@ -1522,7 +1534,7 @@ class LongitudinalEquilibrium:
         return p * w0
 
     def _reshape_dist(self, dist):
-        return dist.reshape((self.ring.harm_num, self.zgrid.size))
+        return dist.reshape((-1, self.zgrid.size))
 
     def _get_impedance_types_idx(self):
         """."""
