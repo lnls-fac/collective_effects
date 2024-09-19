@@ -420,6 +420,8 @@ class LongitudinalEquilibrium:
     @property
     def filled_buckets(self):
         """."""
+        if self.identical_bunches:
+            return 0
         idx = _np.where(self.fillpattern != 0)[0]
         return idx
 
