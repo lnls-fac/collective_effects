@@ -1,12 +1,13 @@
 """."""
 
+import math as _math
 import numpy as _np
 import pandas as pd
 import mathphys as _mp
 
 _LSPEED = _mp.constants.light_speed
-_factorial = _np.math.factorial
-_sqrt = _np.math.sqrt
+_factorial = _math.factorial
+_sqrt = _math.sqrt
 
 
 class Ring:
@@ -48,12 +49,12 @@ class Ring:
     @property
     def rev_ang_freq(self):
         """."""
-        return 2*_np.math.pi*self.rev_freq
+        return 2*_math.pi*self.rev_freq
 
     @property
     def rf_ang_freq(self):
         """."""
-        return 2*_np.math.pi*self.rf_freq
+        return 2*_math.pi*self.rf_freq
 
     @property
     def rev_time(self):
@@ -73,7 +74,7 @@ class Ring:
             float: Natural synchronous phase [rad].
 
         """
-        return _np.math.pi - _np.math.asin(self.en_lost_rad/self.gap_voltage)
+        return _math.pi - _math.asin(self.en_lost_rad/self.gap_voltage)
 
     def __str__(self):
         """."""
