@@ -1181,7 +1181,7 @@ class LongitudinalEquilibrium:
             Zl = self.get_impedance(w=w, apply_filter=False)
 
         if reduced:
-            (eigenfreq, modecoup_matrix) = (
+            (eigenfreq, eigenvec, modecoup_matrix) = (
                 ring.reduced_longitudinal_mode_coupling(
                     w=w,
                     Zl=Zl,
@@ -1192,7 +1192,7 @@ class LongitudinalEquilibrium:
                 )
             )
         else:
-            (eigenfreq, modecoup_matrix, fokker_matrix) = (
+            (eigenfreq, eigenvec, modecoup_matrix, fokker_matrix) = (
                 ring.longitudinal_mode_coupling(
                     w=w,
                     Zl=Zl,
@@ -1212,7 +1212,7 @@ class LongitudinalEquilibrium:
 
         ring.num_bun = num_bun
         ring.dampte = dampte
-        return eigenfreq, modecoup_matrix, fokker_matrix
+        return eigenfreq, eigenvec, modecoup_matrix, fokker_matrix
 
     @staticmethod
     def hmp(z, m, omegap):
