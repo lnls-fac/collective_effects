@@ -7,7 +7,7 @@ import numpy as _np
 from mathphys.constants import light_speed as _c
 from mathphys.functions import get_namedtuple as _get_namedtuple
 from scipy.fft import fft as _fft, irfft as _irfft, rfft as _rfft
-from scipy.integrate import quad as _quad, simps as _simps
+from scipy.integrate import quad as _quad, simpson as _simps
 from scipy.optimize import least_squares as _least_squares, root as _root
 from scipy.special import gamma as _gammafunc
 from scipy.linalg import det as _det
@@ -932,10 +932,10 @@ class LongitudinalEquilibrium:
 
             sigmae2 = ring.espread**2
             psi0 = _np.exp(-hamiltonian / (alpha * sigmae2))
-            psi0 /= _2PI * _simps(psi0, actions)
+            psi0 /= _2PI * _simps(psi0, x=actions)
 
-            fs_avg = _2PI * _simps(freqs * psi0, actions)
-            fs_std = _2PI * _simps(freqs * freqs * psi0, actions)
+            fs_avg = _2PI * _simps(freqs * psi0, x=actions)
+            fs_std = _2PI * _simps(freqs * freqs * psi0, x=actions)
             fs_std = _np.sqrt(fs_std - fs_avg**2)
 
             out["sync_freq"] = freqs
@@ -954,7 +954,7 @@ class LongitudinalEquilibrium:
             fil = _np.abs(zgrid) < max_amp
             zgrid = zgrid[fil]
 
-            dv = -_np.gradient(total_voltage[0, fil], zgrid)
+            dv = -_np.gradient(total_voltage[fil], zgrid)
             remove_neg = dv > 0
             zgrid, lambda0, dv = (
                 zgrid[remove_neg],
@@ -962,10 +962,10 @@ class LongitudinalEquilibrium:
                 dv[remove_neg],
             )
 
-            lambda0 /= _simps(lambda0, zgrid)
+            lambda0 /= _simps(lambda0, x=zgrid)
             freqs = factor * _np.sqrt(dv) * ring.rev_freq
-            fs_avg = _simps(freqs * lambda0, zgrid)
-            fs_std = _np.sqrt(_simps((freqs - fs_avg) ** 2 * lambda0, zgrid))
+            fs_avg = _simps(freqs * lambda0, x=zgrid)
+            fs_std = _np.sqrt(_simps((freqs - fs_avg) ** 2 * lambda0, x=zgrid))
             out["sync_freq"] = freqs
             out["avg_sync_freq"] = fs_avg
             out["std_sync_freq"] = fs_std
@@ -1181,7 +1181,7 @@ class LongitudinalEquilibrium:
             Zl = self.get_impedance(w=w, apply_filter=False)
 
         if reduced:
-            (eigenfreq, modecoup_matrix) = (
+            (eigenfreq, eigenvec, modecoup_matrix) = (
                 ring.reduced_longitudinal_mode_coupling(
                     w=w,
                     Zl=Zl,
@@ -1192,7 +1192,7 @@ class LongitudinalEquilibrium:
                 )
             )
         else:
-            (eigenfreq, modecoup_matrix, fokker_matrix) = (
+            (eigenfreq, eigenvec, modecoup_matrix, fokker_matrix) = (
                 ring.longitudinal_mode_coupling(
                     w=w,
                     Zl=Zl,
@@ -1212,7 +1212,7 @@ class LongitudinalEquilibrium:
 
         ring.num_bun = num_bun
         ring.dampte = dampte
-        return eigenfreq, modecoup_matrix, fokker_matrix
+        return eigenfreq, eigenvec, modecoup_matrix, fokker_matrix
 
     @staticmethod
     def hmp(z, m, omegap):
@@ -1340,11 +1340,11 @@ class LongitudinalEquilibrium:
                     gpp = _2PI * _np.sign(c_omega.imag) * rgpp
                     if _np.sum(~idx_close):
                         itg = (h_mp * h_mpp * mdpsi_dJ_div).sum(axis=0)
-                        igpp = _simps(itg[:, ~idx_close], J[~idx_close])
+                        igpp = _simps(itg[:, ~idx_close], x=J[~idx_close])
                         gpp += 1j * igpp
                 else:
                     itg = (h_mp * h_mpp * mdpsi_dJ_div).sum(axis=0)
-                    gpp = 1j * _simps(itg, J)
+                    gpp = 1j * _simps(itg, x=J)
                 B_pp[ip, ipp] = zpp[ipp] * gpp
 
         I0 = self.ring.total_current
@@ -1368,7 +1368,7 @@ class LongitudinalEquilibrium:
                 h_mp = hmps[im, ip]
                 for ipp in range(nr_ps):
                     h_mpp = hmps[im, ipp].conj()
-                    gmpp = _simps(h_mp * h_mpp * psi_J, J)
+                    gmpp = _simps(h_mp * h_mpp * psi_J, x=J)
                     omegapp = omegap[ipp]
                     if c_omega is None:
                         zpp = impedance(w=omegapp + mws)
