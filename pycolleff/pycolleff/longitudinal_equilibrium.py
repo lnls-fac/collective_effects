@@ -846,7 +846,7 @@ class LongitudinalEquilibrium:
             )[None, :]
         return _vg
 
-    def calc_synchrotron_frequency(
+    def calc_equilibrium_info(
         self,
         total_voltage=None,
         method="action",
@@ -990,7 +990,7 @@ class LongitudinalEquilibrium:
         alpha = ring.mom_comp
         vtotal = (total_voltage - U0) / (E0 * C0)
         if "action" not in self.equilibrium_info:
-            self.calc_synchrotron_frequency(
+            self.calc_equilibrium_info(
                 total_voltage=total_voltage,
                 method="action",
                 max_amp=None,
@@ -1032,7 +1032,8 @@ class LongitudinalEquilibrium:
                 znew, pnew = results
                 zj.append(znew)
                 pj.append(pnew)
-        return zj, pj
+        eqinfo['canonical_zj'] = zj
+        eqinfo['canonical_deltaj'] = pj
 
     def calc_synchrotron_frequency_quadratic_potential(self):
         """."""
@@ -1167,6 +1168,7 @@ class LongitudinalEquilibrium:
         reduced=False,
         delete_m0=True,
         delete_m0k0=False,
+        apply_filter=True,
     ):
         """."""
         ring = self.ring
@@ -1176,9 +1178,10 @@ class LongitudinalEquilibrium:
         ring.num_bun = nbun_fill if nbun_fill is not None else ring.harm_num
 
         if _np.array(w).size == 2:
-            Zl = self.get_impedance
+            Zl = _partial(
+                self.get_impedance, apply_filter=apply_filter)
         else:
-            Zl = self.get_impedance(w=w, apply_filter=False)
+            Zl = self.get_impedance(w=w, apply_filter=apply_filter)
 
         if reduced:
             (eigenfreq, eigenvec, modecoup_matrix) = (
@@ -1215,17 +1218,17 @@ class LongitudinalEquilibrium:
         return eigenfreq, eigenvec, modecoup_matrix, fokker_matrix
 
     @staticmethod
-    def hmp(z, m, omegap):
+    def hmp(z, ms, omegaps):
         """Eq. (16) from Ref. [2]."""
         z = _np.array(z)
         zsize = z.size
 
         phi = _np.linspace(0, _2PI, zsize)
         dphi = _2PI / zsize
-        kp = omegap / _c
+        kps = omegaps / _c
 
-        mphi = m[:, None] * phi
-        kpz = kp[:, None] * z
+        mphi = ms[:, None] * phi
+        kpz = kps[:, None] * z
         phase = 1j * (mphi[:, None, :] + kpz[None, :, :])
         integral = _mytrapz(_ne.evaluate("exp(phase)"), dphi)
         return integral / _2PI
@@ -1265,7 +1268,9 @@ class LongitudinalEquilibrium:
         J = eqinfo["action"]
 
         omegap = (ps * h + cb_mode) * w0
-        c_omega = big_omega[0] + 1j * big_omega[1]
+        c_omega = None
+        if big_omega is not None:
+            c_omega = big_omega[0] + 1j * big_omega[1]
         if adsyncfreq:
             B_pp = self._fill_lebedev_matrix_adsyncfreq(
                 J,
@@ -1282,11 +1287,12 @@ class LongitudinalEquilibrium:
             return B_pp
 
         # calculation with effective synchrotron frequency
-        eff_ws = LongitudinalEquilibrium._get_effective_syncfreq(
-            effsyncfreq, ws_J, eqinfo
+        eff_ws = self._get_effective_sync_freq(
+            effsyncfreq
         )
+        
         B_mm_pp = self._fill_lebedev_matrix_constsyncfreq(
-            J, psi_J, eff_ws, c_omega, omegap, ps, ms, hmps, self.get_impedance
+            J, psi_J, eff_ws, c_omega, omegap, ms, hmps, self.get_impedance
         )
         return B_mm_pp
 
@@ -1390,18 +1396,23 @@ class LongitudinalEquilibrium:
         D_mm_pp = _np.kron(_np.diag(ms * eff_ws), _np.eye(nr_ps))
         return D_mm_pp + B_mm_pp
 
-    @staticmethod
-    def _get_effective_sync_freq(effsyncfreq, ws_J, eqinfo):
+    def _get_effective_sync_freq(self, effsyncfreq):
+        eqinfo = self.equilibrium_info
         if isinstance(effsyncfreq, str):
             if effsyncfreq == "center":
-                eff_ws = ws_J[0]
+                eff_ws = _2PI * eqinfo["sync_freq"][0]
             elif effsyncfreq == "avg":
                 eff_ws = _2PI * eqinfo["avg_sync_freq"]
             elif effsyncfreq == "min":
-                eff_ws = ws_J.min()
+                eff_ws = _2PI * eqinfo["sync_freq"].min()
+            elif effsyncfreq == "bunchlength":
+                _, sigmaz = self.calc_moments(self.zgrid, self.distributions)
+                eff_ws = self.ring.mom_comp * _c * self.ring.espread
+                eff_ws /= sigmaz[0]
             else:
                 raise ValueError(
-                    "effsyncfreq must be 'center', 'avg' or 'min'"
+                    "effsyncfreq must be "
+                    "'center', 'avg', 'min' or 'bunchlength'"
                 )
         elif isinstance(effsyncfreq, float):
             eff_ws = _2PI * effsyncfreq
@@ -1422,7 +1433,7 @@ class LongitudinalEquilibrium:
         return [db.real, db.imag]
 
     def solve_lebedev(
-        self, x0, hmps, ms, ps, cb_mode, method, tol=None, reduced=False
+        self, x0, hmps, ms, ps, cb_mode, method='lm', tol=None, reduced=False
     ):
         """Eq. (36) of Ref. [3]."""
         params = (hmps, ms, ps, cb_mode, reduced)
