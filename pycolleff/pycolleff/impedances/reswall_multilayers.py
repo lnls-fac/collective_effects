@@ -801,7 +801,8 @@ def _debug_flat_calc_integrand(
 
 
 def _flat_integrand_arb_prec(u, kovgamma=1, is_in_t=False, **kwrgs):
-    _mpmath.mp.dps = kwrgs['prec']  # necessary for Mac and Windows systems.
+    _mpmath.mp.dps = kwrgs.pop('prec')  # Needed for Mac and Windows systems.
+
     if is_in_t:
         t, u = u, (1 - u) / u
     u = _mpf(u)
