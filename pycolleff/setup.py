@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
-import pkg_resources
+import pathlib
+
 from setuptools import find_packages, setup
 
 
 def get_abs_path(relative):
-    return pkg_resources.resource_filename(__name__, relative)
+    """."""
+    return str(pathlib.Path(__file__).parent / relative)
 
 
 with open(get_abs_path("README.md"), "r") as _f:
@@ -16,10 +18,6 @@ with open(get_abs_path("VERSION"), "r") as _f:
 
 with open(get_abs_path("requirements.txt"), "r") as _f:
     _requirements = _f.read().strip().split("\n")
-
-
-with open('VERSION', 'r') as _f:
-    __version__ = _f.read().strip()
 
 setup(
     name='pycolleff',

@@ -61,8 +61,6 @@ uninstall:
 develop-install: develop-uninstall all
 	$(PIP) install --no-deps -e ./
 
-# known issue: It will fail to uninstall scripts
-#  if they were installed in develop mode
 develop-uninstall:
 	$(PIP) uninstall -y $(PACKAGE)
 
