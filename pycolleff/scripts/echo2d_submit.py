@@ -1,7 +1,8 @@
-#!/usr/bin/env python-sirius
+#!/usr/bin/env python3
 
 import argparse
 import subprocess as sp
+
 import psutil as psu
 
 

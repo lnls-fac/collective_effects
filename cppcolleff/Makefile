@@ -185,7 +185,7 @@ install: clean install-cpp install-py
 
 uninstall: uninstall-cpp uninstall-py
 
-develop-install-py: develop-uninstall-py all
+develop-install-py: clean develop-uninstall-py all
 	$(MAKE) develop-install -C $(PYTHON_PACKAGE_DIR)
 
 develop-uninstall-py:

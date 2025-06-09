@@ -1,4 +1,4 @@
-#!/usr/bin/env python-sirius
+#!/usr/bin/env python3
 
 import optparse
 import os
