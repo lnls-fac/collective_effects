@@ -291,21 +291,25 @@ class LongitudinalEquilibrium:
     """Self-consistent longitudinal equilibrium calculations.
 
     For equilibrium, see [1].
-    For instabilities, see [2] and [3].
-    For integrators, see [4].
+    For instabilities, see [2], [3] and [4].
+    For numerical canonical transformation, see [4]
+    For integrators, see [5].
 
     [1] M. B. Alves and F. H. de Sá, "Equilibrium of longitudinal bunch
     distributions in electron storage rings with arbitrary impedance sources
     and generic filling patterns", Phys. Rev. Accel. Beams 26, 094402 (2023)
-    [2] M. Venturini, "Passive higher-harmonic rf cavities with general
-    settings and multibunch instabilities in electron storage rings"
-    Phys. Rev. Accel. Beams 21, 114404 (2018)
+    [2] M. B. Alves, "Theoretical models for longitudinal coupled-bunch
+    instabilities driven by harmonic cavities in electron storage rings",
+    Phys. Rev. Accel. Beams 28, 034401 (2025)
     [3] I. Karpov, T. Argyropoulos, and E. Shaposhnikova, "Thresholds for loss
     of Landau damping in longitudinal plane"
     Phys. Rev. Accel. Beams 24, 11002 (2021)
-    [4] P. Young, The leapfrog method and other "symplectic" algorithms for
+    [4] M. Venturini, "Passive higher-harmonic rf cavities with general
+    settings and multibunch instabilities in electron storage rings"
+    Phys. Rev. Accel. Beams 21, 114404 (2018)
+    [5] P. Young, The leapfrog method and other "symplectic" algorithms for
     integrating Newton’s laws of motion.
-    https://young.physics.ucsc.edu/115/leapfrog.pdf
+    https://bpb-us-e1.wpmucdn.com/sites.ucsc.edu/dist/7/1905/files/2025/03/leapfrog.pdf
     """
 
     FeedbackMethod = _get_namedtuple(
@@ -798,8 +802,7 @@ class LongitudinalEquilibrium:
         if self.identical_bunches:
             if not _np.allclose(self.fillpattern, self.fillpattern[0]):
                 raise Exception(
-                    "identical_bunches=True but "
-                    "fillpattern is nonuniform."
+                    "identical_bunches=True but fillpattern is nonuniform."
                 )
         dists = [
             self.distributions,
@@ -918,9 +921,7 @@ class LongitudinalEquilibrium:
             freqs = _np.gradient(hamiltonian, actions)
             freqs *= _c / _2PI
 
-            nan_idx = ~(
-                _np.isnan(actions) | _np.isnan(freqs) | _np.isnan(freqs)
-            )
+            nan_idx = ~(_np.isnan(actions) | _np.isnan(freqs))
             diverge_idx1 = (_np.abs(freqs) < ring.rev_freq) & (freqs >= 0)
             filter_idx = nan_idx & diverge_idx1
             actions, freqs, hamiltonian, zamps = (
@@ -980,7 +981,7 @@ class LongitudinalEquilibrium:
     def calc_canonical_transformation(
         self, total_voltage=None, step_size=None, parallel=True
     ):
-        """See Appendix C from Ref. [2]."""
+        """See Appendix C from Ref. [4]."""
         if total_voltage is None:
             total_voltage = self.total_voltage[0]
         ring = self.ring
@@ -1032,8 +1033,8 @@ class LongitudinalEquilibrium:
                 znew, pnew = results
                 zj.append(znew)
                 pj.append(pnew)
-        eqinfo['canonical_zj'] = zj
-        eqinfo['canonical_deltaj'] = pj
+        eqinfo["canonical_zj"] = zj
+        eqinfo["canonical_deltaj"] = pj
 
     def calc_synchrotron_frequency_quadratic_potential(self):
         """."""
@@ -1054,7 +1055,7 @@ class LongitudinalEquilibrium:
 
     @staticmethod
     def calc_action_variable(zamp, params):
-        """See Appendix C from Ref. [2]."""
+        """See Appendix C from Ref. [4]."""
         zgrid, phiz, alpha = params
 
         def energy_deviation(z):
@@ -1082,9 +1083,9 @@ class LongitudinalEquilibrium:
 
     @staticmethod
     def solve_longitudinal_motion(idx, params):
-        """See Appendix C from Ref. [2].
+        """See Appendix C from Ref. [4].
 
-        Implementation of integrators based on Ref. [4].
+        Implementation of integrators based on Ref. [5].
         """
         ds, alpha, sync_data, zgrid, vtotal = params
         z0 = sync_data["amplitude"][idx]
@@ -1178,8 +1179,7 @@ class LongitudinalEquilibrium:
         ring.num_bun = nbun_fill if nbun_fill is not None else ring.harm_num
 
         if _np.array(w).size == 2:
-            Zl = _partial(
-                self.get_impedance, apply_filter=apply_filter)
+            Zl = _partial(self.get_impedance, apply_filter=apply_filter)
         else:
             Zl = self.get_impedance(w=w, apply_filter=apply_filter)
 
@@ -1255,8 +1255,7 @@ class LongitudinalEquilibrium:
     ):
         """Lebedev matrix to find root of determinant.
 
-        Applying sum over m in Eq. (18) of Ref. [2] results in
-        Eq. (33) and (34) of Ref. [3].
+        See subsections II.A, II.B and II.C from Ref. [2]
         """
         eqinfo = self.equilibrium_info
         ring = self.ring
@@ -1287,10 +1286,8 @@ class LongitudinalEquilibrium:
             return B_pp
 
         # calculation with effective synchrotron frequency
-        eff_ws = self._get_effective_sync_freq(
-            effsyncfreq
-        )
-        
+        eff_ws = self._get_effective_sync_freq(effsyncfreq)
+
         B_mm_pp = self._fill_lebedev_matrix_constsyncfreq(
             J, psi_J, eff_ws, c_omega, omegap, ms, hmps, self.get_impedance
         )
@@ -1341,6 +1338,7 @@ class LongitudinalEquilibrium:
             for ipp in range(nr_ps):
                 h_mpp = hmps[:, ipp].conj()
                 if _np.sum(idx_close):
+                    # TODO: EXPLAIN HERE
                     rgpp = h_mp * h_mpp * dpsi_dJ_ws[None, :]
                     rgpp = rgpp[:, idx_close].sum(axis=-1)
                     gpp = _2PI * _np.sign(c_omega.imag) * rgpp
@@ -1433,9 +1431,9 @@ class LongitudinalEquilibrium:
         return [db.real, db.imag]
 
     def solve_lebedev(
-        self, x0, hmps, ms, ps, cb_mode, method='lm', tol=None, reduced=False
+        self, x0, hmps, ms, ps, cb_mode, method="lm", tol=None, reduced=False
     ):
-        """Eq. (36) of Ref. [3]."""
+        """Eq. (27) of Ref. [2]."""
         params = (hmps, ms, ps, cb_mode, reduced)
         root = _root(
             _partial(self._lebedev_determinant, params=params),
@@ -1470,7 +1468,7 @@ class LongitudinalEquilibrium:
     def oide_yokoya_matrix(
         self, hmps, ms, ps, cb_mode, action_limits=None, big_omega=None
     ):
-        """Similar to Eq. (43) of Ref. [3].
+        """Similar to Eq. (43) of Ref. [4].
 
         TODO: Understand original decomposition Cm*cos + Sm*sin.
         """
@@ -1538,7 +1536,7 @@ class LongitudinalEquilibrium:
     def solve_oide_yokoya(
         self, hmps, ms, ps, cb_mode, action_limits=None, big_omega=None
     ):
-        """Similar to Eq. (42) of Ref. [3]."""
+        """Similar to Eq. (42) of Ref. [4]."""
         oymat = self.oide_yokoya_matrix(
             hmps, ms, ps, cb_mode, action_limits, big_omega
         )
@@ -1652,7 +1650,7 @@ class LongitudinalEquilibrium:
             # print(f'Trapz: {tf-tf3:.3f}s')
             if self.print_flag:
                 print(
-                    f"Iter.: {k+1:03d}, Dist. Diff.: {diff[idx]:.3e}"
+                    f"Iter.: {k + 1:03d}, Dist. Diff.: {diff[idx]:.3e}"
                     + f" (bucket {idx:03d}), E.T.: {tf:.3f}s"
                 )
                 # print(f"Iter.: {k+1:03d}, E.T.: {tf-t0:.3f}s")
@@ -1676,7 +1674,7 @@ class LongitudinalEquilibrium:
             idx = _np.argmax(diff)
             if self.print_flag:
                 print(
-                    f"Iter.: {k+1:03d}, Dist. Diff.: {diff[idx]:.3e}"
+                    f"Iter.: {k + 1:03d}, Dist. Diff.: {diff[idx]:.3e}"
                     + f" (bucket {idx:03d})"
                 )
                 print("-" * 20)
@@ -1802,7 +1800,7 @@ class LongitudinalEquilibrium:
     def _verlet_integrator(z0, p0, ds, alpha, zgrid, vtotal):
         """2nd-order symplectic integrator using the Verlet method.
 
-        Ref. [4]. Section III. Equations (10).
+        Ref. [5]. Section III. Equations (10).
         """
         z, p = z0, p0
         positions = [z0]
@@ -1833,7 +1831,7 @@ class LongitudinalEquilibrium:
     def _forest_ruth_integrator(z0, p0, ds, alpha, zgrid, vtotal):
         """4th-order symplectic integrator using the Forest-Ruth method.
 
-        Ref. [4]. Section VII. Equations (36) and (37).
+        Ref. [5]. Section VII. Equations (36) and (37).
         """
         z, p = z0, p0
         positions = [z0]
@@ -1879,7 +1877,7 @@ class LongitudinalEquilibrium:
     ):
         """Position Extended Forest-Ruth Like method.
 
-        Ref. [4]. Section VII. Equations (38) and (39).
+        Ref. [5]. Section VII. Equations (38) and (39).
         """
         z, p = z0, p0
         positions = [z0]
