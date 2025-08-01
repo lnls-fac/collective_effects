@@ -1,6 +1,7 @@
 """."""
 import time as _time
 
+import math as _math
 import numpy as _np
 import numexpr as _ne
 
@@ -27,7 +28,7 @@ class Ring:
         self._cav_vgap = 0.0  # [V]
         self.cav_pos = _np.linspace(-1/2, 1/2, 1000)
         self.cav_pos *= self.rf_lamb
-        self.cav_volt_norm = _np.zeros(self.cav_pos.shape)
+        self._cav_volt_norm = _np.zeros(self.cav_pos.shape)
 
         self.cav_vgap = 3e6  # [V]
 
@@ -92,12 +93,21 @@ class Ring:
     @property
     def sync_phase(self):
         """."""
-        return _np.math.pi - _np.math.asin(self.u0/self.cav_vgap)
+        return _math.pi - _math.asin(self.u0/self.cav_vgap)
 
     @property
     def cav_vgap_norm(self):
         """."""
         return self.cav_vgap/self.energy
+
+    @property
+    def cav_volt_norm(self):
+        """."""
+        return self._cav_volt_norm
+
+    @cav_volt_norm.setter
+    def cav_volt_norm(self, value):
+        self._cav_volt_norm = value
 
     @property
     def rf_lamb(self):
@@ -135,7 +145,7 @@ class Ring:
         if excitation:
             exc_quant = _np.sqrt(1 - damp*damp)*self.espread
             if not self._use_gaussian_noise:
-                exc_quant *= _np.math.sqrt(12)
+                exc_quant *= _math.sqrt(12)
                 noise = _np.random.rand(*beam.de.shape)
                 noise -= 0.5
             else:
@@ -165,7 +175,7 @@ class Wake:
     @property
     def Ql(self):
         """."""
-        return _np.math.sqrt(self.Q*self.Q - 0.25)
+        return _math.sqrt(self.Q*self.Q - 0.25)
 
     @property
     def kr(self):
@@ -297,7 +307,7 @@ class Beam():
         npart = self.num_part
         self.de = _np.tile(self.de, mult_factor)
         self.ss = _np.tile(self.ss, mult_factor)
-        if not _np.math.isclose(noise_frac, 0):
+        if not _math.isclose(noise_frac, 0):
             de_noise = self.de[:, :npart].std(axis=1) * noise_frac
             ss_noise = self.ss[:, :npart].std(axis=1) * noise_frac
             self.de[:, npart:] += de_noise[:, None] * _np.random.randn(

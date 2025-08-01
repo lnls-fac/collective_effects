@@ -98,7 +98,7 @@ def from_impedance_to_wake(
 
     # I neet to take the conjugate of the impedance here, because the
     # convention adopted by ref[1] is different than the one we consider here.
-    Z = _np.array(Z.conj(), dtype=_np.complex256)
+    Z = _np.array(Z.conj(), dtype=complex)
 
     if interp_type.lower().startswith('spline'):
         interp = _Spline(w, Z, bc_type='not-a-knot')
@@ -170,8 +170,8 @@ def _integral_funcs(x):
     x_ser = x[iser]  # series
     x_for = x[ifor]  # formula
 
-    phi = _np.zeros(x.shape, dtype=_np.complex256)
-    psi = _np.zeros(x.shape, dtype=_np.complex256)
+    phi = _np.zeros(x.shape, dtype=complex)
+    psi = _np.zeros(x.shape, dtype=complex)
 
     # The exact formula is taken from ref. [1], eqs. E.142 and E.143
     exp = _np.exp(1j*x_for)
@@ -196,7 +196,7 @@ def _integral_funcs(x):
     for i in range(1000):
         log_conv += _np.log(absx/(i+1))
         if not i:
-            term = _np.ones(x_ser.shape, dtype=_np.complex256)
+            term = _np.ones(x_ser.shape, dtype=complex)
         else:
             term *= 1j*x_ser/i
         add = term / (i+3) / (i+4)

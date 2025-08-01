@@ -721,6 +721,7 @@ def _flat_calc_alphas(
             murd=murd[i],
             nud=nud,
             bd=bd,
+            prec=_mpmath.mp.dps,  # needed for child processes in quad_vec
         )
 
         # The output of this integration is in standard precision:
@@ -785,6 +786,7 @@ def _debug_flat_calc_integrand(
         murd=murd,
         nud=nud,
         bd=bd,
+        prec=_mpmath.mp.dps,
     )
 
     alpha00 = _np.zeros(u.shape, dtype=complex)
@@ -799,6 +801,8 @@ def _debug_flat_calc_integrand(
 
 
 def _flat_integrand_arb_prec(u, kovgamma=1, is_in_t=False, **kwrgs):
+    _mpmath.mp.dps = kwrgs.pop('prec')  # Needed for Mac and Windows systems.
+
     if is_in_t:
         t, u = u, (1 - u) / u
     u = _mpf(u)

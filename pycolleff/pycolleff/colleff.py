@@ -1,12 +1,13 @@
 """."""
 
+import math as _math
 import numpy as _np
 import pandas as pd
 import mathphys as _mp
 
 _LSPEED = _mp.constants.light_speed
-_factorial = _np.math.factorial
-_sqrt = _np.math.sqrt
+_factorial = _math.factorial
+_sqrt = _math.sqrt
 
 
 class Ring:
@@ -48,12 +49,12 @@ class Ring:
     @property
     def rev_ang_freq(self):
         """."""
-        return 2*_np.math.pi*self.rev_freq
+        return 2*_math.pi*self.rev_freq
 
     @property
     def rf_ang_freq(self):
         """."""
-        return 2*_np.math.pi*self.rf_freq
+        return 2*_math.pi*self.rf_freq
 
     @property
     def rev_time(self):
@@ -73,7 +74,7 @@ class Ring:
             float: Natural synchronous phase [rad].
 
         """
-        return _np.math.pi - _np.math.asin(self.en_lost_rad/self.gap_voltage)
+        return _math.pi - _math.asin(self.en_lost_rad/self.gap_voltage)
 
     def __str__(self):
         """."""
@@ -802,7 +803,9 @@ class Ring:
                 False. Defaults to True.
 
         Returns:
-            eigenvals (numpy.ndarray, (N, ): normalized eigen-modes of the
+            eigenvals (numpy.ndarray, (N, )): normalized eigen-modes of the
+                mode-coupling problem.
+            eigenvecs (numpy.ndarray, (N, N)): eigen-vectors of the
                 mode-coupling problem.
             modecoup_matrix (numpy.ndarray, (N, N)): the mode-coupling matrix
                 used in calculations.
@@ -872,7 +875,8 @@ class Ring:
             idx_m0k0 = max_azi+0 + nr_azi*0
             A = _np.delete(_np.delete(A, idx_m0k0, axis=0), idx_m0k0, axis=1)
 
-        return _np.linalg.eigvals(A), modecoup_matrix, fokker_matrix
+        eigvals, eigvecs = _np.linalg.eig(A)
+        return eigvals, eigvecs, modecoup_matrix, fokker_matrix
 
     @classmethod
     def _calc_vlasov(cls, Z_wp, wp, bunlen, max_azi, max_rad):
@@ -1033,8 +1037,10 @@ class Ring:
                 it will be calculated internally. Defaults to None.
 
         Returns:
-            eigenvals (numpy.ndarray, (N, )): squared normalized eigen-modes
-                of the mode-coupling problem.
+            eigenvals (numpy.ndarray, (N, )): normalized eigen-values of the
+                mode-coupling problem.
+            eigenvecs (numpy.ndarray, (N, N)): eigen-vectors of the
+                mode-coupling problem.
             modecoup_matrix (numpy.ndarray, (N, N)): the mode-coupling matrix
                 used in calculations.
 
@@ -1087,7 +1093,8 @@ class Ring:
         # Please, check eq. 2.52 of ref. [1]:
         A = D + 1j*K*modecoup_matrix
 
-        return _np.sqrt(_np.linalg.eigvals(A)), modecoup_matrix
+        eigvals2, eigvecs2 = _np.linalg.eig(A)
+        return _np.sqrt(eigvals2), eigvecs2, modecoup_matrix
 
     @classmethod
     def _calc_vlasov_reduced(cls, Z_wp, wp, bunlen, max_azi, max_rad):
@@ -1241,7 +1248,9 @@ class Ring:
                 calculated internally. Defaults to None.
 
         Returns:
-            eigenvals (numpy.ndarray, (N, ): normalized eigen-modes of the
+            eigenvals (numpy.ndarray, (N, )): normalized eigen-modes of the
+                mode-coupling problem.
+            eigenvecs (numpy.ndarray, (N, N)): eigen-vectors of the
                 mode-coupling problem.
             modecoup_matrix (numpy.ndarray, (N, N)): the mode-coupling matrix
                 used in calculations.
@@ -1308,7 +1317,8 @@ class Ring:
         # [1] with the aditional fokker-plank terms of eq. 37 of
         # ref. [2] normalized by ws:
         A = D + K*modecoup_matrix + 1j*fokker_matrix/(sync_tune * w0)
-        return _np.linalg.eigvals(A), modecoup_matrix, fokker_matrix
+        eigvals, eigvecs = _np.linalg.eig(A)
+        return eigvals, eigvecs, modecoup_matrix, fokker_matrix
 
     @classmethod
     def _calc_vlasov_transverse(cls, Z_wp, wpcro, bunlen, max_azi, max_rad):
