@@ -1,6 +1,8 @@
 """."""
 
+import multiprocessing as _mp
 import time as _time
+from functools import partial as _partial
 
 import numexpr as _ne
 import numpy as _np
@@ -8,12 +10,11 @@ from mathphys.constants import light_speed as _c
 from mathphys.functions import get_namedtuple as _get_namedtuple
 from scipy.fft import fft as _fft, irfft as _irfft, rfft as _rfft
 from scipy.integrate import quad as _quad, simpson as _simps
+from scipy.interpolate import interp1d as _interp1d
+from scipy.linalg import det as _det
 from scipy.optimize import least_squares as _least_squares, root as _root
 from scipy.special import gamma as _gammafunc
-from scipy.linalg import det as _det
-import multiprocessing as _mp
-from functools import partial as _partial
-from scipy.interpolate import interp1d as _interp1d
+
 from . import impedances as _imp
 from .colleff import Ring as _Ring
 
