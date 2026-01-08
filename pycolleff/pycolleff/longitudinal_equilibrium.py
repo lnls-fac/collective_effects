@@ -66,7 +66,7 @@ class ImpedanceSource:
         self,
         Rs=0,
         Q=0,
-        ang_freq=None,
+        res_ang_freq=None,
         harm_rf=1,
         calc_method=Methods.ImpedanceDFT,
         active_passive=ActivePassive.Passive,
@@ -76,7 +76,7 @@ class ImpedanceSource:
         self._active_passive = None
         self._feedback_method = None
 
-        self.ang_freq = ang_freq
+        self.res_ang_freq = res_ang_freq
         self.Q = Q
         self.shunt_impedance = Rs
         self._beta_coupling = 0
@@ -169,7 +169,7 @@ class ImpedanceSource:
             _zl0 = _imp.longitudinal_resonator(
                 Rs=self.loaded_shunt_impedance,
                 Q=self.loaded_Q,
-                wr=self.ang_freq,
+                wr=self.res_ang_freq,
                 w=w,
             )
         else:
@@ -291,13 +291,13 @@ class ImpedanceSource:
     @property
     def detune_w(self):
         """."""
-        return self.ang_freq - self.harm_rf * self.ang_freq_rf
+        return self.res_ang_freq - self.harm_rf * self.ang_freq_rf
 
     @detune_w.setter
     def detune_w(self, value):
         """."""
         wr = self.harm_rf * self.ang_freq_rf + value
-        self.ang_freq = wr
+        self.res_ang_freq = wr
 
     @property
     def detune_freq(self):
@@ -312,19 +312,19 @@ class ImpedanceSource:
     @property
     def alpha(self):
         """."""
-        return self.ang_freq / 2 / self.loaded_Q
+        return self.res_ang_freq / 2 / self.loaded_Q
 
     @property
-    def ang_freq_bar(self):
+    def res_ang_freq_bar(self):
         """."""
-        wr_ = self.ang_freq
+        wr_ = self.res_ang_freq
         alpha = self.alpha
         return (wr_ * wr_ - alpha * alpha) ** 0.5
 
     @property
     def beta(self):
         """."""
-        return (self.alpha - 1j * self.ang_freq_bar) / _c
+        return (self.alpha - 1j * self.res_ang_freq_bar) / _c
 
     @property
     def detune_angle(self):
@@ -332,7 +332,7 @@ class ImpedanceSource:
         Q = self.loaded_Q
         nharm = self.harm_rf
         wrf = self.ang_freq_rf
-        wr = self.ang_freq
+        wr = self.res_ang_freq
         if wr == 0:
             raise Exception('wr cannot be zero!')
         if wrf == 0:
@@ -348,7 +348,7 @@ class ImpedanceSource:
         wrf = self.ang_freq_rf
 
         delta = _np.tan(value) / 2 / Q
-        self.ang_freq = nharm * wrf * (delta + (1 + delta**2) ** (1 / 2))
+        self.res_ang_freq = nharm * wrf * (delta + (1 + delta**2) ** (1 / 2))
 
     @property
     def zl_table(self):
@@ -410,7 +410,7 @@ class ImpedanceSource:
     def to_dict(self):
         """Save state to dictionary."""
         return dict(
-            ang_freq=self.ang_freq,
+            res_ang_freq=self.res_ang_freq,
             Q=self.Q,
             shunt_impedance=self.shunt_impedance,
             beta_coupling=self.beta_coupling,
@@ -420,7 +420,7 @@ class ImpedanceSource:
 
     def from_dict(self, dic):
         """Load state from dictionary."""
-        self.ang_freq = dic.get('ang_freq', self.ang_freq)
+        self.res_ang_freq = dic.get('res_ang_freq', self.res_ang_freq)
         self.Q = dic.get('Q', self.Q)
         self.shunt_impedance = dic.get('shunt_impedance', self.shunt_impedance)
         self.beta_coupling = dic.get('beta_coupling', self.beta_coupling)
@@ -437,7 +437,7 @@ class ImpedanceSource:
         stg = stmp('calc_method', self.calc_method_str, '')
         stg += stmp('active_passive', self.active_passive_str, '')
         stg += ftmp('ang_freq_rf', self.ang_freq_rf * mega, '[Mrad/s]')
-        stg += ftmp('ang_freq', self.ang_freq * mega, '[Mrad/s]')
+        stg += ftmp('res_ang_freq', self.res_ang_freq * mega, '[Mrad/s]')
         stg += ftmp('shunt_impedance', self.shunt_impedance * mega, '[MOhm]')
         stg += etmp('Q', self.Q, '')
         stg += ftmp('RoverQ', self.RoverQ, '[Ohm]')
@@ -448,7 +448,9 @@ class ImpedanceSource:
         stg += ftmp('detune_freq', self.detune_freq * kilo, '[kHz]')
         stg += ftmp('detune_w', self.detune_w * kilo, '[krad/s]')
         stg += ftmp('alpha', self.alpha, '[rad/s]')
-        stg += ftmp('ang_freq_bar', self.ang_freq_bar * mega, '[Mrad/s]')
+        stg += ftmp(
+            'res_ang_freq_bar', self.res_ang_freq_bar * mega, '[Mrad/s]'
+        )
         is_active = self.active_passive == ImpedanceSource.ActivePassive.Active
         if is_active:
             stg += ftmp(
@@ -884,7 +886,7 @@ class LongitudinalEquilibrium:
 
         alpha = wake_source.alpha
         beta = wake_source.beta
-        wrbar = wake_source.ang_freq_bar
+        wrbar = wake_source.res_ang_freq_bar
         rsh = wake_source.loaded_shunt_impedance
 
         if self._exp_z is None:
