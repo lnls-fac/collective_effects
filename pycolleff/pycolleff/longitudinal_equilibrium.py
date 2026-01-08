@@ -289,6 +289,16 @@ class ImpedanceSource:
         return self.shunt_impedance / self.Q
 
     @property
+    def res_freq(self):
+        """."""
+        return self.res_ang_freq / _2PI
+
+    @res_freq.setter
+    def res_freq(self, value):
+        """."""
+        self.res_ang_freq = _2PI * value
+
+    @property
     def detune_w(self):
         """."""
         return self.res_ang_freq - self.harm_rf * self.ang_freq_rf
@@ -320,6 +330,11 @@ class ImpedanceSource:
         wr_ = self.res_ang_freq
         alpha = self.alpha
         return (wr_ * wr_ - alpha * alpha) ** 0.5
+
+    @property
+    def res_freq_bar(self):
+        """."""
+        return self.res_ang_freq_bar / _2PI
 
     @property
     def beta(self):
