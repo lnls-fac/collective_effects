@@ -60,7 +60,6 @@ class ImpedanceSource:
     FeedbackMethod = _get_namedtuple(
         "FeedbackMethod", ["Phasor", "LeastSquares"]
     )
-    
 
     def __init__(
         self,
@@ -74,6 +73,7 @@ class ImpedanceSource:
         """."""
         self._calc_method = None
         self._active_passive = None
+        self._feedback_method = None
 
         self.ang_freq = ang_freq
         self.Q = Q
@@ -140,7 +140,7 @@ class ImpedanceSource:
             self._active_passive = int(value)
         else:
             raise ValueError("Wrong value for active_passive.")
-        
+
     @property
     def feedback_method_str(self):
         """."""
@@ -229,7 +229,7 @@ class ImpedanceSource:
     def loop_ctrl_kpid(self):
         """."""
         return self._loop_ctrl_kpid
-    
+
     @loop_ctrl_kpid.setter
     def loop_ctrl_kpid(self, val):
         """."""
@@ -244,7 +244,7 @@ class ImpedanceSource:
     def loop_ctrl_delay(self, val):
         """."""
         self._loop_ctrl_delay = val
-    
+
     def pid_transfer_func(self, w):
         wctrl = self.loop_ctrl_ang_freq
         delay = self.loop_ctrl_delay
@@ -256,14 +256,14 @@ class ImpedanceSource:
         pid_ctrl = kp + ki / 1j / (w - wctrl + _EPS) + kd * 1j * (w - wctrl)
         transfer = gain * pid_ctrl * exp_delay * exp_phase
         return transfer
-    
+
     def zero_transfer_func(self, w):
         return 0 * w
 
     @property
     def beta_coupling(self):
         return self._beta_coupling
-    
+
     @beta_coupling.setter
     def beta_coupling(self, val):
         """."""
@@ -273,7 +273,7 @@ class ImpedanceSource:
     def loaded_shunt_impedance(self):
         """."""
         return self.shunt_impedance / (1 + self.beta_coupling)
-    
+
     @property
     def loaded_Q(self):
         """."""
@@ -299,7 +299,7 @@ class ImpedanceSource:
     def detune_freq(self):
         """."""
         return self.detune_w / _2PI
-    
+
     @detune_freq.setter
     def detune_freq(self, value):
         """."""
@@ -309,7 +309,7 @@ class ImpedanceSource:
     def alpha(self):
         """."""
         return self.ang_freq / 2 / self.loaded_Q
-    
+
     @property
     def ang_freq_bar(self):
         """."""
@@ -367,7 +367,7 @@ class ImpedanceSource:
     @property
     def ref_amp(self):
         return self._ref_amp
-    
+
     @ref_amp.setter
     def ref_amp(self, value):
         self._ref_amp = value
@@ -375,7 +375,7 @@ class ImpedanceSource:
     @property
     def ref_phase(self):
         return self._ref_phase
-    
+
     @ref_phase.setter
     def ref_phase(self, value):
         self._ref_phase = value
@@ -383,7 +383,7 @@ class ImpedanceSource:
     @property
     def ref_phase_offset(self):
         return self._ref_phase_offset
-    
+
     @ref_phase_offset.setter
     def ref_phase_offset(self, value):
         self._ref_phase_offset = value
@@ -394,11 +394,11 @@ class ImpedanceSource:
         dw = self.RoverQ * beam_current *  f_abs * _np.cos(self.ref_phase)
         dw *= ( self.ang_freq_rf  ) / self.ref_amp
         return dw / _2PI
-    
+
     def optimum_beta_coupling(self, beam_current, form_factor=1+0j):
         Rs0 = self.shunt_impedance
         f_abs = _np.abs(form_factor)
-        beta = beam_current * Rs0 * f_abs 
+        beta = beam_current * Rs0 * f_abs
         beta *= _np.abs(_np.sin(self.ref_phase)) / self.ref_amp
         beta += 1
         return beta
@@ -645,7 +645,7 @@ class LongitudinalEquilibrium:
         n2 = harm_rf**2
         kharm = 1 / n2 - ((U0 / Vrf) ** 2) / (n2 - 1)
         return kharm ** (1 / 2)
-    
+
     def calc_harmonic_phase_for_flat_potential(self, harm_rf):
         """."""
         U0 = self.ring.en_lost_rad
@@ -978,9 +978,9 @@ class LongitudinalEquilibrium:
                 amp = source.generator_amp
                 phase = source.generator_phase
             _vg = self.ring.get_voltage_waveform(
-                self.zgrid, 
-                amplitude=amp, 
-                phase=phase, 
+                self.zgrid,
+                amplitude=amp,
+                phase=phase,
                 rfharmonic=harm_rf)[None, :]
             _gen_amp = amp
             _gen_phase = phase
@@ -1714,7 +1714,7 @@ class LongitudinalEquilibrium:
                 else:
                     imp_idx.append(idx)
         return imp_idx
-    
+
     def _check_impedance_method(self, imp_source):
         mthd = imp_source.calc_method
         if mthd == ImpedanceSource.Methods.ImpedanceDFT:
@@ -1851,7 +1851,7 @@ class LongitudinalEquilibrium:
         total_volt = _np.zeros(xk.shape)
         beamload_actives = []
         idx_actives = []
-        
+
         # Wakes must be evaluated one by one
         idx_wake = self._get_wake_types_idx()
         if idx_wake:
@@ -1902,11 +1902,13 @@ class LongitudinalEquilibrium:
         # print(f'CalcDist: {tf3-tf2:.3f}s')
         return fxk.ravel()
 
-    def _feedback_phasor(self, beamload, ref_amp, ref_phase, harm_rf, ref_phase_offset=0):
+    def _feedback_phasor(
+        self, beamload, ref_amp, ref_phase, harm_rf, ref_phase_offset=0
+    ):
         ref_phase += ref_phase_offset
         wrf = _2PI * self.ring.rf_freq
         phase = harm_rf * wrf * self.zgrid / _c
-        vref_phasor = ref_amp * _np.exp(1j * (_PI / 2 - ref_phase)) 
+        vref_phasor = ref_amp * _np.exp(1j * (_PI / 2 - ref_phase))
         if not _np.sum(beamload):
             # print("if beamloading = 0, generator = reference")
             vg_phasor = vref_phasor
@@ -1923,11 +1925,13 @@ class LongitudinalEquilibrium:
             self.zgrid, amplitude=gen_amp, phase=gen_phase, rfharmonic=harm_rf)
         return vg[None, :], gen_amp, gen_phase
 
-    def _feedback_least_squares(self, beamload, ref_amp, ref_phase, harm_rf, ref_phase_offset=0):
+    def _feedback_least_squares(
+        self, beamload, ref_amp, ref_phase, harm_rf, ref_phase_offset=0
+    ):
         if not _np.sum(beamload):
             # print("if beamloading = 0, generator = reference")
             gen_amp = ref_amp
-            gen_phase = ref_phase + ref_phase_offset 
+            gen_phase = ref_phase + ref_phase_offset
         else:
             ref_phase += ref_phase_offset
             x0 = [ref_amp, ref_phase]
