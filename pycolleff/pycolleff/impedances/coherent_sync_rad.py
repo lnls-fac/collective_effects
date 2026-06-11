@@ -5,10 +5,11 @@ import scipy.signal as _scysig
 from scipy.special import hyp1f1 as _hyp1f1, gamma as _gamma, airy as _airy, \
     airye as _airye
 
-import mathphys as _mp
+import scipy.constants as _constants
 
-_LSPEED = _mp.constants.light_speed
-_Z0 = _mp.constants.vacuum_impedance
+_LSPEED = _constants.speed_of_light
+_Z0 = _constants.physical_constants[
+    'characteristic impedance of vacuum'][0]
 
 
 class CSRElement:

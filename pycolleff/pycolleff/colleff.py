@@ -3,9 +3,8 @@
 import math as _math
 import numpy as _np
 import pandas as pd
-import mathphys as _mp
+from scipy.constants import speed_of_light as _LSPEED
 
-_LSPEED = _mp.constants.light_speed
 _factorial = _math.factorial
 _sqrt = _math.sqrt
 
@@ -187,7 +186,7 @@ class Ring:
             latex_unit=pd.Series([
                 r'[V/pC]', r'[$m\Omega$]', r'[W]', r'[kV/pC]', r'[kV/pC]',
                 r'[kV/pC]', r'[kV/pC]', r'[kV/pC]', r'[kV/pC]',
-                r'$\times10^{-3}$',  r'$\times10^{-3}$', r'$\times10^{-3}$',
+                r'$\times10^{-3}$', r'$\times10^{-3}$', r'$\times10^{-3}$',
                 r'$\times10^{-3}$', r'$\times10^{-3}$', r'$\times10^{-3}$'],
                 index=props),
             latex_name=pd.Series([
@@ -1613,7 +1612,7 @@ class Ring:
     def kicker_power(
             self, gr, Rshunt=15e3, betak=5, Ab=1e-3, betab=5, cbmode=None,
             plane='long'):
-        '''Calculate the minimum transverse bunch by bunch feedback power
+        """Calculate the minimum transverse bunch by bunch feedback power
             necessary to damp coupled-bunch oscillations, assuming perfect
             tunning of the system.
             Formula taken from CAS_Digital_Signal_Processing, pag. 314.
@@ -1627,7 +1626,7 @@ class Ring:
           cbmode : coupled bunch mode of the instability. Not used yet.
 
         OUTPUT: RF power needed to damp instability [W].
-        '''
+        """
         if plane.lower().startswith('l'):
             P = 2*_np.pi*self.sync_tune * self.energy / self.mom_comp
             P *= gr * Ab / _LSPEED

@@ -2,12 +2,11 @@
 
 import numpy as _np
 
-import mathphys as _mp
+import scipy.constants as _constants
 
-_c = _mp.constants.light_speed
-_mu0 = _mp.constants.vacuum_permeability
-_Z0 = _mp.constants.vacuum_impedance
-E0 = _mp.constants.electron_rest_energy * _mp.units.joule_2_eV
+_c = _constants.speed_of_light
+_mu0 = _constants.physical_constants['vacuum mag. permeability'][0]
+_Z0 = _constants.physical_constants['characteristic impedance of vacuum'][0]
 
 
 def kicker_coupled_flux(w, h, W, t, L, mur, Zg):

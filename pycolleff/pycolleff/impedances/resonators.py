@@ -1,9 +1,7 @@
 """."""
 
 import numpy as _np
-import mathphys as _mp
-
-_LSPEED = _mp.constants.light_speed
+from scipy.constants import speed_of_light as _LSPEED
 
 
 def longitudinal_resonator(Rs, Q, wr, w):

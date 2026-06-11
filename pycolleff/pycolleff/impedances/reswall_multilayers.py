@@ -3,7 +3,7 @@
 import time as _time
 from functools import partial as _partial
 
-import mathphys as _mp
+import scipy.constants as _constants
 import mpmath as _mpmath
 import numpy as _np
 import scipy.integrate as _scyint
@@ -12,10 +12,13 @@ from mpmath import besseli as _miv, besselk as _mkv, cosh as _cosh, \
     mpf as _mpf, sinh as _sinh, sqrt as _sqrt, zeros as _zeros
 from scipy.special import iv as _iv, ive as _ive, kv as _kv, kve as _kve
 
-_LSPEED = _mp.constants.light_speed
-_ep0 = _mp.constants.vacuum_permitticity
-_Z0 = _mp.constants.vacuum_impedance  # Z0 = 1/ep0/c = u0*c
-_E0 = _mp.constants.electron_rest_energy * _mp.units.joule_2_eV
+_LSPEED = _constants.speed_of_light
+_ep0 = _constants.physical_constants[
+    'vacuum electric permittivity'][0]
+_Z0 = _constants.physical_constants['characteristic impedance of vacuum'][0]
+_E0 = _constants.physical_constants[
+    'electron mass energy equivalent in MeV'][0] * 1e6
+
 
 _pos = _np.logspace(-7, 0, 500)
 _neg = _np.logspace(-7, -3, 100)

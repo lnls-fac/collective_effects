@@ -5,9 +5,7 @@ import math as _math
 import numpy as _np
 import numexpr as _ne
 
-from mathphys import constants
-
-_LSPEED = constants.light_speed
+from scipy.constants import speed_of_light as _LSPEED
 
 
 # Ring parameters

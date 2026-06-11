@@ -12,7 +12,7 @@ import numpy as _np
 from scipy import integrate as _scy_int
 import matplotlib.pyplot as _plt
 
-from mathphys.constants import light_speed as _LSPEED
+from scipy.constants import speed_of_light as _LSPEED
 
 from .rings import sirius as _sirius
 

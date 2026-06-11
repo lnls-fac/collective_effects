@@ -6,8 +6,8 @@ from functools import partial as _partial
 
 import numexpr as _ne
 import numpy as _np
-from mathphys.constants import light_speed as _c
-from mathphys.functions import get_namedtuple as _get_namedtuple
+from scipy.constants import speed_of_light as _c
+from .utils import get_namedtuple as _get_namedtuple
 from scipy.fft import fft as _fft, irfft as _irfft, rfft as _rfft
 from scipy.integrate import quad as _quad, simpson as _simps
 from scipy.interpolate import interp1d as _interp1d
@@ -265,6 +265,7 @@ class ImpedanceSource:
         self._loop_ctrl_delay = val
 
     def pid_transfer_func(self, w):
+        """."""
         wctrl = self.loop_ctrl_ang_freq
         delay = self.loop_ctrl_delay
         kp, ki, kd = self.loop_ctrl_kpid
@@ -277,10 +278,12 @@ class ImpedanceSource:
         return transfer
 
     def zero_transfer_func(self, w):
+        """."""
         return 0 * w
 
     @property
     def beta_coupling(self):
+        """."""
         return self._beta_coupling
 
     @beta_coupling.setter
@@ -567,11 +570,15 @@ class ImpedanceSource:
             dist, idx_ini = self._do_zero_padding(rf_lamb, longeq.zgrid, dist)
             did_zero_pad = True
 
-        fill = longeq.ring.total_current * longeq.fillpattern
-        if longeq.identical_bunches:
-            fill = _np.array([
-                longeq.ring.total_current / longeq.ring.harm_num
-            ])
+        h = self.ring.harm_num
+        if self.identical_bunches:
+            fper = self.fill_period
+            nbun = h // fper
+        else:
+            fper = h
+            nbun = 1
+
+        fill = longeq.ring.total_current * longeq.fillpattern[:fper]
         # remove last point in z to do not overlap domains
         dist_beam = (fill[:, None] * dist[:, :-1]).ravel()
         dist_dft = _rfft(dist_beam)
@@ -579,8 +586,8 @@ class ImpedanceSource:
         # using real dft, take only positive harmonics
         max_mode = dist_dft.size
         wps = self._create_freqs(longeq.ring.rev_ang_freq, max_mode)
-        if longeq.identical_bunches:
-            wps *= longeq.ring.harm_num
+        wps *= nbun
+
         zl_wps = self.get_impedance(w=wps, apply_filter=True)
 
         dist_dft *= zl_wps.conj()
@@ -600,14 +607,16 @@ class ImpedanceSource:
         h = longeq.ring.harm_num
         circum = longeq.ring.circum
         rev_time = longeq.ring.rev_time
-        if longeq.identical_bunches:
-            fillpattern = _np.array([longeq.ring.total_current / h])[:, None]
-            circum /= h
-            h = 1
+        if self.identical_bunches:
+            fper = self.fill_period
+            nbun = h // fper
         else:
-            fillpattern = (
-                longeq.ring.total_current * longeq.fillpattern[:, None]
-            )
+            fper = h
+            nbun = 1
+        fillpattern = self.ring.total_current * self.fillpattern[:, None]
+        fillpattern = fillpattern[:fper]
+        circum /= nbun
+
         zgrid = longeq.zgrid
 
         alpha = self.alpha
@@ -647,11 +656,11 @@ class ImpedanceSource:
             log_Ll = -_np.log(1 - exp_betac0)
             # buckets behind current one (l>=n)
             log_Gl = log_Ll - beta * circum
-            log_wmat = log_Ll * _np.tri(h, h, -1)
-            log_wmat += log_Gl * _np.tri(h, h).T
-            ind = _np.arange(h)
+            log_wmat = log_Ll * _np.tri(fper, fper, -1)
+            log_wmat += log_Gl * _np.tri(fper, fper).T
+            ind = _np.arange(fper)
             diff = ind[:, None] - ind[None, :]
-            log_wmat += -beta * circum * diff / h
+            log_wmat += -beta * circum * diff / fper
             self._wake_matrix = _ne.evaluate('exp(log_wmat)')
         V = _np.dot(self._wake_matrix, dist_laplace)
         Vt = (Sn + V[:, None]) / self._exp_z
@@ -820,8 +829,8 @@ class ImpedanceSource:
         stg += ftmp(
             'res_ang_freq_bar', self.res_ang_freq_bar * mega, '[Mrad/s]'
         )
-        is_active = self.active_passive == ImpedanceSource.ActivePassive.Active
-        if is_active:
+        stg += ftmp('ang_freq_bar', self.ang_freq_bar * mega, '[Mrad/s]')
+        if self.beta_coupling != 0:
             stg += ftmp(
                 'loaded_shunt_impedance',
                 self.loaded_shunt_impedance * mega,
@@ -887,6 +896,8 @@ class LongitudinalEquilibrium:
         self.equilibrium_info = dict()
         self.identical_bunches = False
 
+        self._fill_period = self._get_fill_period()
+
     @property
     def zgrid(self):
         """."""
@@ -912,29 +923,38 @@ class LongitudinalEquilibrium:
             raise ValueError('sum(fillpattern) must be 1.')
         self._fillpattern = value
         self._wake_matrix = None
+        self._fill_period = self._get_fill_period()
 
     @property
     def filled_buckets(self):
         """."""
+        fill = self.fillpattern
         if self.identical_bunches:
-            return 0
-        idx = _np.where(self.fillpattern != 0)[0]
+            idx = _np.where(fill[: self.fill_period] != 0)[0]
+        else:
+            idx = _np.where(fill != 0)[0]
         return idx
+
+    @property
+    def fill_period(self):
+        """."""
+        return self._fill_period
 
     @property
     def distributions(self):
         """."""
         if self.identical_bunches:
-            return self._dist[:1, :]
+            return self._dist[: self.fill_period]
         return self._dist
 
     @distributions.setter
     def distributions(self, value):
+        """."""
         if value.ndim != 2:
             raise ValueError('Distributions must have 2 dimensions.')
-        elif value.shape[0] not in (1, self.ring.harm_num):
+        elif value.shape[0] not in (1, self.fill_period, self.ring.harm_num):
             raise ValueError(
-                'First dimension must be equal 1 or ring.harm_num.'
+                'First dimension must be equal 1, fillperiod or ring.harm_num.'
             )
         elif value.shape[1] != self._zgrid.size:
             raise ValueError('Second dimension must be equal zgrid.size.')
@@ -1032,6 +1052,13 @@ class LongitudinalEquilibrium:
             form_factor = self.calc_fourier_transform(wr)[self.filled_buckets]
         ib = 2 * I0 * _np.abs(form_factor).mean()
         arg = peak_harm_volt / ib / Rs
+        if _np.any(_np.abs(arg) > 1):
+            print('WARNING: Invalid detune condition')
+            print(f'abs(F)= {_np.abs(form_factor).mean():.3e}')
+            print(f'max |arg| = {_np.max(_np.abs(arg)):.3e}')
+            print(f'peak voltage = {peak_harm_volt:.3e}')
+            print(f'Ib*Rs = {(ib * Rs):.3e}')
+            return 0
         return _np.arccos(arg)
 
     def calc_harmonic_voltage_for_fixed_detune(self, detune, harm_rf=3, Rs=0):
@@ -1068,7 +1095,7 @@ class LongitudinalEquilibrium:
         pot /= E0 * C0
 
         alpha = self.ring.mom_comp  # noqa: F841
-        sigmae2 = self.ring.espread**2  # noqa: F841
+        sigmae2 = self.ring.espread ** 2  # noqa: F841
         dist = _ne.evaluate('exp(-pot/(alpha*sigmae2))')
         # distribution must be normalized
         dist /= _mytrapz(dist, dz)[:, None]
@@ -1105,27 +1132,36 @@ class LongitudinalEquilibrium:
         m=3,
         print_flag=True,
         initial_dist=None,
+        store_every_niters=1,
     ):
         """."""
-        self.print_flag = print_flag
         if self.identical_bunches:
             if not _np.allclose(self.fillpattern, self.fillpattern[0]):
                 raise Exception(
                     'identical_bunches=True but fillpattern is nonuniform.'
                 )
+        self.print_flag = print_flag
         dist0 = self.distributions if initial_dist is None else initial_dist
-        dists = [dist0]
-        dists, converged, iters = self._apply_anderson_acceleration(
-            dists, niter, tol, beta=beta, m=m
+        dist, hist_dists, converged, iters = self._apply_anderson_acceleration(
+            dist0,
+            niter,
+            tol,
+            beta=beta,
+            m=m,
+            store_every_niters=store_every_niters,
         )
-
-        # dists = self._apply_random_convergence(dists, niter, tol)
-        dists = [self._reshape_dist(rho) for rho in dists]
-        self.distributions = dists[-1]
+        # dist, hist_dists, converged = self._apply_random_convergence(
+        #     self.distributions,
+        #     niter,
+        #     tol,
+        #     store_every_niters=store_every_niters,
+        # )
+        hist_dists = [self._reshape_dist(rho) for rho in hist_dists]
+        self.distributions = self._reshape_dist(dist)
         # Flush pre-calculated data
         self._wake_matrix = None
         self._exp_z = None
-        return dists, converged, iters
+        return hist_dists, converged, iters
 
     def calc_equilibrium_info(
         self,
@@ -1406,13 +1442,11 @@ class LongitudinalEquilibrium:
             shift = -const * (wp * Zlp.imag + wn * Zln.imag)
         return shift + 1j * growth
 
-    def calc_tuneshifts_cbi(self, w, m=1, nbun_fill=None, radiation=False):
+    def calc_tuneshifts_cbi(self, w, m=1, radiation=False):
         """."""
         ring = self.ring
-        num_bun = ring.num_bun
         dampte = ring.dampte
 
-        ring.num_bun = nbun_fill if nbun_fill is not None else ring.harm_num
         if not radiation:
             ring.dampte = _np.inf
 
@@ -1430,7 +1464,6 @@ class LongitudinalEquilibrium:
         # Relative tune-shifts must be multiplied by ws
         deltaw *= ring.sync_tune * ring.rev_ang_freq
 
-        ring.num_bun = num_bun
         ring.dampte = dampte
         return deltaw, Zl, wp, interpol_Z, spectrum
 
@@ -1440,7 +1473,6 @@ class LongitudinalEquilibrium:
         cbmode,
         max_azi=10,
         max_rad=12,
-        nbun_fill=None,
         modecoup_matrix=None,
         fokker_matrix=None,
         use_fokker=True,
@@ -1451,10 +1483,7 @@ class LongitudinalEquilibrium:
     ):
         """."""
         ring = self.ring
-        num_bun = ring.num_bun
         dampte = ring.dampte
-
-        ring.num_bun = nbun_fill if nbun_fill is not None else ring.harm_num
 
         if _np.array(w).size == 2:
             Zl = _partial(self.get_impedance, apply_filter=apply_filter)
@@ -1494,8 +1523,6 @@ class LongitudinalEquilibrium:
 
         # Relative tune-shifts must be multiplied by ws
         eigenfreq *= ring.sync_tune * ring.rev_ang_freq
-
-        ring.num_bun = num_bun
         ring.dampte = dampte
         return eigenfreq, eigenvec, modecoup_matrix, fokker_matrix
 
@@ -1516,9 +1543,9 @@ class LongitudinalEquilibrium:
         return integral / _2PI
 
     @staticmethod
-    def calc_hmps(z_ij, cb_mode, ms, ps, w0, h):
+    def calc_hmps(z_ij, cb_mode, ms, ps, w0, nr_bun):
         """."""
-        omegaps = (ps * h + cb_mode) * w0
+        omegaps = (ps * nr_bun + cb_mode) * w0
         hmps = _np.zeros((ms.size, ps.size, len(z_ij)), dtype=complex)
         for iz, z in enumerate(z_ij):
             hmps[:, :, iz] = LongitudinalEquilibrium.hmp(z, ms, omegaps)
@@ -1542,13 +1569,13 @@ class LongitudinalEquilibrium:
         eqinfo = self.equilibrium_info
         ring = self.ring
         w0 = ring.rev_ang_freq
-        h = ring.harm_num
+        num_bun = ring.num_bun
 
         psi_J = eqinfo['action_distribution']
         ws_J = _2PI * eqinfo['sync_freq']
         J = eqinfo['action']
 
-        omegap = (ps * h + cb_mode) * w0
+        omegap = (ps * num_bun + cb_mode) * w0
         c_omega = None
         if big_omega is not None:
             c_omega = big_omega[0] + 1j * big_omega[1]
@@ -1701,7 +1728,13 @@ class LongitudinalEquilibrium:
     def _lebedev_determinant(self, big_omega, params):
         hmps, ms, ps, cb_mode, reduced = params
         bmat = self.lebedev_matrix(
-            big_omega, hmps, ms, ps, cb_mode, reduced, adsyncfreq=True
+            big_omega=big_omega,
+            hmps=hmps,
+            ms=ms,
+            ps=ps,
+            cb_mode=cb_mode,
+            reduced=reduced,
+            adsyncfreq=True,
         )
         db = _det(bmat)
         return [db.real, db.imag]
@@ -1751,7 +1784,7 @@ class LongitudinalEquilibrium:
         eqinfo = self.equilibrium_info
         ring = self.ring
         w0 = ring.rev_ang_freq
-        h = ring.harm_num
+        num_bun = ring.num_bun
         I0 = ring.total_current
         E0 = ring.energy
         C0 = ring.circum
@@ -1787,7 +1820,7 @@ class LongitudinalEquilibrium:
             h_mn = h_mid[im]
             for imm in range(nr_ms):
                 h_mmnn = h_mid[imm]
-                omegapp = (ps * h + cb_mode) * w0
+                omegapp = (ps * num_bun + cb_mode) * w0
                 if big_omega is None:
                     zpp = (
                         self.get_impedance(w=omegapp[:, None] + mw_Jn[None, :])
@@ -1828,6 +1861,16 @@ class LongitudinalEquilibrium:
             cpu_use = cpu_count
         return cpu_use
 
+    def _get_fill_period(self):
+        h = self.ring.harm_num
+        fill = self.fillpattern
+        for p in range(1, h + 1):
+            if h % p != 0:
+                continue
+            if _np.allclose(fill, _np.tile(fill[:p], h // p)):
+                return p
+        return h
+
     def _reshape_dist(self, dist):
         return dist.reshape((-1, self.zgrid.size))
 
@@ -1863,82 +1906,115 @@ class LongitudinalEquilibrium:
                 wake_idx.append(idx)
         return wake_idx
 
-    def _apply_anderson_acceleration(self, dists, niter, tol, m=None, beta=1):
-        """."""
+    def _apply_anderson_acceleration(
+        self, dist0, niter, tol, m=None, beta=1, store_every_niters=1
+    ):
         if beta < 0:
             raise Exception('relaxation parameter beta must be positive.')
-
-        xold = dists[-1].ravel()
+        xold = dist0.ravel()
         xnew = self._haissinski_operator(xold)
-        dists.append(xnew)
+        hist_dists = [xnew]
 
         m = m or niter
+        m = min(m, 8)  # practical cap for stability/performance
+
+        nr = xnew.size
+
+        # Use Fortran order for efficient column operations
+        G_k = _np.zeros((nr, m), dtype=float, order='F')
+        X_k = _np.zeros((nr, m), dtype=float, order='F')
+
         where = 0
-        nr_xnew = xnew.size
-        G_k = _np.zeros((nr_xnew, m), dtype=float)
-        X_k = _np.zeros((nr_xnew, m), dtype=float)
-        mat = _np.zeros((nr_xnew, m), dtype=float)
 
         gold = xnew - xold
         gnew = self._haissinski_operator(xnew) - xnew
+
         G_k[:, where] = gnew - gold
         X_k[:, where] = gold
-        mat[:, where] = gnew
-        where += 1
-        where %= m
+
+        where = (where + 1) % m
+        filled = 1
 
         converged = False
 
-        for k in range(niter):
+        dz = self.zgrid[1] - self.zgrid[0]
+
+        for k in range(1, niter + 1):
             t0 = _time.time()
-            gamma_k = _np.linalg.lstsq(G_k, gnew, rcond=None)[0]
-            # tf1 = _time.time()
-            # print(f'AndersonLeastSquares: {tf1-t0:.3f}s')
-            xold = xnew
-            xnew = xold + gnew
-            xnew -= mat @ gamma_k
-            xnew *= beta
+
+            mk = min(filled, m)
+
+            G = G_k[:, :mk]
+            X = X_k[:, :mk]
+
+            # --- Solve normal equations ---
+            GTG = G.T @ G
+            GTg = G.T @ gnew
+
+            GTG += _EPS * _np.eye(mk)
+
+            gamma = _np.linalg.solve(GTG, GTg)
+
+            # --- Compute projections once ---
+            Gg = G @ gamma
+            Xg = X @ gamma
+
+            # --- Anderson update ---
+            xprev = xnew
+            xnew = xprev + gnew - (Gg + Xg)
+
+            if store_every_niters > 0:
+                if not k % store_every_niters:
+                    hist_dists.append(xnew)
+
             if beta != 1:
-                xnew += (1 - beta) * (xold - X_k @ gamma_k)
-            dists.append(xnew)
+                xnew = beta * xnew + (1 - beta) * (xprev - Xg)
 
+            # --- New residual ---
             gold = gnew
-            # tf2 = _time.time()
-            # print(f'MatrixMul: {tf2-tf1:.3f}s')
             gnew = self._haissinski_operator(xnew) - xnew
-            # tf3 = _time.time()
-            G_k[:, where] = gnew - gold
-            X_k[:, where] = xnew - xold
-            mat[:, where] = G_k[:, where] + X_k[:, where]
-            where += 1
-            where %= m
 
+            # --- Update history ---
+            G_k[:, where] = gnew - gold
+            X_k[:, where] = xnew - xprev
+
+            where = (where + 1) % m
+            filled = min(filled + 1, m)
+
+            # --- Convergence check ---
             diff = self._reshape_dist(gnew)
-            dz = self.zgrid[1] - self.zgrid[0]
             diff = _mytrapz(_np.abs(diff), dz)
             idx = _np.argmax(diff)
+
             tf = _time.time() - t0
-            # print(f'Trapz: {tf-tf3:.3f}s')
+
             if self.print_flag:
                 print(
                     f'Iter.: {k + 1:03d}, Dist. Diff.: {diff[idx]:.3e}'
                     + f' (bucket {idx:03d}), E.T.: {tf:.3f}s'
                 )
-                # print(f"Iter.: {k+1:03d}, E.T.: {tf-t0:.3f}s")
                 print('-' * 20)
+
             if diff[idx] < tol:
                 converged = True
                 if self.print_flag:
                     print('distribution ok!')
                 break
-        return dists, converged, k
+        return xnew, hist_dists, converged, k
 
-    def _apply_random_convergence(self, dists, niter, tol):
-        xold = dists[-1].ravel()
+    def _apply_random_convergence(
+        self, dist0, niter, tol, store_every_niters=1
+    ):
+        xold = dist0.ravel()
+        hist_dists = []
         converged = False
-        for k in range(niter):
+        for k in range(1, niter + 1):
             xnew = self._haissinski_operator(xold)
-            dists.append(xnew)
+
+            if store_every_niters > 0:
+                if not k % store_every_niters:
+                    hist_dists.append(xnew)
+
             diff = self._reshape_dist(xnew - xold)
             dz = self.zgrid[1] - self.zgrid[0]
             diff = _mytrapz(_np.abs(diff), dz)
@@ -1956,7 +2032,7 @@ class LongitudinalEquilibrium:
                 break
             r = _np.random.randn() / 2
             xold = (1 - r) * xnew + r * xold
-        return dists, converged
+        return xnew, hist_dists, converged
 
     def _haissinski_operator(self, xk):
         """Haissinski operator."""
@@ -2009,7 +2085,7 @@ class LongitudinalEquilibrium:
         # tf1 = _time.time()
         # print(f'CalcIndVoltage: {tf1-t0:.3f}s')
         # tf2 = _time.time()
-        for idx, beamload in zip(idx_actives, beamload_actives):
+        for idx, beamload in zip(idx_actives, beamload_actives, strict=True):
             source = self.impedance_sources[idx]
             vg, source = self.get_generator_voltage(source, beamload)
             total_volt += vg

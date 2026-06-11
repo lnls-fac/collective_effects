@@ -2,7 +2,7 @@
 import numpy as _np
 import matplotlib.pyplot as _plt
 
-from mathphys.functions import save_pickle as _save_pickle, \
+from ..utils import save_pickle as _save_pickle, \
     load_pickle as _load_pickle
 
 
@@ -24,7 +24,7 @@ _FACTOR = {
     'Zll': 1e-3, 'Zdy': 1e-3, 'Zdx': 1e-3, 'Zqy': 1e-3, 'Zqx': 1e-3,
     'Wll': 1e-12, 'Wdy': 1e-12, 'Wdx': 1e-12, 'Wqy': 1e-12, 'Wqx': 1e-12}
 _BETA = {
-    'Zll': lambda x: 1,       'Wll': lambda x: 1,
+    'Zll': lambda x: 1, 'Wll': lambda x: 1,
     'Zdy': lambda x: x.betay, 'Wdy': lambda x: x.betay,
     'Zdx': lambda x: x.betax, 'Wdx': lambda x: x.betax,
     'Zqy': lambda x: x.betay, 'Wqy': lambda x: x.betay,
@@ -300,7 +300,7 @@ class Budget(list):
     @property
     def ang_freq(self):
         """."""
-        angf = _np.unique(_np.hstack([getattr(x, 'ang_freq') for x in self]))
+        angf = _np.unique(_np.hstack([x.ang_freq for x in self]))
         if self.max_ang_freq is not None:
             angf = angf[_np.abs(angf) < self.max_ang_freq]
         return angf
@@ -333,7 +333,7 @@ class Budget(list):
     @property
     def pos(self):
         """."""
-        pos = _np.unique(_np.hstack([getattr(x, 'pos') for x in self]))
+        pos = _np.unique(_np.hstack([x.pos for x in self]))
         if self.max_pos is not None:
             pos = pos[_np.abs(pos) < self.max_pos]
         return pos

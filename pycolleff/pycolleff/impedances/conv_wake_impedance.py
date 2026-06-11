@@ -4,9 +4,7 @@ import numpy as _np
 from scipy.interpolate import PchipInterpolator as _Pchip, \
     CubicSpline as _Spline
 
-import mathphys as _mp
-
-_LSPEED = _mp.constants.light_speed
+from scipy.constants import speed_of_light as _LSPEED
 
 
 def from_wake_to_impedance(z, wake, bunlen, cutoff=2):

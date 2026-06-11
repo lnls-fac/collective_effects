@@ -1,11 +1,11 @@
 """Implement some impedance models for transitions."""
 
 import numpy as _np
+import scipy.constants as _constants
 
-import mathphys as _mp
 
-_Z0 = _mp.constants.vacuum_impedance
-_LSPEED = _mp.constants.light_speed
+_LSPEED = _constants.speed_of_light
+_Z0 = _constants.physical_constants['characteristic impedance of vacuum'][0]
 
 
 def taper(w, r1, r2, t, wid=0, geom='round'):
