@@ -593,7 +593,9 @@ class ImpedanceSource:
             harm_volt += -2 * zl_wp[idx] * beam_part[:, None]
         return harm_volt.real
 
-    def calc_induced_voltage_impedance_dft(self, longeq, dist):
+    def calc_induced_voltage_impedance_dft(
+        self, longeq, dist, imp_sources=None
+    ):
         """."""
         did_zero_pad = False
         ring = longeq.ring
@@ -621,7 +623,11 @@ class ImpedanceSource:
         wps = self._create_freqs(ring.rev_ang_freq, max_mode)
         wps *= nbun
 
-        zl_wps = self.get_impedance(w=wps, apply_filter=True)
+        if imp_sources is None:
+            imp_sources = [self]
+        zl_wps = _np.zeros_like(wps, dtype=complex)
+        for src in imp_sources:
+            zl_wps += src.get_impedance(w=wps, apply_filter=True)
 
         dist_dft *= zl_wps.conj()
 
@@ -1175,7 +1181,7 @@ class LongitudinalEquilibrium:
         if w is None:
             max_mode = max(imp.max_mode for imp in imp_sources)
             w = ImpedanceSource._create_freqs(self.ring.rev_ang_freq, max_mode)
-        total_zl = _np.zeros(w.shape, dtype=complex)
+        total_zl = _np.zeros_like(w, dtype=complex)
         for imp in imp_sources:
             total_zl += imp.get_impedance(w=w, apply_filter=apply_filter)
         return total_zl
@@ -2064,9 +2070,25 @@ class LongitudinalEquilibrium:
     def _haissinski_operator(self, xk):
         """Haissinski operator."""
         xk = self._reshape_dist(xk)
-        total_volt = _np.zeros(xk.shape)
-        for src in self.impedance_sources:
+        total_volt = _np.zeros_like(xk)
+
+        dft_passive = [
+            src
+            for src in self.impedance_sources
+            if src.calc_method == src.Methods.ImpedanceDFT
+            and src.active_passive == src.ActivePassive.Passive
+        ]
+        other_sources = [
+            src for src in self.impedance_sources if src not in dft_passive
+        ]
+
+        if dft_passive:
+            total_volt += dft_passive[0].calc_induced_voltage_impedance_dft(
+                longeq=self, dist=xk, imp_sources=dft_passive
+            )
+        for src in other_sources:
             total_volt += src.calc_total_voltage(longeq=self, dist=xk)
+
         self.total_voltage = total_volt
         fxk, _ = self.calc_distributions_from_voltage(total_volt)
         return fxk.ravel()
