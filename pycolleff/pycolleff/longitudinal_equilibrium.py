@@ -477,6 +477,26 @@ class ImpedanceSource:
         self.harm_rf = dic.get('harm_rf', self.harm_rf)
         self.ang_freq_rf = dic.get('ang_freq_rf', self.ang_freq_rf)
 
+    @staticmethod
+    def group_impedance_sources(sources):
+        """Return a list of groupable passive ImpedanceDFT sources.
+
+        Sources with calc_method == ImpedanceDFT and active_passive ==
+        Passive can be combined to compute the induced voltage once;
+        this replaces several passive sources by one ImpedanceSourceGroup.
+        If groupable sources are < 2, a copy of the input list is returned.
+        """
+        groupable = [
+            src
+            for src in sources
+            if src.calc_method == ImpedanceSource.Methods.ImpedanceDFT
+            and src.active_passive == ImpedanceSource.ActivePassive.Passive
+        ]
+        if len(groupable) < 2:
+            return list(sources)
+        others = [src for src in sources if src not in groupable]
+        return others + [ImpedanceSourceGroup(groupable)]
+
     def calc_total_voltage(self, longeq, dist=None):
         """Calculate induced + generator voltage."""
         induced = self.calc_induced_voltage(longeq, dist)
@@ -593,9 +613,7 @@ class ImpedanceSource:
             harm_volt += -2 * zl_wp[idx] * beam_part[:, None]
         return harm_volt.real
 
-    def calc_induced_voltage_impedance_dft(
-        self, longeq, dist, imp_sources=None
-    ):
+    def calc_induced_voltage_impedance_dft(self, longeq, dist):
         """."""
         did_zero_pad = False
         ring = longeq.ring
@@ -623,11 +641,7 @@ class ImpedanceSource:
         wps = self._create_freqs(ring.rev_ang_freq, max_mode)
         wps *= nbun
 
-        if imp_sources is None:
-            imp_sources = [self]
-        zl_wps = _np.zeros_like(wps, dtype=complex)
-        for src in imp_sources:
-            zl_wps += src.get_impedance(w=wps, apply_filter=True)
+        zl_wps = self.get_impedance(w=wps, apply_filter=True)
 
         dist_dft *= zl_wps.conj()
 
@@ -903,6 +917,31 @@ class ImpedanceSource:
         return stg
 
 
+class ImpedanceSourceGroup(ImpedanceSource):
+    """A group of passive ImpedanceDFT sources."""
+
+    def __init__(self, sources, name=''):
+        """."""
+        super().__init__(
+            calc_method=ImpedanceSource.Methods.ImpedanceDFT,
+            active_passive=ImpedanceSource.ActivePassive.Passive,
+        )
+        self.name = name
+        self.sources = list(sources)
+
+    def get_impedance(self, w, apply_filter=False):
+        """."""
+        zl = _np.zeros_like(w, dtype=complex)
+        for src in self.sources:
+            zl += src.get_impedance(w=w, apply_filter=apply_filter)
+        return zl
+
+    def __str__(self):
+        """."""
+        names = ', '.join(src.name or repr(src) for src in self.sources)
+        return f'ImpedanceSourceGroup(name={self.name!r}, sources=[{names}])'
+
+
 class LongitudinalEquilibrium:
     """Self-consistent longitudinal equilibrium calculations.
 
@@ -941,6 +980,7 @@ class LongitudinalEquilibrium:
 
         self.ring = ring
         self.impedance_sources = impedance_sources
+        self._warning_groupable_sources()
         self.fillpattern = fillpattern
         self.nr_cpus = None
 
@@ -1055,6 +1095,7 @@ class LongitudinalEquilibrium:
             _imp.from_dict(imp)
             imps.append(_imp)
         self.impedance_sources = imps
+        self._warning_groupable_sources()
         self._zgrid = dic.get('zgrid', self._zgrid)
         self._dist = dic.get('dist', self._dist)
         self._fillpattern = dic.get('fillpattern', self._fillpattern)
@@ -1939,6 +1980,20 @@ class LongitudinalEquilibrium:
             if 'impedance' in imp.calc_method_str.lower()
         ]
 
+    def _warning_groupable_sources(self):
+        grouped = ImpedanceSource.group_impedance_sources(
+            self.impedance_sources
+        )
+        if len(grouped) < len(self.impedance_sources):
+            print(
+                'Warning: '
+                'Multiple passive ImpedanceDFT impedance sources detected. '
+                'Consider calling '
+                'ImpedanceSource.group_impedance_sources(impedance_sources) '
+                'before creating LongitudinalEquilibrium to combine them and '
+                'speed up equilibrium solver.',
+            )
+
     def _apply_anderson_acceleration(
         self, dist0, niter, tol, m=None, beta=1, store_every_niters=1
     ):
@@ -2071,22 +2126,7 @@ class LongitudinalEquilibrium:
         """Haissinski operator."""
         xk = self._reshape_dist(xk)
         total_volt = _np.zeros_like(xk)
-
-        dft_passive = [
-            src
-            for src in self.impedance_sources
-            if src.calc_method == src.Methods.ImpedanceDFT
-            and src.active_passive == src.ActivePassive.Passive
-        ]
-        other_sources = [
-            src for src in self.impedance_sources if src not in dft_passive
-        ]
-
-        if dft_passive:
-            total_volt += dft_passive[0].calc_induced_voltage_impedance_dft(
-                longeq=self, dist=xk, imp_sources=dft_passive
-            )
-        for src in other_sources:
+        for src in self.impedance_sources:
             total_volt += src.calc_total_voltage(longeq=self, dist=xk)
 
         self.total_voltage = total_volt
