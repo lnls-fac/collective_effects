@@ -10,6 +10,7 @@ import scipy.constants as _constants
 _LSPEED = _constants.speed_of_light
 _Z0 = _constants.physical_constants[
     'characteristic impedance of vacuum'][0]
+_AIRY_CUTOFF = 1e5  # scipy's airy/airye return NaN for arguments > 1e6.
 
 
 class CSRElement:
@@ -82,7 +83,7 @@ class CSRElement:
             W1 = _scysig.fftconvolve(W1, bunch, mode='same') * (z[1]-z[0])
         return W0, W1
 
-    def impedance(self, w, L=None, imax=3, free=False):
+    def impedance(self, w, L=None, imax=100, free=False):
         L = L or (2*_np.pi * self.rho)
         Lfrac = L / (2*_np.pi * self.rho)
         n = w/_LSPEED * self.rho
@@ -98,11 +99,16 @@ class CSRElement:
         F = _np.zeros(len(w), dtype=complex)
         for p in range(0, imax):
             up = u0*(2*p + 1)**2
+            if _np.all(up > _AIRY_CUTOFF):
+                break
             Ai, Ail, Bi, Bil = _airy(up)
             Ri = Ail*Ail + up * Ai*Ai
             Ai, Ail, Bi, Bil = _airye(up)
             Im = Ail*Bil + up * Ai*Bi
-            F += Ri - 1j * Im
+            term = Ri - 1j * Im
+            # Return zero for args above cutoff to avoid NaN.
+            term[up > _AIRY_CUTOFF] = 0
+            F += term
         Z *= F
         return Z * n * self.h / self.rho * Lfrac
 
