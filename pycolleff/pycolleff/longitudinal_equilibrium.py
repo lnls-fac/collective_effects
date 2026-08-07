@@ -1656,6 +1656,7 @@ class LongitudinalEquilibrium:
         ms,
         ps,
         cb_mode,
+        feedback_transfer=None,
         reduced=False,
         adsyncfreq=True,
         effsyncfreq='center',
@@ -1677,6 +1678,9 @@ class LongitudinalEquilibrium:
         c_omega = None
         if big_omega is not None:
             c_omega = big_omega[0] + 1j * big_omega[1]
+        if feedback_transfer is None:
+            feedback_transfer = ImpedanceSource.zero_transfer_func
+        f_m = self._auto_calc_fb_fourier_coeffs(ms)
         if adsyncfreq:
             B_pp = self._fill_lebedev_matrix_adsyncfreq(
                 J,
@@ -1689,6 +1693,8 @@ class LongitudinalEquilibrium:
                 hmps,
                 self.get_impedance,
                 reduced,
+                feedback_transfer,
+                f_m,
             )
             return B_pp
 
@@ -1696,12 +1702,50 @@ class LongitudinalEquilibrium:
         eff_ws = self._get_effective_sync_freq(effsyncfreq)
 
         B_mm_pp = self._fill_lebedev_matrix_constsyncfreq(
-            J, psi_J, eff_ws, c_omega, omegap, ms, hmps, self.get_impedance
+            J,
+            psi_J,
+            eff_ws,
+            c_omega,
+            omegap,
+            ms,
+            hmps,
+            self.get_impedance,
+            feedback_transfer,
+            f_m,
         )
         return B_mm_pp
 
+    def _auto_calc_fb_fourier_coeffs(self, ms):
+        z_grid = self.equilibrium_info['canonical_zj']
+        nr_J = len(z_grid)
+        nr_m = len(ms)
+        f_m = _np.zeros((nr_m, nr_J), dtype=complex)
+        for i in range(nr_J):
+            z_orbit = _np.array(z_grid[i])
+            zsize = z_orbit.size
+            if zsize == 0:
+                continue
+            phi = _np.linspace(0, _2PI, zsize, endpoint=False)
+            dphi = _2PI / zsize
+            arg = -1j * ms[:, None] * phi[None, :]
+            intg = z_orbit[None, :] * _ne.evaluate('exp(arg)')
+            f_m[:, i] = _mytrapz(intg, dphi)
+        return f_m / _2PI
+
     def _fill_lebedev_matrix_adsyncfreq(
-        self, J, psi_J, ws_J, c_omega, omegap, ps, ms, hmps, impedance, reduced
+        self,
+        J,
+        psi_J,
+        ws_J,
+        c_omega,
+        omegap,
+        ps,
+        ms,
+        hmps,
+        impedance,
+        reduced,
+        feedback_transfer,
+        f_m,
     ):
         nr_ps = ps.size
         B_pp = _np.zeros((nr_ps, nr_ps), dtype=complex)
@@ -1710,8 +1754,15 @@ class LongitudinalEquilibrium:
         sigmae2 = self.ring.espread**2
         dpsi_dJ = -ws_J * psi_J / (alpha * sigmae2 * _c)
 
+        I0 = self.ring.total_current
+        E0 = self.ring.energy
+        C0 = self.ring.circum
+        kappa = _2PI * I0 * _c * _c / (E0 * C0)
+
         # only analytic impedances accept complex frequencies
         zpp = impedance(w=omegap + c_omega) / omegap
+        k_fb_omega = feedback_transfer(c_omega)
+        k_fb_omega *= kappa / (I0 * _c)
 
         # more general impedances
         # zpp = impedance(w=omegap + c_omega.real) / omegap
@@ -1722,6 +1773,8 @@ class LongitudinalEquilibrium:
         if reduced:
             if _np.any(ms < 0):
                 raise ValueError('reduced=True but m < 0 identified')
+            if k_fb_omega != 0:
+                raise ValueError('k_fb!=0 but m < 0 identified')
             m2wJ2 = (ms[:, None] * ws_J) ** 2
             m2wJ = ms[:, None] ** 2 * ws_J
             mdpsi_dJ_div = 2 * m2wJ * dpsi_dJ / (c_omega * c_omega - m2wJ2)
@@ -1730,7 +1783,7 @@ class LongitudinalEquilibrium:
                 ms[:, None] * dpsi_dJ / (c_omega - ms[:, None] * ws_J)
             )
 
-        idx_close = _np.zeros_like(ws_J)
+        # idx_close = _np.zeros_like(ws_J)
         # if ws_J.min() < c_omega.real < ws_J.max():
         #     # print('here')
         #     # print(c_omega.imag)
@@ -1738,68 +1791,172 @@ class LongitudinalEquilibrium:
         #         idx_close = _np.isclose(c_omega.real, ws_J, rtol=1e-5)
         #         print(_np.sum(idx_close))
 
-        dpsi_dJ_ws = dpsi_dJ / ws_J
+        # dpsi_dJ_ws = dpsi_dJ / ws_J
+
+        def calc_kernel(J, mdpsi_dJ_div, Am, Bm):
+            itg = (mdpsi_dJ_div * Am * Bm).sum(axis=0)
+            return _simps(itg, x=J)
+
+        if k_fb_omega != 0.0:
+            s_fb = calc_kernel(J, mdpsi_dJ_div, f_m, f_m.conj())
+            fb_multiplier = k_fb_omega / (1.0 + k_fb_omega * s_fb)
 
         for ip in range(nr_ps):
-            h_mp = hmps[:, ip]
             for ipp in range(nr_ps):
-                h_mpp = hmps[:, ipp].conj()
-                if _np.sum(idx_close):
-                    # TODO: EXPLAIN HERE
-                    rgpp = h_mp * h_mpp * dpsi_dJ_ws[None, :]
-                    rgpp = rgpp[:, idx_close].sum(axis=-1)
-                    gpp = _2PI * _np.sign(c_omega.imag) * rgpp
-                    if _np.sum(~idx_close):
-                        itg = (h_mp * h_mpp * mdpsi_dJ_div).sum(axis=0)
-                        igpp = _simps(itg[:, ~idx_close], x=J[~idx_close])
-                        gpp += 1j * igpp
-                else:
-                    itg = (h_mp * h_mpp * mdpsi_dJ_div).sum(axis=0)
-                    gpp = 1j * _simps(itg, x=J)
-                B_pp[ip, ipp] = zpp[ipp] * gpp
+                g_pp = calc_kernel(
+                    J, mdpsi_dJ_div, hmps[:, ip], hmps[:, ipp].conj()
+                )
+                if k_fb_omega != 0.0:
+                    xi_p = calc_kernel(J, mdpsi_dJ_div, hmps[:, ip], f_m)
+                    eta_p = calc_kernel(
+                        J, mdpsi_dJ_div, hmps[:, ipp].conj(), f_m.conj()
+                    )
+                    gpp_fb = -fb_multiplier * xi_p * eta_p
+                    g_pp += gpp_fb
+                B_pp[ip, ipp] = zpp[ipp] * g_pp
 
-        I0 = self.ring.total_current
-        E0 = self.ring.energy
-        C0 = self.ring.circum
-        stren = _2PI * I0 * _c * _c / (E0 * C0)
-        B_pp *= stren
+                # h_mpp = hmps[:, ipp].conj()
+                # if _np.sum(idx_close):
+                #     # TODO: EXPLAIN HERE
+                #     rgpp = h_mp * h_mpp * dpsi_dJ_ws[None, :]
+                #     rgpp = rgpp[:, idx_close].sum(axis=-1)
+                #     gpp = _2PI * _np.sign(c_omega.imag) * rgpp
+                #     if _np.sum(~idx_close):
+                #         itg = (h_mp * h_mpp * mdpsi_dJ_div).sum(axis=0)
+                #         igpp = _simps(itg[:, ~idx_close], x=J[~idx_close])
+                #         gpp += 1j * igpp
+                # else:
+                #     itg = (h_mp * h_mpp * mdpsi_dJ_div).sum(axis=0)
+                #     gpp = 1j * _simps(itg, x=J)
+                # B_pp[ip, ipp] = zpp[ipp] * gpp
+        B_pp *= 1j * kappa
         I_pp = _np.eye(nr_ps)
         return I_pp + B_pp
 
     def _fill_lebedev_matrix_constsyncfreq(
-        self, J, psi_J, eff_ws, c_omega, omegap, ms, hmps, impedance
+        self,
+        J,
+        psi_J,
+        eff_ws,
+        c_omega,
+        omegap,
+        ms,
+        hmps,
+        impedance,
+        feedback_transfer,
+        f_m,
     ):
+
         nr_ms = ms.size
         nr_ps = omegap.size
-
-        B_m_pp = _np.zeros((nr_ms, nr_ps, nr_ps), dtype=complex)
-        for im, m in enumerate(ms):
-            mws = m * eff_ws
-            for ip in range(nr_ps):
-                h_mp = hmps[im, ip]
-                for ipp in range(nr_ps):
-                    h_mpp = hmps[im, ipp].conj()
-                    gmpp = _simps(h_mp * h_mpp * psi_J, x=J)
-                    omegapp = omegap[ipp]
-                    if c_omega is None:
-                        zpp = impedance(w=omegapp + mws)
-                    else:
-                        zpp = impedance(w=omegapp + c_omega)
-                    B_m_pp[im, ip, ipp] = 1j * mws * (zpp / omegapp) * gmpp
 
         I0 = self.ring.total_current
         E0 = self.ring.energy
         C0 = self.ring.circum
+        kappa = _2PI * I0 * _c * _c / (E0 * C0)
         alpha = self.ring.mom_comp
         sigmae2 = self.ring.espread**2
 
-        B_mm_pp = _np.zeros((nr_ms, nr_ps, nr_ms, nr_ps), dtype=complex)
-        stren = _2PI * I0 * _c / (E0 * C0) / (alpha * sigmae2)
-        B_mm_pp[:, :, :, :] = stren * B_m_pp[:, :, None, :]
-        size = nr_ms * nr_ps
-        B_mm_pp = B_mm_pp.reshape(size, size)
-        D_mm_pp = _np.kron(_np.diag(ms * eff_ws), _np.eye(nr_ps))
-        return D_mm_pp + B_mm_pp
+        mws_arr = ms * eff_ws
+        has_feedback = feedback_transfer(eff_ws) != 0
+
+        if c_omega is None:
+            z_vals = _np.array([
+                impedance(w=omegap + mw) for mw in mws_arr
+            ])  # (nr_ms, nr_ps)
+            if has_feedback:
+                k_fb_vals = _np.array([
+                    feedback_transfer(mw) for mw in mws_arr
+                ])  # (nr_ms,)
+        else:
+            z_shared = impedance(
+                w=omegap + c_omega
+            )  # (nr_ps,), same for every m
+            z_vals = _np.tile(z_shared, (nr_ms, 1))
+            if has_feedback:
+                k_fb_shared = feedback_transfer(c_omega)
+                k_fb_vals = _np.full(nr_ms, k_fb_shared)
+
+        if not has_feedback:
+            stren = kappa / (alpha * _c * sigmae2)
+            B_m_pp = _np.zeros((nr_ms, nr_ps, nr_ps), dtype=complex)
+
+            for im, _ in enumerate(ms):
+                mws = mws_arr[im]
+                hm = hmps[im]  # (nr_ps, nr_J)
+                integrand = (
+                    hm[:, None, :]
+                    * hm.conj()[None, :, :]
+                    * psi_J[None, None, :]
+                )
+                g = _simps(integrand, x=J, axis=-1)  # (nr_ps, nr_ps)
+
+                zpp_over_wpp = z_vals[im] / omegap  # (nr_ps,), indexed by ipp
+                B_m_pp[im] = 1j * mws * g * zpp_over_wpp[None, :]
+
+            B_mm_pp = (
+                stren * B_m_pp[:, :, None, :] * _np.ones((1, 1, nr_ms, 1))
+            )
+            size = nr_ms * nr_ps
+            B_mm_pp = B_mm_pp.reshape(size, size)
+            D_mm_pp = _np.kron(_np.diag(mws_arr), _np.eye(nr_ps))
+            return D_mm_pp + B_mm_pp
+
+        # has_feedback == True
+        total_size = nr_ms * nr_ps
+        M_YY = _np.zeros((total_size, total_size), dtype=complex)
+        M_YU = _np.zeros((total_size, nr_ms), dtype=complex)
+        M_UY = _np.zeros((nr_ms, total_size), dtype=complex)
+        M_UU = _np.zeros((nr_ms, nr_ms), dtype=complex)
+
+        dpsi_dJ = -eff_ws * psi_J / (alpha * sigmae2 * _c)
+
+        for im, m in enumerate(ms):
+            mws = mws_arr[im]
+            row_start = im * nr_ps
+
+            hm = hmps[im]  # (nr_ps, nr_J)
+            zpp = z_vals[im]  # (nr_ps,)
+            k_fb = (
+                k_fb_vals[im] * kappa / (I0 * _c)
+            )  # scalar feedback gain for mode m
+
+            W_p = 1j * kappa * zpp / omegap  # (nr_ps,)
+
+            # diagonal (unperturbed) part
+            idx = row_start + _np.arange(nr_ps)
+            M_YY[idx, idx] += mws
+
+            integrand = (
+                hm.conj()[:, None, :] * hm[None, :, :] * dpsi_dJ[None, None, :]
+            )
+            M_grid = _simps(integrand, x=J, axis=-1)  # (nr_ps_ip, nr_ps_ipp)
+            block = -m * (W_p[:, None] * M_grid).T  # indexed [ipp, ip]
+            M_YY[row_start : row_start + nr_ps, :] += _np.tile(
+                block, (1, nr_ms)
+            )
+
+            f_m_arr = f_m[im]
+            f_minus_m = f_m_arr.conj()
+
+            N_val = _simps(
+                f_m_arr[None, :] * hm * dpsi_dJ[None, :], x=J, axis=-1
+            )
+            # Same value for every feedback-actuator column -> broadcast add.
+            M_YU[row_start : row_start + nr_ps, :] += (-m * k_fb * N_val)[
+                :, None
+            ]
+
+            P_val = _simps(
+                hm.conj() * f_minus_m[None, :] * dpsi_dJ[None, :], x=J, axis=-1
+            )
+            # Same value for every source m' block -> tile
+            M_UY[im, :] += _np.tile(-m * W_p * P_val, nr_ms)
+
+            Q_val = _simps(f_m_arr * f_minus_m * dpsi_dJ, x=J)
+            M_UU[im, im] += mws
+            M_UU[im, :] += -m * k_fb * Q_val
+        return _np.block([[M_YY, M_YU], [M_UY, M_UU]])
 
     def _get_effective_sync_freq(self, effsyncfreq):
         eqinfo = self.equilibrium_info
@@ -1824,13 +1981,14 @@ class LongitudinalEquilibrium:
         return eff_ws
 
     def _lebedev_determinant(self, big_omega, params):
-        hmps, ms, ps, cb_mode, reduced = params
+        hmps, ms, ps, cb_mode, reduced, k_fb = params
         bmat = self.lebedev_matrix(
             big_omega=big_omega,
             hmps=hmps,
             ms=ms,
             ps=ps,
             cb_mode=cb_mode,
+            feedback_transfer=k_fb,
             reduced=reduced,
             adsyncfreq=True,
         )
@@ -1838,10 +1996,21 @@ class LongitudinalEquilibrium:
         return [db.real, db.imag]
 
     def solve_lebedev(
-        self, x0, hmps, ms, ps, cb_mode, method='lm', tol=None, reduced=False
+        self,
+        x0,
+        hmps,
+        ms,
+        ps,
+        cb_mode,
+        feedback_transfer=None,
+        method='lm',
+        tol=None,
+        reduced=False,
     ):
         """Eq. (27) of Ref. [2]."""
-        params = (hmps, ms, ps, cb_mode, reduced)
+        if feedback_transfer is None:
+            feedback_transfer = ImpedanceSource.zero_transfer_func
+        params = (hmps, ms, ps, cb_mode, reduced, feedback_transfer)
         root = _root(
             _partial(self._lebedev_determinant, params=params),
             x0=x0,
@@ -1857,7 +2026,14 @@ class LongitudinalEquilibrium:
             return real_freq, growth_rate
 
     def solve_lebedev_constant_frequency(
-        self, hmps, ms, ps, cb_mode, effsyncfreq, big_omega=None
+        self,
+        hmps,
+        ms,
+        ps,
+        cb_mode,
+        effsyncfreq,
+        feedback_transfer,
+        big_omega=None,
     ):
         """."""
         bmat = self.lebedev_matrix(
@@ -1866,6 +2042,7 @@ class LongitudinalEquilibrium:
             ms,
             ps,
             cb_mode,
+            feedback_transfer,
             adsyncfreq=False,
             effsyncfreq=effsyncfreq,
         )
