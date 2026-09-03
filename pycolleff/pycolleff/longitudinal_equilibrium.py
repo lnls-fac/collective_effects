@@ -100,6 +100,7 @@ class ImpedanceSource:
 
         self.generator_amp = None
         self.generator_phase = None
+        self.generator_voltage = None
         self.calc_method = calc_method
         self.active_passive = active_passive
         self.feedback_method = self.FeedbackMethod.Phasor
@@ -726,6 +727,8 @@ class ImpedanceSource:
 
     def get_generator_voltage(self, longeq, beamload):
         """."""
+        if self.generator_voltage is not None:
+            return self.generator_voltage
         ref_amp = self.ref_amp
         ref_phase = self.ref_phase
         ref_phase_offset = self.ref_phase_offset
@@ -771,13 +774,28 @@ class ImpedanceSource:
             else:
                 amp = self.generator_amp
                 phase = self.generator_phase
-            _vg = longeq.ring.get_voltage_waveform(
-                longeq.zgrid, amplitude=amp, phase=phase, rfharmonic=harm_rf
-            )
+            if isinstance(amp, float):
+                _vg = longeq.ring.get_voltage_waveform(
+                    longeq.zgrid,
+                    amplitude=amp,
+                    phase=phase,
+                    rfharmonic=harm_rf,
+                )
+            else:
+                _vg = []
+                for ampi, phasei in zip(amp, phase, strict=False):
+                    _vgi = longeq.ring.get_voltage_waveform(
+                        longeq.zgrid,
+                        amplitude=ampi,
+                        phase=phasei,
+                        rfharmonic=harm_rf,
+                    )
+                    _vg.append(_vgi)
             _gen_amp = amp
             _gen_phase = phase
         self.generator_amp = _gen_amp
         self.generator_phase = _gen_phase
+        _vg = _np.array(_vg).reshape((-1, longeq.zgrid.size))
         return _vg
 
     def _create_freqs(self, rev_ang_freq, max_mode):
@@ -1991,7 +2009,7 @@ class LongitudinalEquilibrium:
                 'Consider calling '
                 'ImpedanceSource.group_impedance_sources(impedance_sources) '
                 'before creating LongitudinalEquilibrium to combine them and '
-                'speed up equilibrium solver.',
+                'speed up equilibrium solver.'
             )
 
     def _apply_anderson_acceleration(
