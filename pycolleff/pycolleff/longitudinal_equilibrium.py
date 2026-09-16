@@ -280,11 +280,14 @@ class ImpedanceSource:
         delay = self.loop_ctrl_delay
         kp, ki, kd = self.loop_ctrl_kpid
         gain = self.loop_ctrl_overall_gain
-        transfers = [
-            lambda w: TransferFunction.pid(w, wctrl, kp, ki, kd, gain),
-            lambda w: TransferFunction.delay(w, wctrl, delay),
-        ]
-        return TransferFunction.compose(transfers)(w)
+
+        def pidtf(w):
+            return TransferFunction.pid(w, wctrl, kp, ki, kd, gain)
+
+        def delaytf(w):
+            return TransferFunction.delay(w, wctrl, delay)
+
+        return TransferFunction.compose(pidtf, delaytf)(w)
 
     @property
     def beta_coupling(self):
