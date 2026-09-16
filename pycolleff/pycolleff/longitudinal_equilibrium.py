@@ -85,7 +85,7 @@ class ImpedanceSource:
         self.harm_rf = harm_rf
         self.ang_freq_rf = None
         self._loop_ctrl_freq = 0
-        self._loop_ctrl_transfer = self.zero_transfer_func
+        self._loop_ctrl_transfer = TransferFunction.zero
         self._loop_ctrl_overall_gain = 0
         self._loop_ctrl_kpid = [0, 0, 0]
         self._loop_ctrl_delay = 0
@@ -280,16 +280,11 @@ class ImpedanceSource:
         delay = self.loop_ctrl_delay
         kp, ki, kd = self.loop_ctrl_kpid
         gain = self.loop_ctrl_overall_gain
-        phase = wctrl * delay
-        exp_delay = _np.exp(-1j * delay * w)
-        exp_phase = _np.exp(1j * phase)
-        pid_ctrl = kp + ki / 1j / (w - wctrl + _EPS) + kd * 1j * (w - wctrl)
-        transfer = gain * pid_ctrl * exp_delay * exp_phase
-        return transfer
-
-    def zero_transfer_func(self, w):
-        """."""
-        return 0 * w
+        transfers = [
+            lambda w: TransferFunction.pid(w, wctrl, kp, ki, kd, gain),
+            lambda w: TransferFunction.delay(w, wctrl, delay),
+        ]
+        return TransferFunction.compose(transfers)(w)
 
     @property
     def beta_coupling(self):
@@ -940,6 +935,80 @@ class ImpedanceSourceGroup(ImpedanceSource):
         """."""
         names = ', '.join(src.name or repr(src) for src in self.sources)
         return f'ImpedanceSourceGroup(name={self.name!r}, sources=[{names}])'
+
+
+class TransferFunction:
+    """."""
+
+    @staticmethod
+    def zero(w):
+        """Zero transfer function."""
+        return _np.zeros_like(w, dtype=complex)
+
+    @staticmethod
+    def delay(w, wctrl, delay):
+        """Pure delay referenced to wctrl."""
+        dw = _np.asarray(w) - wctrl
+        return _np.exp(-1j * delay * dw)
+
+    @staticmethod
+    def low_pass(w, wctrl, wcut):
+        """First-order low-pass filter referenced to wctrl."""
+        dw = _np.asarray(w) - wctrl
+        return 1 / (1 + 1j * dw / wcut)
+
+    @staticmethod
+    def high_pass(w, wctrl, wcut):
+        """First-order high-pass filter referenced to wctrl."""
+        dw = _np.asarray(w) - wctrl
+        ratio = dw / wcut
+        return 1j * ratio / (1 + 1j * ratio)
+
+    @staticmethod
+    def constant(w, gain):
+        """Constant transfer function."""
+        return gain * _np.ones_like(w, dtype=complex)
+
+    @staticmethod
+    def integrator(w, wctrl, gain=1.0):
+        """Integrator referenced to wctrl."""
+        dw = _np.asarray(w) - wctrl
+        return gain / (1j * (dw + _EPS))
+
+    @staticmethod
+    def differentiator(w, wctrl, gain=1.0):
+        """Differentiator referenced to wctrl."""
+        dw = _np.asarray(w) - wctrl
+        return gain * 1j * dw
+
+    @staticmethod
+    def pid(w, wctrl, kp, ki, kd, gain=1.0):
+        """PID controller referenced to wctrl."""
+        controller = TransferFunction.constant(w, kp)
+        controller += TransferFunction.integrator(w, wctrl, ki)
+        controller += TransferFunction.differentiator(w, wctrl, kd)
+        return gain * controller
+
+    @staticmethod
+    def fir(w, coeffs, dt):
+        """FIR transfer function."""
+        w = _np.asarray(w)
+        coeffs = _np.asarray(coeffs)
+        idx = _np.arange(coeffs.size)
+        hfir = coeffs[:, None] * _np.exp(-1j * w[None, :] * idx[:, None] * dt)
+        return _np.sum(hfir, axis=0)
+
+    @staticmethod
+    def compose(*transfer_functions):
+        """Compose transfer functions."""
+
+        def transfer(w):
+            res = TransferFunction.constant(w, gain=1 + 0j)
+            for func in transfer_functions:
+                res *= func(w)
+            return res
+
+        return transfer
 
 
 class LongitudinalEquilibrium:
@@ -1679,8 +1748,8 @@ class LongitudinalEquilibrium:
         if big_omega is not None:
             c_omega = big_omega[0] + 1j * big_omega[1]
         if feedback_transfer is None:
-            feedback_transfer = ImpedanceSource.zero_transfer_func
-        f_m = self._auto_calc_fb_fourier_coeffs(ms)
+            feedback_transfer = TransferFunction.zero
+        f_m = self._calc_fb_fourier_coeffs(ms)
         if adsyncfreq:
             B_pp = self._fill_lebedev_matrix_adsyncfreq(
                 J,
@@ -1715,7 +1784,7 @@ class LongitudinalEquilibrium:
         )
         return B_mm_pp
 
-    def _auto_calc_fb_fourier_coeffs(self, ms):
+    def _calc_fb_fourier_coeffs(self, ms):
         z_grid = self.equilibrium_info['canonical_zj']
         nr_J = len(z_grid)
         nr_m = len(ms)
@@ -2009,7 +2078,7 @@ class LongitudinalEquilibrium:
     ):
         """Eq. (27) of Ref. [2]."""
         if feedback_transfer is None:
-            feedback_transfer = ImpedanceSource.zero_transfer_func
+            feedback_transfer = TransferFunction.zero
         params = (hmps, ms, ps, cb_mode, reduced, feedback_transfer)
         root = _root(
             _partial(self._lebedev_determinant, params=params),
@@ -2168,7 +2237,7 @@ class LongitudinalEquilibrium:
                 'Consider calling '
                 'ImpedanceSource.group_impedance_sources(impedance_sources) '
                 'before creating LongitudinalEquilibrium to combine them and '
-                'speed up equilibrium solver.',
+                'speed up equilibrium solver.'
             )
 
     def _apply_anderson_acceleration(
