@@ -1231,7 +1231,7 @@ class LongitudinalEquilibrium:
         return _np.abs(peak_harm_volt)
 
     def calc_distributions_from_voltage(self, total_voltage=None):
-        """."""
+        """Ref. [1]. Eqs. (42) and (43)"""
         if total_voltage is None:
             total_voltage = self.total_voltage
 
@@ -1820,6 +1820,7 @@ class LongitudinalEquilibrium:
         k_fb_omega *= kappa / (I0 * _c)
 
         if reduced:
+            # Ref. [2], Eq. (30)
             if _np.any(ms < 0):
                 raise ValueError('reduced=True but m < 0 identified')
             if k_fb_omega != 0:
@@ -1852,6 +1853,7 @@ class LongitudinalEquilibrium:
 
         for ip in range(nr_ps):
             for ipp in range(nr_ps):
+                # Ref. [2], Eq. (29)
                 g_pp = calc_kernel(
                     J, mdpsi_dJ_div, hmps[:, ip], hmps[:, ipp].conj()
                 )
@@ -1862,6 +1864,7 @@ class LongitudinalEquilibrium:
                     )
                     gpp_fb = -fb_multiplier * xi_p * eta_p
                     g_pp += gpp_fb
+                # Ref. [2], Eq. (28)
                 B_pp[ip, ipp] = zpp[ipp] * g_pp
 
                 # h_mpp = hmps[:, ipp].conj()
@@ -1880,6 +1883,7 @@ class LongitudinalEquilibrium:
                 # B_pp[ip, ipp] = zpp[ipp] * gpp
         B_pp *= 1j * kappa
         I_pp = _np.eye(nr_ps)
+        # Ref. [2], Eq. (28)
         return I_pp + B_pp
 
     def _fill_lebedev_matrix_constsyncfreq(
@@ -1939,6 +1943,7 @@ class LongitudinalEquilibrium:
             for im, _ in enumerate(ms):
                 mws = mws_arr[im]
                 hm = hmps[im]  # (nr_ps, nr_J)
+                # Ref. [2], Eq. (33)
                 integrand = (
                     hm[:, None, :]
                     * hm.conj()[None, :, :]
@@ -1955,6 +1960,7 @@ class LongitudinalEquilibrium:
             size = nr_ms * nr_ps
             B_mm_pp = B_mm_pp.reshape(size, size)
             D_mm_pp = _np.kron(_np.diag(mws_arr), _np.eye(nr_ps))
+            # Ref. [2], Eq. (32)
             return D_mm_pp + B_mm_pp
 
         # has_feedback == True
