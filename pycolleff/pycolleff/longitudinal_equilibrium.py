@@ -1815,28 +1815,8 @@ class LongitudinalEquilibrium:
         C0 = self.ring.circum
         kappa = _2PI * I0 * _c * _c / (E0 * C0)
 
-        try:
-            # Analytic impedance: supports complex frequencies
-            zpp = impedance(w=omegap + c_omega) / omegap
-        except TypeError:
-            # Tabulated impedance: use real frequencies
-            print(
-                'Impedance does not support complex frequencies; '
-                'using c_omega.real instead.'
-            )
-            zpp = impedance(w=omegap + c_omega.real) / omegap
-
-        try:
-            # Analytic transfer function: supports complex frequencies
-            k_fb_omega = feedback_transfer(c_omega)
-        except TypeError:
-            # Tabulated transfer function: use real frequencies
-            print(
-                'Feedback transfer function does not support complex '
-                'frequencies; using c_omega.real instead'
-            )
-            k_fb_omega = feedback_transfer(c_omega.real)
-
+        zpp = self._impedance_eval(impedance, w=omegap + c_omega) / omegap
+        k_fb_omega = self._feedback_transfer_eval(feedback_transfer, w=c_omega)
         k_fb_omega *= kappa / (I0 * _c)
 
         if reduced:
@@ -1927,23 +1907,29 @@ class LongitudinalEquilibrium:
         sigmae2 = self.ring.espread**2
 
         mws_arr = ms * eff_ws
-        has_feedback = feedback_transfer(eff_ws) != 0
+        has_feedback = (
+            self._feedback_transfer_eval(feedback_transfer, w=eff_ws) != 0
+        )
 
         if c_omega is None:
             z_vals = _np.array([
-                impedance(w=omegap + mw) for mw in mws_arr
+                self._impedance_eval(impedance, w=omegap + mw)
+                for mw in mws_arr
             ])  # (nr_ms, nr_ps)
             if has_feedback:
                 k_fb_vals = _np.array([
-                    feedback_transfer(mw) for mw in mws_arr
+                    self._feedback_transfer_eval(feedback_transfer, w=mw)
+                    for mw in mws_arr
                 ])  # (nr_ms,)
         else:
-            z_shared = impedance(
-                w=omegap + c_omega
+            z_shared = self._impedance_eval(
+                impedance, w=omegap + c_omega
             )  # (nr_ps,), same for every m
             z_vals = _np.tile(z_shared, (nr_ms, 1))
             if has_feedback:
-                k_fb_shared = feedback_transfer(c_omega)
+                k_fb_shared = self._feedback_transfer_eval(
+                    feedback_transfer, w=c_omega
+                )
                 k_fb_vals = _np.full(nr_ms, k_fb_shared)
 
         if not has_feedback:
@@ -2513,3 +2499,31 @@ class LongitudinalEquilibrium:
         acos /= _np.sqrt((z0 * z0 + p0 * p0) * (z * z + p * p))
         acos = _np.clip(acos, -1, 1)
         return _np.arccos(acos)
+
+    @staticmethod
+    def _impedance_eval(impedance, w):
+        try:
+            # Analytic impedance: supports complex frequencies
+            zpp = impedance(w=w)
+        except TypeError:
+            # Tabulated impedance: use real frequencies
+            print(
+                'Impedance does not support complex frequencies; '
+                'using only real part instead.'
+            )
+            zpp = impedance(w=w.real)
+        return zpp
+
+    @staticmethod
+    def _feedback_transfer_eval(transfer, w):
+        try:
+            # Analytic transfer function: supports complex frequencies
+            k_fb_omega = transfer(w)
+        except TypeError:
+            # Tabulated transfer function: use real frequencies
+            print(
+                'Feedback transfer function does not support complex '
+                'frequencies; using c_omega.real instead'
+            )
+            k_fb_omega = transfer(w.real)
+        return k_fb_omega
