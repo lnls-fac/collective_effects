@@ -1914,7 +1914,6 @@ class LongitudinalEquilibrium:
         has_feedback = (
             self._feedback_transfer_eval(feedback_transfer, w=eff_ws) != 0
         )
-
         if c_omega is None:
             z_vals = _np.array([
                 self._impedance_eval(impedance, w=omegap + mw)
@@ -1936,41 +1935,17 @@ class LongitudinalEquilibrium:
                 )
                 k_fb_vals = _np.full(nr_ms, k_fb_shared)
 
-        if not has_feedback:
-            stren = kappa / (alpha * _c * sigmae2)
-            B_m_pp = _np.zeros((nr_ms, nr_ps, nr_ps), dtype=complex)
-
-            for im, _ in enumerate(ms):
-                mws = mws_arr[im]
-                hm = hmps[im]  # (nr_ps, nr_J)
-                # Ref. [2], Eq. (33)
-                integrand = (
-                    hm[:, None, :]
-                    * hm.conj()[None, :, :]
-                    * psi_J[None, None, :]
-                )
-                g = _simps(integrand, x=J, axis=-1)  # (nr_ps, nr_ps)
-
-                zpp_over_wpp = z_vals[im] / omegap  # (nr_ps,), indexed by ipp
-                B_m_pp[im] = 1j * mws * g * zpp_over_wpp[None, :]
-
-            B_mm_pp = (
-                stren * B_m_pp[:, :, None, :] * _np.ones((1, 1, nr_ms, 1))
-            )
-            size = nr_ms * nr_ps
-            B_mm_pp = B_mm_pp.reshape(size, size)
-            D_mm_pp = _np.kron(_np.diag(mws_arr), _np.eye(nr_ps))
-            # Ref. [2], Eq. (32)
-            return D_mm_pp + B_mm_pp
-
-        # has_feedback == True
         total_size = nr_ms * nr_ps
         M_YY = _np.zeros((total_size, total_size), dtype=complex)
-        M_YU = _np.zeros((total_size, nr_ms), dtype=complex)
-        M_UY = _np.zeros((nr_ms, total_size), dtype=complex)
-        M_UU = _np.zeros((nr_ms, nr_ms), dtype=complex)
+        if has_feedback:
+            M_YU = _np.zeros((total_size, nr_ms), dtype=complex)
+            M_UY = _np.zeros((nr_ms, total_size), dtype=complex)
+            M_UU = _np.zeros((nr_ms, nr_ms), dtype=complex)
 
         dpsi_dJ = -eff_ws * psi_J / (alpha * sigmae2 * _c)
+
+        def _product(J, weight, Am, Bm):
+            return _simps(weight * Am * Bm, x=J, axis=-1)
 
         for im, m in enumerate(ms):
             mws = mws_arr[im]
@@ -1978,45 +1953,52 @@ class LongitudinalEquilibrium:
 
             hm = hmps[im]  # (nr_ps, nr_J)
             zpp = z_vals[im]  # (nr_ps,)
-            k_fb = (
-                k_fb_vals[im] * kappa / (I0 * _c)
-            )  # scalar feedback gain for mode m
-
             W_p = 1j * kappa * zpp / omegap  # (nr_ps,)
 
             # diagonal (unperturbed) part
             idx = row_start + _np.arange(nr_ps)
             M_YY[idx, idx] += mws
 
-            integrand = (
-                hm.conj()[:, None, :] * hm[None, :, :] * dpsi_dJ[None, None, :]
-            )
-            M_grid = _simps(integrand, x=J, axis=-1)  # (nr_ps_ip, nr_ps_ipp)
+            M_grid = _product(
+                J=J,
+                weight=dpsi_dJ[None, None, :],
+                Am=hm[None, :, :],
+                Bm=hm.conj()[:, None, :],
+            )  # (nr_ps_ip, nr_ps_ipp)
             block = -m * (W_p[:, None] * M_grid).T  # indexed [ipp, ip]
             M_YY[row_start : row_start + nr_ps, :] += _np.tile(
                 block, (1, nr_ms)
             )
+            if has_feedback:
+                k_fb = (
+                    k_fb_vals[im] * kappa / (I0 * _c)
+                )  # scalar feedback gain for mode m
+                f_m_arr = f_m[im]
 
-            f_m_arr = f_m[im]
-            f_minus_m = f_m_arr.conj()
+                N_val = _product(
+                    J=J, weight=dpsi_dJ[None, :], Am=f_m_arr[None, :], Bm=hm
+                )
+                # Same value for every feedback-actuator column
+                M_YU[row_start : row_start + nr_ps, :] += (-m * k_fb * N_val)[
+                    :, None
+                ]
 
-            N_val = _simps(
-                f_m_arr[None, :] * hm * dpsi_dJ[None, :], x=J, axis=-1
-            )
-            # Same value for every feedback-actuator column -> broadcast add.
-            M_YU[row_start : row_start + nr_ps, :] += (-m * k_fb * N_val)[
-                :, None
-            ]
+                P_val = _product(
+                    J=J,
+                    weight=dpsi_dJ[None, :],
+                    Am=f_m_arr.conj()[None, :],
+                    Bm=hm.conj(),
+                )
+                # Same value for every source m' block -> tile
+                M_UY[im, :] += _np.tile(-m * W_p * P_val, nr_ms)
 
-            P_val = _simps(
-                hm.conj() * f_minus_m[None, :] * dpsi_dJ[None, :], x=J, axis=-1
-            )
-            # Same value for every source m' block -> tile
-            M_UY[im, :] += _np.tile(-m * W_p * P_val, nr_ms)
-
-            Q_val = _simps(f_m_arr * f_minus_m * dpsi_dJ, x=J)
-            M_UU[im, im] += mws
-            M_UU[im, :] += -m * k_fb * Q_val
+                Q_val = _product(
+                    J=J, weight=dpsi_dJ, Am=f_m_arr, Bm=f_m_arr.conj()
+                )
+                M_UU[im, im] += mws
+                M_UU[im, :] += -m * k_fb * Q_val
+        if not has_feedback:
+            return M_YY
         return _np.block([[M_YY, M_YU], [M_UY, M_UU]])
 
     def _get_effective_sync_freq(self, effsyncfreq):
@@ -2093,7 +2075,7 @@ class LongitudinalEquilibrium:
         ps,
         cb_mode,
         effsyncfreq,
-        feedback_transfer,
+        feedback_transfer=None,
         big_omega=None,
     ):
         """."""
@@ -2103,7 +2085,7 @@ class LongitudinalEquilibrium:
             ms,
             ps,
             cb_mode,
-            feedback_transfer,
+            feedback_transfer=feedback_transfer,
             adsyncfreq=False,
             effsyncfreq=effsyncfreq,
         )
