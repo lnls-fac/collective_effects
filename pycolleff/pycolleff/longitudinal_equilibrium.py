@@ -1815,16 +1815,29 @@ class LongitudinalEquilibrium:
         C0 = self.ring.circum
         kappa = _2PI * I0 * _c * _c / (E0 * C0)
 
-        # only analytic impedances accept complex frequencies
-        zpp = impedance(w=omegap + c_omega) / omegap
-        k_fb_omega = feedback_transfer(c_omega)
+        try:
+            # Analytic impedance: supports complex frequencies
+            zpp = impedance(w=omegap + c_omega) / omegap
+        except TypeError:
+            # Tabulated impedance: use real frequencies
+            print(
+                'Impedance does not support complex frequencies; '
+                'using c_omega.real instead.'
+            )
+            zpp = impedance(w=omegap + c_omega.real) / omegap
+
+        try:
+            # Analytic transfer function: supports complex frequencies
+            k_fb_omega = feedback_transfer(c_omega)
+        except TypeError:
+            # Tabulated transfer function: use real frequencies
+            print(
+                'Feedback transfer function does not support complex '
+                'frequencies; using c_omega.real instead'
+            )
+            k_fb_omega = feedback_transfer(c_omega.real)
+
         k_fb_omega *= kappa / (I0 * _c)
-
-        # more general impedances
-        # zpp = impedance(w=omegap + c_omega.real) / omegap
-
-        # wavg = _2PI * eqinfo["avg_sync_freq"]
-        # zpp = impedance(w=omegap + wavg) / omegap
 
         if reduced:
             if _np.any(ms < 0):
