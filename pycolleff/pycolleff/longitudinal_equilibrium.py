@@ -997,18 +997,6 @@ class TransferFunction:
         hfir = coeffs[:, None] * _np.exp(-1j * w[None, :] * idx[:, None] * dt)
         return _np.sum(hfir, axis=0)
 
-    @staticmethod
-    def compose(*transfer_functions):
-        """Compose transfer functions."""
-
-        def transfer(w):
-            res = TransferFunction.constant(w, gain=1 + 0j)
-            for func in transfer_functions:
-                res *= func(w)
-            return res
-
-        return transfer
-
 
 class LongitudinalEquilibrium:
     """Self-consistent longitudinal equilibrium calculations.
