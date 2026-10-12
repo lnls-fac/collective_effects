@@ -85,7 +85,7 @@ class ImpedanceSource:
         self.harm_rf = harm_rf
         self.ang_freq_rf = None
         self._loop_ctrl_freq = 0
-        self._loop_ctrl_transfer = self.zero_transfer_func
+        self._loop_ctrl_transfer = TransferFunction.zero
         self._loop_ctrl_overall_gain = 0
         self._loop_ctrl_kpid = [0, 0, 0]
         self._loop_ctrl_delay = 0
@@ -280,16 +280,10 @@ class ImpedanceSource:
         delay = self.loop_ctrl_delay
         kp, ki, kd = self.loop_ctrl_kpid
         gain = self.loop_ctrl_overall_gain
-        phase = wctrl * delay
-        exp_delay = _np.exp(-1j * delay * w)
-        exp_phase = _np.exp(1j * phase)
-        pid_ctrl = kp + ki / 1j / (w - wctrl + _EPS) + kd * 1j * (w - wctrl)
-        transfer = gain * pid_ctrl * exp_delay * exp_phase
-        return transfer
 
-    def zero_transfer_func(self, w):
-        """."""
-        return 0 * w
+        trf = TransferFunction.pid(w, wctrl, kp, ki, kd, gain)
+        trf *= TransferFunction.delay(w, wctrl, delay)
+        return trf
 
     @property
     def beta_coupling(self):
@@ -942,6 +936,68 @@ class ImpedanceSourceGroup(ImpedanceSource):
         return f'ImpedanceSourceGroup(name={self.name!r}, sources=[{names}])'
 
 
+class TransferFunction:
+    """."""
+
+    @staticmethod
+    def zero(w):
+        """Zero transfer function."""
+        return _np.zeros_like(w, dtype=complex)
+
+    @staticmethod
+    def delay(w, wctrl, delay):
+        """Pure delay referenced to wctrl."""
+        dw = _np.asarray(w) - wctrl
+        return _np.exp(-1j * delay * dw)
+
+    @staticmethod
+    def low_pass(w, wctrl, wcut):
+        """First-order low-pass filter referenced to wctrl."""
+        dw = _np.asarray(w) - wctrl
+        return 1 / (1 + 1j * dw / wcut)
+
+    @staticmethod
+    def high_pass(w, wctrl, wcut):
+        """First-order high-pass filter referenced to wctrl."""
+        dw = _np.asarray(w) - wctrl
+        ratio = dw / wcut
+        return 1j * ratio / (1 + 1j * ratio)
+
+    @staticmethod
+    def constant(w, gain):
+        """Constant transfer function."""
+        return gain * _np.ones_like(w, dtype=complex)
+
+    @staticmethod
+    def integrator(w, wctrl, gain=1.0):
+        """Integrator referenced to wctrl."""
+        dw = _np.asarray(w) - wctrl
+        return gain / (1j * (dw + _EPS))
+
+    @staticmethod
+    def differentiator(w, wctrl, gain=1.0):
+        """Differentiator referenced to wctrl."""
+        dw = _np.asarray(w) - wctrl
+        return gain * 1j * dw
+
+    @staticmethod
+    def pid(w, wctrl, kp, ki, kd, gain=1.0):
+        """PID controller referenced to wctrl."""
+        controller = TransferFunction.constant(w, kp)
+        controller += TransferFunction.integrator(w, wctrl, ki)
+        controller += TransferFunction.differentiator(w, wctrl, kd)
+        return gain * controller
+
+    @staticmethod
+    def fir(w, coeffs, dt):
+        """FIR transfer function."""
+        w = _np.asarray(w)
+        coeffs = _np.asarray(coeffs)
+        idx = _np.arange(coeffs.size)
+        hfir = coeffs[:, None] * _np.exp(-1j * w[None, :] * idx[:, None] * dt)
+        return _np.sum(hfir, axis=0)
+
+
 class LongitudinalEquilibrium:
     """Self-consistent longitudinal equilibrium calculations.
 
@@ -1175,7 +1231,7 @@ class LongitudinalEquilibrium:
         return _np.abs(peak_harm_volt)
 
     def calc_distributions_from_voltage(self, total_voltage=None):
-        """."""
+        """Ref. [1]. Eqs. (42) and (43)"""
         if total_voltage is None:
             total_voltage = self.total_voltage
 
@@ -1656,6 +1712,7 @@ class LongitudinalEquilibrium:
         ms,
         ps,
         cb_mode,
+        feedback_transfer=None,
         reduced=False,
         adsyncfreq=True,
         effsyncfreq='center',
@@ -1677,6 +1734,9 @@ class LongitudinalEquilibrium:
         c_omega = None
         if big_omega is not None:
             c_omega = big_omega[0] + 1j * big_omega[1]
+        if feedback_transfer is None:
+            feedback_transfer = TransferFunction.zero
+        f_m = self._calc_fb_fourier_coeffs(ms)
         if adsyncfreq:
             B_pp = self._fill_lebedev_matrix_adsyncfreq(
                 J,
@@ -1689,6 +1749,8 @@ class LongitudinalEquilibrium:
                 hmps,
                 self.get_impedance,
                 reduced,
+                feedback_transfer,
+                f_m,
             )
             return B_pp
 
@@ -1696,12 +1758,50 @@ class LongitudinalEquilibrium:
         eff_ws = self._get_effective_sync_freq(effsyncfreq)
 
         B_mm_pp = self._fill_lebedev_matrix_constsyncfreq(
-            J, psi_J, eff_ws, c_omega, omegap, ms, hmps, self.get_impedance
+            J,
+            psi_J,
+            eff_ws,
+            c_omega,
+            omegap,
+            ms,
+            hmps,
+            self.get_impedance,
+            feedback_transfer,
+            f_m,
         )
         return B_mm_pp
 
+    def _calc_fb_fourier_coeffs(self, ms):
+        z_grid = self.equilibrium_info['canonical_zj']
+        nr_J = len(z_grid)
+        nr_m = len(ms)
+        f_m = _np.zeros((nr_m, nr_J), dtype=complex)
+        for i in range(nr_J):
+            z_orbit = _np.array(z_grid[i])
+            zsize = z_orbit.size
+            if zsize == 0:
+                continue
+            phi = _np.linspace(0, _2PI, zsize, endpoint=False)
+            dphi = _2PI / zsize
+            arg = -1j * ms[:, None] * phi[None, :]
+            intg = z_orbit[None, :] * _ne.evaluate('exp(arg)')
+            f_m[:, i] = _mytrapz(intg, dphi)
+        return f_m / _2PI
+
     def _fill_lebedev_matrix_adsyncfreq(
-        self, J, psi_J, ws_J, c_omega, omegap, ps, ms, hmps, impedance, reduced
+        self,
+        J,
+        psi_J,
+        ws_J,
+        c_omega,
+        omegap,
+        ps,
+        ms,
+        hmps,
+        impedance,
+        reduced,
+        feedback_transfer,
+        f_m,
     ):
         nr_ps = ps.size
         B_pp = _np.zeros((nr_ps, nr_ps), dtype=complex)
@@ -1710,18 +1810,21 @@ class LongitudinalEquilibrium:
         sigmae2 = self.ring.espread**2
         dpsi_dJ = -ws_J * psi_J / (alpha * sigmae2 * _c)
 
-        # only analytic impedances accept complex frequencies
-        zpp = impedance(w=omegap + c_omega) / omegap
+        I0 = self.ring.total_current
+        E0 = self.ring.energy
+        C0 = self.ring.circum
+        kappa = _2PI * I0 * _c * _c / (E0 * C0)
 
-        # more general impedances
-        # zpp = impedance(w=omegap + c_omega.real) / omegap
-
-        # wavg = _2PI * eqinfo["avg_sync_freq"]
-        # zpp = impedance(w=omegap + wavg) / omegap
+        zpp = self._impedance_eval(impedance, w=omegap + c_omega) / omegap
+        k_fb_omega = self._feedback_transfer_eval(feedback_transfer, w=c_omega)
+        k_fb_omega *= kappa / (I0 * _c)
 
         if reduced:
+            # Ref. [2], Eq. (30)
             if _np.any(ms < 0):
                 raise ValueError('reduced=True but m < 0 identified')
+            if k_fb_omega != 0:
+                raise ValueError('k_fb!=0 but m < 0 identified')
             m2wJ2 = (ms[:, None] * ws_J) ** 2
             m2wJ = ms[:, None] ** 2 * ws_J
             mdpsi_dJ_div = 2 * m2wJ * dpsi_dJ / (c_omega * c_omega - m2wJ2)
@@ -1730,7 +1833,7 @@ class LongitudinalEquilibrium:
                 ms[:, None] * dpsi_dJ / (c_omega - ms[:, None] * ws_J)
             )
 
-        idx_close = _np.zeros_like(ws_J)
+        # idx_close = _np.zeros_like(ws_J)
         # if ws_J.min() < c_omega.real < ws_J.max():
         #     # print('here')
         #     # print(c_omega.imag)
@@ -1738,68 +1841,165 @@ class LongitudinalEquilibrium:
         #         idx_close = _np.isclose(c_omega.real, ws_J, rtol=1e-5)
         #         print(_np.sum(idx_close))
 
-        dpsi_dJ_ws = dpsi_dJ / ws_J
+        # dpsi_dJ_ws = dpsi_dJ / ws_J
+
+        def calc_kernel(J, mdpsi_dJ_div, Am, Bm):
+            itg = (mdpsi_dJ_div * Am * Bm).sum(axis=0)
+            return _simps(itg, x=J)
+
+        if k_fb_omega != 0.0:
+            s_fb = calc_kernel(J, mdpsi_dJ_div, f_m, f_m.conj())
+            fb_multiplier = k_fb_omega / (1.0 + k_fb_omega * s_fb)
 
         for ip in range(nr_ps):
-            h_mp = hmps[:, ip]
             for ipp in range(nr_ps):
-                h_mpp = hmps[:, ipp].conj()
-                if _np.sum(idx_close):
-                    # TODO: EXPLAIN HERE
-                    rgpp = h_mp * h_mpp * dpsi_dJ_ws[None, :]
-                    rgpp = rgpp[:, idx_close].sum(axis=-1)
-                    gpp = _2PI * _np.sign(c_omega.imag) * rgpp
-                    if _np.sum(~idx_close):
-                        itg = (h_mp * h_mpp * mdpsi_dJ_div).sum(axis=0)
-                        igpp = _simps(itg[:, ~idx_close], x=J[~idx_close])
-                        gpp += 1j * igpp
-                else:
-                    itg = (h_mp * h_mpp * mdpsi_dJ_div).sum(axis=0)
-                    gpp = 1j * _simps(itg, x=J)
-                B_pp[ip, ipp] = zpp[ipp] * gpp
+                # Ref. [2], Eq. (29)
+                g_pp = calc_kernel(
+                    J, mdpsi_dJ_div, hmps[:, ip], hmps[:, ipp].conj()
+                )
+                if k_fb_omega != 0.0:
+                    xi_p = calc_kernel(J, mdpsi_dJ_div, hmps[:, ip], f_m)
+                    eta_p = calc_kernel(
+                        J, mdpsi_dJ_div, hmps[:, ipp].conj(), f_m.conj()
+                    )
+                    gpp_fb = -fb_multiplier * xi_p * eta_p
+                    g_pp += gpp_fb
+                # Ref. [2], Eq. (28)
+                B_pp[ip, ipp] = zpp[ipp] * g_pp
 
-        I0 = self.ring.total_current
-        E0 = self.ring.energy
-        C0 = self.ring.circum
-        stren = _2PI * I0 * _c * _c / (E0 * C0)
-        B_pp *= stren
+                # h_mpp = hmps[:, ipp].conj()
+                # if _np.sum(idx_close):
+                #     # TODO: EXPLAIN HERE
+                #     rgpp = h_mp * h_mpp * dpsi_dJ_ws[None, :]
+                #     rgpp = rgpp[:, idx_close].sum(axis=-1)
+                #     gpp = _2PI * _np.sign(c_omega.imag) * rgpp
+                #     if _np.sum(~idx_close):
+                #         itg = (h_mp * h_mpp * mdpsi_dJ_div).sum(axis=0)
+                #         igpp = _simps(itg[:, ~idx_close], x=J[~idx_close])
+                #         gpp += 1j * igpp
+                # else:
+                #     itg = (h_mp * h_mpp * mdpsi_dJ_div).sum(axis=0)
+                #     gpp = 1j * _simps(itg, x=J)
+                # B_pp[ip, ipp] = zpp[ipp] * gpp
+        B_pp *= 1j * kappa
         I_pp = _np.eye(nr_ps)
+        # Ref. [2], Eq. (28)
         return I_pp + B_pp
 
     def _fill_lebedev_matrix_constsyncfreq(
-        self, J, psi_J, eff_ws, c_omega, omegap, ms, hmps, impedance
+        self,
+        J,
+        psi_J,
+        eff_ws,
+        c_omega,
+        omegap,
+        ms,
+        hmps,
+        impedance,
+        feedback_transfer,
+        f_m,
     ):
+
         nr_ms = ms.size
         nr_ps = omegap.size
-
-        B_m_pp = _np.zeros((nr_ms, nr_ps, nr_ps), dtype=complex)
-        for im, m in enumerate(ms):
-            mws = m * eff_ws
-            for ip in range(nr_ps):
-                h_mp = hmps[im, ip]
-                for ipp in range(nr_ps):
-                    h_mpp = hmps[im, ipp].conj()
-                    gmpp = _simps(h_mp * h_mpp * psi_J, x=J)
-                    omegapp = omegap[ipp]
-                    if c_omega is None:
-                        zpp = impedance(w=omegapp + mws)
-                    else:
-                        zpp = impedance(w=omegapp + c_omega)
-                    B_m_pp[im, ip, ipp] = 1j * mws * (zpp / omegapp) * gmpp
 
         I0 = self.ring.total_current
         E0 = self.ring.energy
         C0 = self.ring.circum
+        kappa = _2PI * I0 * _c * _c / (E0 * C0)
         alpha = self.ring.mom_comp
         sigmae2 = self.ring.espread**2
 
-        B_mm_pp = _np.zeros((nr_ms, nr_ps, nr_ms, nr_ps), dtype=complex)
-        stren = _2PI * I0 * _c / (E0 * C0) / (alpha * sigmae2)
-        B_mm_pp[:, :, :, :] = stren * B_m_pp[:, :, None, :]
-        size = nr_ms * nr_ps
-        B_mm_pp = B_mm_pp.reshape(size, size)
-        D_mm_pp = _np.kron(_np.diag(ms * eff_ws), _np.eye(nr_ps))
-        return D_mm_pp + B_mm_pp
+        mws_arr = ms * eff_ws
+        has_feedback = (
+            self._feedback_transfer_eval(feedback_transfer, w=eff_ws) != 0
+        )
+        if c_omega is None:
+            z_vals = _np.array([
+                self._impedance_eval(impedance, w=omegap + mw)
+                for mw in mws_arr
+            ])  # (nr_ms, nr_ps)
+            if has_feedback:
+                k_fb_vals = _np.array([
+                    self._feedback_transfer_eval(feedback_transfer, w=mw)
+                    for mw in mws_arr
+                ])  # (nr_ms,)
+        else:
+            z_shared = self._impedance_eval(
+                impedance, w=omegap + c_omega
+            )  # (nr_ps,), same for every m
+            z_vals = _np.tile(z_shared, (nr_ms, 1))
+            if has_feedback:
+                k_fb_shared = self._feedback_transfer_eval(
+                    feedback_transfer, w=c_omega
+                )
+                k_fb_vals = _np.full(nr_ms, k_fb_shared)
+
+        total_size = nr_ms * nr_ps
+        M_YY = _np.zeros((total_size, total_size), dtype=complex)
+        if has_feedback:
+            M_YU = _np.zeros((total_size, nr_ms), dtype=complex)
+            M_UY = _np.zeros((nr_ms, total_size), dtype=complex)
+            M_UU = _np.zeros((nr_ms, nr_ms), dtype=complex)
+
+        dpsi_dJ = -eff_ws * psi_J / (alpha * sigmae2 * _c)
+
+        def _product(J, weight, Am, Bm):
+            return _simps(weight * Am * Bm, x=J, axis=-1)
+
+        for im, m in enumerate(ms):
+            mws = mws_arr[im]
+            row_start = im * nr_ps
+
+            hm = hmps[im]  # (nr_ps, nr_J)
+            zpp = z_vals[im]  # (nr_ps,)
+            W_p = 1j * kappa * zpp / omegap  # (nr_ps,)
+
+            # diagonal (unperturbed) part
+            idx = row_start + _np.arange(nr_ps)
+            M_YY[idx, idx] += mws
+
+            M_grid = _product(
+                J=J,
+                weight=dpsi_dJ[None, None, :],
+                Am=hm[None, :, :],
+                Bm=hm.conj()[:, None, :],
+            )  # (nr_ps_ip, nr_ps_ipp)
+            block = -m * (W_p[:, None] * M_grid).T  # indexed [ipp, ip]
+            M_YY[row_start : row_start + nr_ps, :] += _np.tile(
+                block, (1, nr_ms)
+            )
+            if has_feedback:
+                k_fb = (
+                    k_fb_vals[im] * kappa / (I0 * _c)
+                )  # scalar feedback gain for mode m
+                f_m_arr = f_m[im]
+
+                N_val = _product(
+                    J=J, weight=dpsi_dJ[None, :], Am=f_m_arr[None, :], Bm=hm
+                )
+                # Same value for every feedback-actuator column
+                M_YU[row_start : row_start + nr_ps, :] += (-m * k_fb * N_val)[
+                    :, None
+                ]
+
+                P_val = _product(
+                    J=J,
+                    weight=dpsi_dJ[None, :],
+                    Am=f_m_arr.conj()[None, :],
+                    Bm=hm.conj(),
+                )
+                # Same value for every source m' block -> tile
+                M_UY[im, :] += _np.tile(-m * W_p * P_val, nr_ms)
+
+                Q_val = _product(
+                    J=J, weight=dpsi_dJ, Am=f_m_arr, Bm=f_m_arr.conj()
+                )
+                M_UU[im, im] += mws
+                M_UU[im, :] += -m * k_fb * Q_val
+        if not has_feedback:
+            return M_YY
+        return _np.block([[M_YY, M_YU], [M_UY, M_UU]])
 
     def _get_effective_sync_freq(self, effsyncfreq):
         eqinfo = self.equilibrium_info
@@ -1824,13 +2024,14 @@ class LongitudinalEquilibrium:
         return eff_ws
 
     def _lebedev_determinant(self, big_omega, params):
-        hmps, ms, ps, cb_mode, reduced = params
+        hmps, ms, ps, cb_mode, reduced, k_fb = params
         bmat = self.lebedev_matrix(
             big_omega=big_omega,
             hmps=hmps,
             ms=ms,
             ps=ps,
             cb_mode=cb_mode,
+            feedback_transfer=k_fb,
             reduced=reduced,
             adsyncfreq=True,
         )
@@ -1838,10 +2039,21 @@ class LongitudinalEquilibrium:
         return [db.real, db.imag]
 
     def solve_lebedev(
-        self, x0, hmps, ms, ps, cb_mode, method='lm', tol=None, reduced=False
+        self,
+        x0,
+        hmps,
+        ms,
+        ps,
+        cb_mode,
+        feedback_transfer=None,
+        method='lm',
+        tol=None,
+        reduced=False,
     ):
         """Eq. (27) of Ref. [2]."""
-        params = (hmps, ms, ps, cb_mode, reduced)
+        if feedback_transfer is None:
+            feedback_transfer = TransferFunction.zero
+        params = (hmps, ms, ps, cb_mode, reduced, feedback_transfer)
         root = _root(
             _partial(self._lebedev_determinant, params=params),
             x0=x0,
@@ -1857,7 +2069,14 @@ class LongitudinalEquilibrium:
             return real_freq, growth_rate
 
     def solve_lebedev_constant_frequency(
-        self, hmps, ms, ps, cb_mode, effsyncfreq, big_omega=None
+        self,
+        hmps,
+        ms,
+        ps,
+        cb_mode,
+        effsyncfreq,
+        feedback_transfer=None,
+        big_omega=None,
     ):
         """."""
         bmat = self.lebedev_matrix(
@@ -1866,6 +2085,7 @@ class LongitudinalEquilibrium:
             ms,
             ps,
             cb_mode,
+            feedback_transfer=feedback_transfer,
             adsyncfreq=False,
             effsyncfreq=effsyncfreq,
         )
@@ -1991,7 +2211,7 @@ class LongitudinalEquilibrium:
                 'Consider calling '
                 'ImpedanceSource.group_impedance_sources(impedance_sources) '
                 'before creating LongitudinalEquilibrium to combine them and '
-                'speed up equilibrium solver.',
+                'speed up equilibrium solver.'
             )
 
     def _apply_anderson_acceleration(
@@ -2267,3 +2487,31 @@ class LongitudinalEquilibrium:
         acos /= _np.sqrt((z0 * z0 + p0 * p0) * (z * z + p * p))
         acos = _np.clip(acos, -1, 1)
         return _np.arccos(acos)
+
+    @staticmethod
+    def _impedance_eval(impedance, w):
+        try:
+            # Analytic impedance: supports complex frequencies
+            zpp = impedance(w=w)
+        except TypeError:
+            # Tabulated impedance: use real frequencies
+            print(
+                'Impedance does not support complex frequencies; '
+                'using only real part instead.'
+            )
+            zpp = impedance(w=w.real)
+        return zpp
+
+    @staticmethod
+    def _feedback_transfer_eval(transfer, w):
+        try:
+            # Analytic transfer function: supports complex frequencies
+            k_fb_omega = transfer(w)
+        except TypeError:
+            # Tabulated transfer function: use real frequencies
+            print(
+                'Feedback transfer function does not support complex '
+                'frequencies; using c_omega.real instead'
+            )
+            k_fb_omega = transfer(w.real)
+        return k_fb_omega
